@@ -1,0 +1,409 @@
+---
+title: "Normalization vol. 2"
+author: "Kacper Kaszuba"
+date: "`r Sys.Date()`"
+output: 
+    html_document:
+        toc: true
+        toc_float: 
+            collapsed: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, fig.align='center')
+
+transform_M <- function(i, df) {
+    if (df[i,2] == 22) {
+        return(median(df[df[,2] == 22,1]))
+    } else if (df[i,2] == 23) {
+        return(median(df[df[,2] == 23,1]))
+    } else {
+        return(median(df[df[,2] == 24,1]))
+    }
+}
+
+plothist <- function(df, title='') {
+    if (!is.data.frame(df)) { df <- as.data.frame(df)}
+    
+    # Assuming LFQ_KO is our data frame with at least 3 columns
+    # Reshape the data to a long format
+    df <- df %>%
+      pivot_longer(cols = 1:3, names_to = "Rep", values_to = "LFQValue")
+    
+    # Plot all histograms on the same plot using ggplot
+    ggplot(df, aes(x = LFQValue, fill = Rep)) +
+      geom_histogram(alpha = 0.4, position = "identity", bins = 30) +
+      labs(title = paste("Histograms of Columns", title), x = "Values", y = "Frequency") +
+      theme(legend.title = element_blank())
+}
+
+ordernorm <- function(df) {
+    LFQ.22 <- bestNormalize::orderNorm(df[,1])$x.t
+    LFQ.23 <- bestNormalize::orderNorm(df[,2])$x.t
+    LFQ.24 <- bestNormalize::orderNorm(df[,3])$x.t
+    
+    if (startsWith(x = colnames(df)[1], 'KO')) {
+        return(data.frame(KO_TOTALS_22 = LFQ.22,
+                          KO_TOTALS_23 = LFQ.23,
+                          KO_TOTALS_24 = LFQ.24))
+    } else {
+        return(data.frame(WT_TOTALS_22 = LFQ.22,
+                          WT_TOTALS_23 = LFQ.23,
+                          WT_TOTALS_24 = LFQ.24))
+    }
+}
+
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(tidyr)
+library(vsn)
+```
+
+# Load Data
+
+```{r data loading}
+lfq <- read.csv('./data/LFQ_raw_totals_imp.csv')
+head(lfq)
+```
+
+# Data Preparation
+
+```{r TOTALS data}
+# Extracting only TOTALS data for knockout
+LFQ_KO <- lfq %>% select(contains('KO_TOTALS')) #%>% mutate(celltype = 'KO')
+
+# Extracting only TOTALS data for wild type
+LFQ_WT <- lfq %>% select(contains('WT_TOTALS')) #%>% mutate(celltype = 'WT')
+```
+
+# Data Mining
+
+First of all, we have to check the distribution of our data.
+
+## Knockout
+
+```{r}
+plothist(LFQ_KO)
+```
+
+As we see on the historam of konckout columns, the data are slightly skewed to the right.
+
+```{r}
+moments::skewness(LFQ_KO[,1:3])
+```
+
+The asymmetry score tells use that we need to make some transformation of our data
+and confirms the conclusions drawn from the histogram. 
+
+## Wild type
+
+```{r}
+plothist(LFQ_WT)
+```
+
+As we see on the historam of wild type columns, the data are slightly skewed to the right.
+
+```{r}
+moments::skewness(LFQ_WT[,1:3])
+```
+
+The asymmetry score tells use that we have to make some transformation of our data 
+and confirms the conclusions drawn from the histogram. 
+
+# Normalization - KO
+
+## Simple Methods
+
+Based on the graphic below, we will first use the natural logarithm.
+
+<center><img src='drabinka_eng.png'></center>
+
+### Logarithm
+
+```{r KO logarithmic transformation}
+LFQ_KO.log <- log(LFQ_KO)
+
+plothist(LFQ_KO.log, 'Transformed by Logarithm')
+```
+
+The data distributions looks better, but they are still skewed to the right side.
+
+```{r}
+moments::skewness(LFQ_KO.log)
+```
+
+The skewness score is smaler. This is good, but check another transformation.
+
+### Fraction $1/x$
+
+```{r KO fraction trasnformation}
+LFQ_KO.frac <- 1/LFQ_KO
+
+plothist(LFQ_KO.frac, 'Transformed by Fraction 1/x')
+```
+
+```{r}
+moments::skewness(LFQ_KO.frac)
+```
+
+As we see above the plot and scores of the skewness aren't close to normal distribution.
+Our result shows us that with simple transformation we can't transform data and 
+make their distribution closer to the Gaussian.
+
+## Z-score Normalization
+
+Z-score normalization standardizes data by subtracting the mean and dividing 
+by the standard deviation. This technique transforms data into a distribution 
+with a mean of 0 and a standard deviation of 1.
+
+Formula: $\tilde{y}_{ij} = \frac{y_ij - \bar{y_j}}{\theta_j}$, where:
+
+* $y_ij$ - value of the LFQ;
+* $\bar{y_j}$ - mean of the LFQ values;
+* $\theta_j$ - standard deviation of the LFQ values.
+
+```{r KO standardization}
+LFQ_KO.standard <- as.data.frame(scale(LFQ_KO))
+plothist(LFQ_KO.standard, 'Transformed by Z-score')
+```
+
+```{r}
+moments::skewness(LFQ_KO.standard)
+```
+
+Unfortunately the standardization didn't help to bring the distribution closer to the normal dist.
+
+## Min-max Normalization
+
+Min-max normalization scales data to a specified range (usually [0, 1]) by 
+subtracting the minimum value and dividing by the range of values.
+
+```{r KO min-max normalization}
+min_max_norm <- function(df) {
+    ret <- scale(df, center = min(df), scale = max(df) - min(df))
+    return(ret)
+}
+
+LFQ_KO.minmax <- as.data.frame(lapply(LFQ_KO, function(col) min_max_norm(col)))
+plothist(LFQ_KO.minmax, '- Min-Max Normalization')
+```
+
+```{r}
+moments::skewness(LFQ_KO.minmax)
+```
+
+Unfortunately, again the normalization didn't help. 😒
+
+## Median Scaling
+
+```{r KO median scaling}
+LFQ_KO.med <- as.data.frame(DescTools::RobScale(LFQ_KO, scale = FALSE))
+plothist(LFQ_KO.med, '- Median Scaling')
+```
+
+```{r}
+moments::skewness(LFQ_KO.med)
+```
+
+## MAD Scaling
+
+```{r KO mad scaling}
+LFQ_KO.mad <- as.data.frame(DescTools::RobScale(LFQ_KO))
+plothist(LFQ_KO.mad, '- MAD Scaling')
+```
+
+```{r}
+moments::skewness(LFQ_KO.mad)
+```
+
+## Linear Regression Normalization
+
+```{r KO lm}
+LFQ_KO_long <- LFQ_KO %>%
+      pivot_longer(cols = 1:3, names_to = "Rep", values_to = "LFQValue")
+
+model <- lm(LFQValue ~ Rep, data=LFQ_KO_long)
+LFQ_KO_long$normalized <- residuals(model)
+
+LFQ_KO.lm <- LFQ_KO_long %>% 
+   pivot_wider(id_cols = !LFQValue, names_from = Rep, values_from = normalized)
+```
+
+```{r}
+moments::skewness()
+```
+
+# Normalization - WT
+
+## Simple Methods
+
+Like earlier we will first use the logarithmic transformation.
+
+### Logarithm
+
+```{r WT logarightmic transformation}
+LFQ_WT.log <- log(LFQ_WT)
+plothist(LFQ_WT.log, 'Transformed by Logarithm')
+```
+
+```{r}
+moments::skewness(LFQ_WT.log)
+```
+
+Unfortunantely the result isn't closer to the Gaussian distribution.
+
+### Fraction $1/x$
+
+```{r WT fraction transformation}
+LFQ_WT.frac <- 1/LFQ_WT
+plothist(LFQ_WT.frac, 'Transformed by Fraction 1/x')
+```
+
+As we can see above, the results are the same like for the knockout cell type.
+With simple methods we can't make the distribution closer to Gaussian dist.
+
+## Z-score Normalization
+
+```{r WT standardization}
+LFQ_KO.standard <- as.data.frame(scale(LFQ_KO))
+plothist(LFQ_KO.standard, 'Transformed by Z-score')
+```
+
+```{r}
+moments::skewness(LFQ_KO.standard)
+```
+
+Unfortunately the standardization didn't help to bring the distribution closer to the normal dist.
+
+## Min-max Normalization
+
+```{r WT min-max normalization}
+min_max_norm <- function(df) {
+    ret <- scale(df, center = min(df), scale = max(df) - min(df))
+    return(ret)
+}
+
+LFQ_KO.minmax <- as.data.frame(lapply(LFQ_KO, function(col) min_max_norm(col)))
+plothist(LFQ_KO.minmax, '- Min-Max Normalization')
+```
+
+```{r}
+moments::skewness(LFQ_KO.minmax)
+```
+
+Unfortunately, again the normalization didn't help. 😒
+
+## Median Scaling
+
+```{r WT median scaling}
+LFQ_KO.med <- as.data.frame(DescTools::RobScale(LFQ_KO, scale = FALSE))
+plothist(LFQ_KO.med, '- Median Scaling')
+```
+
+```{r}
+moments::skewness(LFQ_KO.med)
+```
+
+## MAD Scaling
+
+```{r WT mad scaling}
+LFQ_KO.mad <- as.data.frame(DescTools::RobScale(LFQ_KO))
+plothist(LFQ_KO.mad, '- MAD Scaling')
+```
+
+```{r}
+moments::skewness(LFQ_KO.mad)
+```
+
+## Linear Regression Normalization
+
+```{r WT lm}
+
+```
+
+```{r}
+moments::skewness()
+```
+
+
+# VSN 
+VSN - Variance Stabilization Normalization
+
+```{r vsn}
+lfq_rglist<- new('RGList', list(
+    R = as.matrix(LFQ_KO),
+    G = as.matrix(LFQ_WT)))
+
+LFQ_ALL.vsn <- justvsn(lfq_rglist)
+```
+
+```{r}
+plothist(LFQ_ALL.vsn@assayData[['R']], 'Transformed by VSN')
+```
+
+```{r}
+plothist(LFQ_ALL.vsn@assayData[['G']], 'Transformed by VSN')
+```
+
+This transformation didn't help us too. Furthermore we lost differences between 
+knockout and wild type intensity.
+
+# `bestNormalize` Package for Automatic Normalization
+
+## KO
+
+**Experiment 22**
+
+```{r autonorm KO 22}
+bestNormalize::bestNormalize(LFQ_KO$KO_TOTALS_22)
+```
+
+**Experiment 23**
+
+```{r autonorm KO 23}
+bestNormalize::bestNormalize(LFQ_KO$KO_TOTALS_23)
+```
+
+**Experiment 24**
+
+```{r autonorm KO 24}
+bestNormalize::bestNormalize(LFQ_KO$KO_TOTALS_24)
+```
+
+```{r}
+LFQ_KO.ordernorm <- ordernorm(LFQ_KO)
+plothist(LFQ_KO.ordernorm, '- Order Normalization')
+```
+
+## WT
+
+**Experiment 22**
+
+```{r autonorm WT 22}
+bestNormalize::bestNormalize(LFQ_WT$WT_TOTALS_22)
+```
+
+**Experiment 23**
+
+```{r autonorm WT 23}
+bestNormalize::bestNormalize(LFQ_WT$WT_TOTALS_23)
+```
+
+**Experiment 24**
+
+```{r autonorm WT 24}
+bestNormalize::bestNormalize(LFQ_WT$WT_TOTALS_24)
+```
+
+```{r}
+LFQ_WT.ordernorm <- ordernorm(LFQ_WT)
+plothist(LFQ_WT.ordernorm, '- Order Normalization')
+```
+
+---
+# References
+
+1. [A systematic evaluation of normalization methods in quantitative label-free proteomics](https://academic.oup.com/bib/article/19/1/1/2562889)
+2. [bestNormalize R Package](https://cran.r-project.org/web/packages/bestNormalize/vignettes/bestNormalize.html#the-ordered-quantile-technique)
+3. [How to Normalize Data in R for my Data: Methods and Examples](https://rpubs.com/zubairishaq9/how-to-normalize-data-r-my-data)

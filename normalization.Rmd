@@ -26,11 +26,11 @@ transform_M <- function(i, df) {
 # Uploading imputed data
 
 ```{r}
-total <- read.csv('LFQ_imp_total.csv')
+total <- read.csv('./data/LFQ_imp_total.csv')
 lfq_total <- total$LFQvalue # extracting the LFQ values
 lfq_total.selected <- lfq_total[total$rep %in% c(22,23,24)]
 
-mito <- read.csv('LFQ_imp_mito.csv')
+mito <- read.csv('./data/LFQ_imp_mito.csv')
 lfq_mito <- mito$LFQvalue
 lfq_mito.selected <- lfq_mito[mito$rep %in% c(22,23,24)]
 ```
