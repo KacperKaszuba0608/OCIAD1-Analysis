@@ -221,17 +221,22 @@ moments::skewness(LFQ_KO.mad)
 
 ```{r KO lm}
 LFQ_KO_long <- LFQ_KO %>%
-      pivot_longer(cols = 1:3, names_to = "Rep", values_to = "LFQValue")
+    pivot_longer(cols = 1:3, names_to = "Rep", values_to = "LFQValue") 
+    #%>% mutate(celltype = rep(c(rep('KO', 3), rep('WT', 3)), nrow(lfq)))
 
 model <- lm(LFQValue ~ Rep, data=LFQ_KO_long)
 LFQ_KO_long$normalized <- residuals(model)
 
 LFQ_KO.lm <- LFQ_KO_long %>% 
-   pivot_wider(id_cols = !LFQValue, names_from = Rep, values_from = normalized)
+    mutate(row = rep(1:nrow(LFQ_KO), each=3)) %>%
+    reshape2::dcast(row ~ Rep, value.var='normalized') %>%
+    select(-row)
+
+plothist(LFQ_KO.lm[,1:3])
 ```
 
 ```{r}
-moments::skewness()
+moments::skewness(LFQ_KO.lm)
 ```
 
 # Normalization - WT
@@ -319,11 +324,23 @@ moments::skewness(LFQ_KO.mad)
 ## Linear Regression Normalization
 
 ```{r WT lm}
+LFQ_WT_long <- LFQ_WT %>%
+    pivot_longer(cols = 1:3, names_to = "Rep", values_to = "LFQValue") 
+    #%>% mutate(celltype = rep(c(rep('KO', 3), rep('WT', 3)), nrow(lfq)))
 
+model2 <- lm(LFQValue ~ Rep, data=LFQ_WT_long)
+LFQ_WT_long$normalized <- residuals(model)
+
+LFQ_WT.lm <- LFQ_WT_long %>% 
+    mutate(row = rep(1:nrow(LFQ_WT), each=3)) %>%
+    reshape2::dcast(row ~ Rep, value.var='normalized') %>%
+    select(-row)
+
+plothist(LFQ_WT.lm)
 ```
 
 ```{r}
-moments::skewness()
+moments::skewness(LFQ_WT.lm)
 ```
 
 
