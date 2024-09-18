@@ -4,6 +4,7 @@ author: "Kacper Kaszuba"
 date: "`r Sys.Date()`"
 output: 
     html_document:
+        css: mystyle.css
         toc: true
         toc_float: 
             collapsed: false
@@ -22,7 +23,7 @@ transform_M <- function(i, df) {
     }
 }
 
-plothist <- function(df, title='') {
+plothist <- function(df, title='', plot.title.and.legend=TRUE) {
     if (!is.data.frame(df)) { df <- as.data.frame(df)}
     
     # Assuming LFQ_KO is our data frame with at least 3 columns
@@ -31,10 +32,18 @@ plothist <- function(df, title='') {
       pivot_longer(cols = 1:3, names_to = "Rep", values_to = "LFQValue")
     
     # Plot all histograms on the same plot using ggplot
-    ggplot(df, aes(x = LFQValue, fill = Rep)) +
-      geom_histogram(alpha = 0.4, position = "identity", bins = 30) +
-      labs(title = paste("Histograms of Columns", title), x = "Values", y = "Frequency") +
-      theme(legend.title = element_blank())
+    if (plot.title.and.legend) {
+        ret_plot <- ggplot(df, aes(x = LFQValue, fill = Rep)) +
+            geom_histogram(alpha = 0.4, position = "identity", bins = 30) +
+            labs(title = paste("Histograms of Columns", title), x = "Values", y = "Frequency") +
+            theme(legend.title = element_blank())
+    } else {
+        ret_plot <- ggplot(df, aes(x = LFQValue, fill = Rep)) +
+            geom_histogram(alpha = 0.4, position = "identity", bins = 30) +
+            labs(x = "Values", y = "Frequency") +
+            theme(legend.title = element_blank(), legend.position = 'none')
+    }
+    return(ret_plot)
 }
 
 ordernorm <- function(df) {
@@ -58,13 +67,16 @@ library(ggpubr)
 library(dplyr)
 library(tidyr)
 library(vsn)
+source('EigenMS/EigenMS/EigenMS.R')
+
+writeLines("td, th { padding:6px ; text-align:center} th { background-color:black ; color:white ; border:1px solid black; } td { color:black ; border:1px solid black ; text-align:center}", con = "mystyle.css")
 ```
 
 # Load Data
 
 ```{r data loading}
 lfq <- read.csv('./data/LFQ_raw_totals_imp.csv')
-head(lfq)
+knitr::kable(head(lfq), format='html')
 ```
 
 # Data Preparation
@@ -156,17 +168,18 @@ The transformation is based on the formula:
 $$x' = \Bigg\{ \matrix{\frac{x^{\lambda}-1}{\lambda} & \lambda \neq0 \\
 log(x) & \lambda = 0}$$
 
-```{r KO Box-Cox}
+```{r KO lambda}
 # At first we have to calculate the lambda
 lambda.22 <- car::powerTransform(LFQ_KO$KO_TOTALS_22)$lambda
 lambda.23 <- car::powerTransform(LFQ_KO$KO_TOTALS_23)$lambda
 lambda.24 <- car::powerTransform(LFQ_KO$KO_TOTALS_24)$lambda
-cbind(lambda.22, lambda.23, lambda.24)
+knitr::kable(data.frame(lambda.22, lambda.23, lambda.24, row.names = 'lambda'), format = 'html')
 ```
 
-The lambda is not equal to 0, so will make the first transformation.
+<br>
+The lambda is not 0, so the first transformation is performed.
 
-```{r}
+```{r KO Box-Cox}
 LFQ_KO.boxcox.22 <- car::bcPower(LFQ_KO$KO_TOTALS_22, lambda.22)
 LFQ_KO.boxcox.23 <- car::bcPower(LFQ_KO$KO_TOTALS_23, lambda.23)
 LFQ_KO.boxcox.24 <- car::bcPower(LFQ_KO$KO_TOTALS_24, lambda.24)
@@ -175,12 +188,18 @@ colnames(LFQ_KO.boxcox) <- c('KO_TOTALS_22', 'KO_TOTALS_23', 'KO_TOTALS_24')
 ```
 
 ```{r echo=FALSE}
-plots <- ggarrange(ggplot(LFQ_KO) + geom_histogram(aes(x=KO_TOTALS_22), bins = 10, fill='red', alpha=0.4) + ylab('Frequency'),
-                   ggplot(LFQ_KO) + geom_histogram(aes(x=KO_TOTALS_23), bins = 10, fill='green', alpha=0.4) + ylab(''),
-                   ggplot(LFQ_KO) + geom_histogram(aes(x=KO_TOTALS_24), bins = 10, fill='blue', alpha=0.4) + ylab(''),
+plots1 <- ggarrange(ggplot(LFQ_KO.boxcox) + 
+                       geom_histogram(aes(x=KO_TOTALS_22), bins = 10, fill='red', alpha=0.4) + 
+                       labs(x='Box-Cox.22',y='Frequency'),
+                   ggplot(LFQ_KO.boxcox) + 
+                       geom_histogram(aes(x=KO_TOTALS_23), bins = 10, fill='green', alpha=0.4) + 
+                       labs(x='Box-Cox.23',y=''),
+                   ggplot(LFQ_KO.boxcox) + 
+                       geom_histogram(aes(x=KO_TOTALS_24), bins = 10, fill='blue', alpha=0.4) + 
+                       labs(x='Box-Cox.24',y=''),
                    ncol=3)
 
-annotate_figure(plots, top=text_grob('Histogram of Transformed Data with Box-Cox', 
+annotate_figure(plots1, top=text_grob('Histogram of Transformed Data with Box-Cox', 
                                      face='bold', size=13))
 ```
 
@@ -319,17 +338,18 @@ The transformation is based on the formula:
 $$x' = \Bigg\{ \matrix{\frac{x^{\lambda}-1}{\lambda} & \lambda \neq0 \\
 log(x) & \lambda = 0}$$
 
-```{r WT Box-Cox}
+```{r WT lambda}
 # At first we have to calculate the lambda
 lambda.22 <- car::powerTransform(LFQ_WT$WT_TOTALS_22)$lambda
 lambda.23 <- car::powerTransform(LFQ_WT$WT_TOTALS_23)$lambda
 lambda.24 <- car::powerTransform(LFQ_WT$WT_TOTALS_24)$lambda
-cbind(lambda.22, lambda.23, lambda.24)
+knitr::kable(data.frame(lambda.22, lambda.23, lambda.24, row.names = 'lambda'), format = 'html')
 ```
 
-The lambda is not equal to 0, so will make the first transformation.
+<br>
+The lambda is not 0, so the first transformation is performed.
 
-```{r}
+```{r WT Box-Cox}
 LFQ_WT.boxcox.22 <- car::bcPower(LFQ_WT$WT_TOTALS_22, lambda.22)
 LFQ_WT.boxcox.23 <- car::bcPower(LFQ_WT$WT_TOTALS_23, lambda.23)
 LFQ_WT.boxcox.24 <- car::bcPower(LFQ_WT$WT_TOTALS_24, lambda.24)
@@ -338,12 +358,18 @@ colnames(LFQ_WT.boxcox) <- c('WT_TOTALS_22', 'WT_TOTALS_23', 'WT_TOTALS_24')
 ```
 
 ```{r echo=FALSE}
-plots <- ggarrange(ggplot(LFQ_WT) + geom_histogram(aes(x=WT_TOTALS_22), bins = 10, fill='red', alpha=0.4) + ylab('Frequency'),
-                   ggplot(LFQ_WT) + geom_histogram(aes(x=WT_TOTALS_23), bins = 10, fill='green', alpha=0.4) + ylab(''),
-                   ggplot(LFQ_WT) + geom_histogram(aes(x=WT_TOTALS_24), bins = 10, fill='blue', alpha=0.4) + ylab(''),
+plots2 <- ggarrange(ggplot(LFQ_WT.boxcox) + 
+                        geom_histogram(aes(x=WT_TOTALS_22), bins = 10, fill='red', alpha=0.4) + 
+                        labs(x='Box-Cox.22',y='Frequency'),
+                    ggplot(LFQ_WT.boxcox) + 
+                        geom_histogram(aes(x=WT_TOTALS_23), bins = 10, fill='green', alpha=0.4) + 
+                        labs(x='Box-Cox.23',y=''),
+                    ggplot(LFQ_WT.boxcox) + 
+                        geom_histogram(aes(x=WT_TOTALS_24), bins = 10, fill='blue', alpha=0.4) + 
+                        labs(x='Box-Cox.24',y=''),
                    ncol=3)
 
-annotate_figure(plots, top=text_grob('Histogram of Transformed Data with Box-Cox', 
+annotate_figure(plots2, top=text_grob('Histogram of Transformed Data with Box-Cox', 
                                      face='bold', size=13))
 ```
 
@@ -359,8 +385,8 @@ The distributions are similar to a normal distribution.
 ## Z-score Normalization
 
 ```{r WT standardization}
-LFQ_KO.standard <- as.data.frame(scale(LFQ_KO))
-plothist(LFQ_KO.standard, 'Transformed by Z-score')
+LFQ_WT.standard <- as.data.frame(scale(LFQ_WT))
+plothist(LFQ_WT.standard, 'Transformed by Z-score')
 ```
 
 ```{r}
@@ -377,12 +403,12 @@ min_max_norm <- function(df) {
     return(ret)
 }
 
-LFQ_KO.minmax <- as.data.frame(lapply(LFQ_KO, function(col) min_max_norm(col)))
-plothist(LFQ_KO.minmax, '- Min-Max Normalization')
+LFQ_WT.minmax <- as.data.frame(lapply(LFQ_WT, function(col) min_max_norm(col)))
+plothist(LFQ_WT.minmax, '- Min-Max Normalization')
 ```
 
 ```{r}
-moments::skewness(LFQ_KO.minmax)
+moments::skewness(LFQ_WT.minmax)
 ```
 
 Unfortunately, again the normalization didn't help. 😒
@@ -390,23 +416,23 @@ Unfortunately, again the normalization didn't help. 😒
 ## Median Scaling
 
 ```{r WT median scaling}
-LFQ_KO.med <- as.data.frame(DescTools::RobScale(LFQ_KO, scale = FALSE))
-plothist(LFQ_KO.med, '- Median Scaling')
+LFQ_WT.med <- as.data.frame(DescTools::RobScale(LFQ_WT, scale = FALSE))
+plothist(LFQ_WT.med, '- Median Scaling')
 ```
 
 ```{r}
-moments::skewness(LFQ_KO.med)
+moments::skewness(LFQ_WT.med)
 ```
 
 ## MAD Scaling
 
 ```{r WT mad scaling}
-LFQ_KO.mad <- as.data.frame(DescTools::RobScale(LFQ_KO))
-plothist(LFQ_KO.mad, '- MAD Scaling')
+LFQ_WT.mad <- as.data.frame(DescTools::RobScale(LFQ_WT))
+plothist(LFQ_WT.mad, '- MAD Scaling')
 ```
 
 ```{r}
-moments::skewness(LFQ_KO.mad)
+moments::skewness(LFQ_WT.mad)
 ```
 
 ## Linear Regression Normalization
@@ -414,7 +440,7 @@ moments::skewness(LFQ_KO.mad)
 ```{r WT lm}
 LFQ_WT_long <- LFQ_WT %>%
     pivot_longer(cols = 1:3, names_to = "Rep", values_to = "LFQValue") 
-    #%>% mutate(celltype = rep(c(rep('KO', 3), rep('WT', 3)), nrow(lfq)))
+    #%>% mutate(celltype = rep(c(rep('WT', 3), rep('WT', 3)), nrow(lfq)))
 
 model2 <- lm(LFQValue ~ Rep, data=LFQ_WT_long)
 LFQ_WT_long$normalized <- residuals(model)
@@ -532,9 +558,184 @@ LFQ_WT.ordernorm <- ordernorm(LFQ_WT)
 plothist(LFQ_WT.ordernorm, '- Order Normalization')
 ```
 
+# EigenMS
+
+```{r EigenMS 1, results='hide', fig.keep='all'}
+protein.groups <- readr::read_tsv('data/proteinGroups.txt', show_col_types = FALSE)
+protein.groups <- protein.groups %>% filter(is.na(`Only identified by site`),
+                         is.na(Reverse),
+                         is.na(`Potential contaminant`))
+
+lfq.copy <- lfq
+colnames(lfq.copy) <- c('KO.22', 'KO.23', 'KO.24', 'WT.22', 'WT.23', 'WT.24')
+
+# I needed unique values for each peptide, so I create artificial names `prot_1:5905`
+prot.info <- data.frame(protein.groups[,"Peptide sequences"], paste('prot_', 1:nrow(lfq), sep = ''))
+LFQ.eig1 <- eig_norm1(lfq.copy, treatment = as.factor(c('KO', 'KO', 'KO', 'WT', 'WT', 'WT')), prot.info = prot.info)
+```
+
+```{r EigenMS 2, results='hide', fig.keep='all'}
+# Performing eig normalization
+LFQ.eig_norm <- eig_norm2(LFQ.eig1)
+```
+
+```{r boxplot EigenNorm}
+par(mfcol=c(1,2))
+boxplot(lfq.copy, las=2, main='Raw intensities')
+boxplot(LFQ.eig_norm$norm_m, las=2, main='Normalized intensities')
+```
+
+```{r}
+plothist(LFQ.eig_norm$norm_m[,1:3], '- EigenMS KO')
+```
+
+```{r}
+plothist(LFQ.eig_norm$norm_m[,4:6], '- EigenMS WT')
+```
+
+```{r}
+moments::skewness(LFQ.eig_norm$norm_m)
+```
+
+The eigen normalization perfectly shows the differences between cell type, but
+distributions are skewed all the time.
+
+# Comparison
+
+<center><b style='font-size:26px'>TRANSFORMATIONS</b></center>
+
+## Visualizations
+
+```{r comparison trans KO, echo=FALSE}
+plots_tKO <- ggarrange(ggarrange(plothist(LFQ_KO, '', FALSE) + xlab('Original'),
+                                 plothist(LFQ_KO.log, '', FALSE) + labs(x='Logarithm',y=''),
+                                 plothist(LFQ_KO.frac, '', FALSE) + labs(x='Fraction 1/x',y=''),
+                                 nrow=1, ncol=3),
+                       plots1 + ggtitle('Box-Cox'), nrow=2,ncol=1)
+
+annotate_figure(plots_tKO, top=text_grob('Comparison of Transformation Methods - KO', 
+                                     face='bold', size=13))
+```
+
+```{r comparison trans WT, echo=FALSE}
+plots_tWT <- ggarrange(ggarrange(plothist(LFQ_WT, '', FALSE) + xlab('Original'),
+                                 plothist(LFQ_WT.log, '', FALSE) + labs(x='Logarithm',y=''),
+                                 plothist(LFQ_WT.frac, '', FALSE) + labs(x='Fraction 1/x',y=''),
+                                 nrow=1, ncol=3),
+                       plots2 + ggtitle('Box-Cox'), nrow=2,ncol=1)
+
+annotate_figure(plots_tWT, top=text_grob('Comparison of Transformation Methods - WT', 
+                                     face='bold', size=13))
+```
+
+
+
+<center><b style='font-size:26px'>NORMALIZATIONS</b></center>
+
+```{r comparison KO, echo=FALSE}
+plots_KO <- ggarrange(plothist(LFQ_KO, '', FALSE) + xlab('Original'),
+                      plothist(LFQ_KO.standard, '', FALSE) + labs(x='Z-score', y=''), 
+                      plothist(LFQ_KO.minmax, '', FALSE) + labs(x='Min-Max', y=''),
+                      plothist(LFQ_KO.med, '', FALSE) + xlab('Median Scaling'),
+                      plothist(LFQ_KO.mad, '', FALSE) + labs(x='MAD Scaling', y=''),
+                      plothist(LFQ_KO.lm, '', FALSE) + labs(x='Linear Norm', y=''),
+                      plothist(LFQ_ALL.vsn@assayData[['R']], '', FALSE) + xlab('VSN'),
+                      plothist(LFQ_KO.ordernorm, '', FALSE) + labs(x='Order Quantile', y=''),
+                      plothist(LFQ.eig_norm$norm_m[,1:3], '', FALSE) + labs(x='EigenMS', y=''),
+                      nrow=3, ncol=3)
+
+annotate_figure(plots_KO, top=text_grob('Comparison of Normalization Methods - KO', 
+                                     face='bold', size=13))
+```
+
+```{r comparison WT, echo=FALSE}
+plots_WT <- ggarrange(plothist(LFQ_WT, '', FALSE) + xlab('Original'),
+                      plothist(LFQ_WT.standard, '', FALSE) + labs(x='Z-score', y=''), 
+                      plothist(LFQ_WT.minmax, '', FALSE) + labs(x='Min-Max', y=''),
+                      plothist(LFQ_WT.med, '', FALSE) + xlab('Median Scaling'),
+                      plothist(LFQ_WT.mad, '', FALSE) + labs(x='MAD Scaling', y=''),
+                      plothist(LFQ_WT.lm, '', FALSE) + labs(x='Linear Norm', y=''),
+                      plothist(LFQ_ALL.vsn@assayData[['G']], '', FALSE) + xlab('VSN'),
+                      plothist(LFQ_WT.ordernorm, '', FALSE) + labs(x='Order Quantile', y=''),
+                      plothist(LFQ.eig_norm$norm_m[,4:6], '', FALSE) + labs(x='EigenMS', y=''),
+                      nrow=3, ncol=3)
+
+annotate_figure(plots_WT, top=text_grob('Comparison of Normalization Methods - WT', 
+                                     face='bold', size=13))
+```
+
+## Statistical Metrics
+
+**RELATIVE STANDARD DEVIATION (RSD)** - a lower RSD indicates better normalization.
+
+```{r echo=FALSE}
+rsd <- function(x) (sd(x) / mean(x)) * 100
+exp <- c('KO.22', 'KO.23', 'KO.24', 'WT.22', 'WT.23', 'WT.24')
+
+rsd_before <- apply(cbind(LFQ_KO, LFQ_WT), 2, rsd)
+rsd.standard <- apply(cbind(LFQ_KO.standard,LFQ_WT.standard), 2, rsd)
+rsd.minmax <- apply(cbind(LFQ_KO.minmax, LFQ_WT.minmax), 2, rsd)
+rsd.med <- apply(cbind(LFQ_KO.med,LFQ_WT.med), 2, rsd)
+rsd.mad <- apply(cbind(LFQ_KO.mad,LFQ_WT.mad), 2, rsd)
+rsd.lm <- apply(cbind(LFQ_KO.lm,LFQ_WT.lm), 2, rsd)
+rsd.vsn <- apply(cbind(LFQ_ALL.vsn@assayData[['R']],LFQ_ALL.vsn@assayData[['G']]), 2, rsd)
+rsd.ordernorm <- apply(cbind(LFQ_KO.ordernorm,LFQ_WT.ordernorm), 2, rsd)
+rsd.eig <- apply(LFQ.eig_norm$norm_m, 2, rsd)
+
+rsd_all <- data.frame(exp, rsd_before, rsd.standard, rsd.minmax, rsd.med, rsd.mad, rsd.lm, rsd.vsn, rsd.ordernorm, rsd.eig)
+colnames(rsd_all) <- c('Exp', 'Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 'VSN', 'OrderQuantile', 'EigenMS')
+knitr::kable(rsd_all, format='html', row.names = FALSE)
+```
+
+<br>
+**REPRODUCIBILITY OF BIOLOGICAL REPLICATES**
+
+After normalization, biological replicates should group more tightly. You can 
+assess this by measuring the intraclass correlation coefficient (ICC) to see if 
+replicates cluster together.
+
+A guidelines for interpretation by [Koo and Li (2016)](https://doi.org/10.1016%2Fj.jcm.2016.02.012):
+
+* below 0.50: poor
+* between 0.50 and 0.75: moderate
+* between 0.75 and 0.90: good
+* above 0.90: excellent
+
+
+```{r include=FALSE}
+icc_before <- psych::ICC(lfq)$results['ICC']
+icc.standard <- psych::ICC(cbind(LFQ_KO.standard,LFQ_WT.standard))$results['ICC']
+icc.minmax <- psych::ICC(cbind(LFQ_KO.standard,LFQ_WT.standard))$results['ICC']
+icc.med <- psych::ICC(cbind(LFQ_KO.med,LFQ_WT.med))$results['ICC']
+icc.mad <- psych::ICC(cbind(LFQ_KO.mad,LFQ_WT.mad))$results['ICC']
+icc.lm <- psych::ICC(cbind(LFQ_KO.lm,LFQ_WT.lm))$results['ICC']
+icc.vsn <- psych::ICC(cbind(LFQ_ALL.vsn@assayData[['R']],LFQ_ALL.vsn@assayData[['G']]))$results['ICC']
+icc.ordernorm <- psych::ICC(cbind(LFQ_KO.ordernorm,LFQ_WT.ordernorm))$results['ICC']
+icc.eig <- psych::ICC(LFQ.eig_norm$norm_m)$results['ICC']
+```
+```{r echo=FALSE}
+icc_all <- data.frame(icc_before, icc.standard, icc.minmax, icc.med, icc.mad, icc.lm, icc.vsn, icc.ordernorm, icc.eig)
+colnames(icc_all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 'VSN', 'OrderQuantile', 'EigenMS')
+knitr::kable(icc_all, format='html')
+```
+
+
+# Conclusion
+
+All normalization methods worked quite well. The skewness problem was solved 
+with the Box-Cox transformation, and with transformed data we can normalize 
+it with all methods.
+
+The method chosen with `bestNormalize` gave us a perfect shape of a distribution,
+but we lost the main differences between samples. In my opinion the best result
+gave the **Eigen Normalization** method, because this method kept a characteristic
+of a sample and this is very important in the analysis of biological data.
+
 ---
 # References
 
 1. [A systematic evaluation of normalization methods in quantitative label-free proteomics](https://academic.oup.com/bib/article/19/1/1/2562889)
 2. [bestNormalize R Package](https://cran.r-project.org/web/packages/bestNormalize/vignettes/bestNormalize.html#the-ordered-quantile-technique)
 3. [How to Normalize Data in R for my Data: Methods and Examples](https://rpubs.com/zubairishaq9/how-to-normalize-data-r-my-data)
+4. [EigenMS](https://sourceforge.net/projects/eigenms/)
+5. [Normalization of peak intensities in bottom-up MS-based proteomics using singular value decomposition](https://pubmed.ncbi.nlm.nih.gov/19602524/)
