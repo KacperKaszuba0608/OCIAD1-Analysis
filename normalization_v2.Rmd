@@ -90,7 +90,7 @@ plothist(LFQ_KO)
 As we see on the historam of konckout columns, the data are slightly skewed to the right.
 
 ```{r}
-moments::skewness(LFQ_KO[,1:3])
+moments::skewness(LFQ_KO)
 ```
 
 The asymmetry score tells use that we need to make some transformation of our data
@@ -111,15 +111,13 @@ moments::skewness(LFQ_WT[,1:3])
 The asymmetry score tells use that we have to make some transformation of our data 
 and confirms the conclusions drawn from the histogram. 
 
-# Normalization - KO
-
-## Simple Methods
+# Transformation - KO
 
 Based on the graphic below, we will first use the natural logarithm.
 
 <center><img src='drabinka_eng.png'></center>
 
-### Logarithm
+## Logarithm
 
 ```{r KO logarithmic transformation}
 LFQ_KO.log <- log(LFQ_KO)
@@ -135,7 +133,7 @@ moments::skewness(LFQ_KO.log)
 
 The skewness score is smaler. This is good, but check another transformation.
 
-### Fraction $1/x$
+## Fraction $1/x$
 
 ```{r KO fraction trasnformation}
 LFQ_KO.frac <- 1/LFQ_KO
@@ -150,6 +148,49 @@ moments::skewness(LFQ_KO.frac)
 As we see above the plot and scores of the skewness aren't close to normal distribution.
 Our result shows us that with simple transformation we can't transform data and 
 make their distribution closer to the Gaussian.
+
+## Box-Cos Transformation
+
+The transformation is based on the formula:
+
+$$x' = \Bigg\{ \matrix{\frac{x^{\lambda}-1}{\lambda} & \lambda \neq0 \\
+log(x) & \lambda = 0}$$
+
+```{r KO Box-Cox}
+# At first we have to calculate the lambda
+lambda.22 <- car::powerTransform(LFQ_KO$KO_TOTALS_22)$lambda
+lambda.23 <- car::powerTransform(LFQ_KO$KO_TOTALS_23)$lambda
+lambda.24 <- car::powerTransform(LFQ_KO$KO_TOTALS_24)$lambda
+cbind(lambda.22, lambda.23, lambda.24)
+```
+
+The lambda is not equal to 0, so will make the first transformation.
+
+```{r}
+LFQ_KO.boxcox.22 <- car::bcPower(LFQ_KO$KO_TOTALS_22, lambda.22)
+LFQ_KO.boxcox.23 <- car::bcPower(LFQ_KO$KO_TOTALS_23, lambda.23)
+LFQ_KO.boxcox.24 <- car::bcPower(LFQ_KO$KO_TOTALS_24, lambda.24)
+LFQ_KO.boxcox <- data.frame(LFQ_KO.boxcox.22, LFQ_KO.boxcox.23, LFQ_KO.boxcox.24)
+colnames(LFQ_KO.boxcox) <- c('KO_TOTALS_22', 'KO_TOTALS_23', 'KO_TOTALS_24')
+```
+
+```{r echo=FALSE}
+plots <- ggarrange(ggplot(LFQ_KO) + geom_histogram(aes(x=KO_TOTALS_22), bins = 10, fill='red', alpha=0.4) + ylab('Frequency'),
+                   ggplot(LFQ_KO) + geom_histogram(aes(x=KO_TOTALS_23), bins = 10, fill='green', alpha=0.4) + ylab(''),
+                   ggplot(LFQ_KO) + geom_histogram(aes(x=KO_TOTALS_24), bins = 10, fill='blue', alpha=0.4) + ylab(''),
+                   ncol=3)
+
+annotate_figure(plots, top=text_grob('Histogram of Transformed Data with Box-Cox', 
+                                     face='bold', size=13))
+```
+
+```{r}
+moments::skewness(LFQ_KO.boxcox)
+```
+
+Finally we have got expected results. The distributions are similar to a normal distribution. 🎉
+
+# Normalization - KO
 
 ## Z-score Normalization
 
@@ -217,6 +258,8 @@ plothist(LFQ_KO.mad, '- MAD Scaling')
 moments::skewness(LFQ_KO.mad)
 ```
 
+Bove Median and Mad Scaling didn't give us the expected result.
+
 ## Linear Regression Normalization
 
 ```{r KO lm}
@@ -232,20 +275,20 @@ LFQ_KO.lm <- LFQ_KO_long %>%
     reshape2::dcast(row ~ Rep, value.var='normalized') %>%
     select(-row)
 
-plothist(LFQ_KO.lm[,1:3])
+plothist(LFQ_KO.lm, '- Linear Normalization')
 ```
 
 ```{r}
 moments::skewness(LFQ_KO.lm)
 ```
 
-# Normalization - WT
+Linear Regression also didn't give us expected result.
 
-## Simple Methods
+# Transformation - WT
 
 Like earlier we will first use the logarithmic transformation.
 
-### Logarithm
+## Logarithm
 
 ```{r WT logarightmic transformation}
 LFQ_WT.log <- log(LFQ_WT)
@@ -258,7 +301,7 @@ moments::skewness(LFQ_WT.log)
 
 Unfortunantely the result isn't closer to the Gaussian distribution.
 
-### Fraction $1/x$
+## Fraction $1/x$
 
 ```{r WT fraction transformation}
 LFQ_WT.frac <- 1/LFQ_WT
@@ -267,6 +310,51 @@ plothist(LFQ_WT.frac, 'Transformed by Fraction 1/x')
 
 As we can see above, the results are the same like for the knockout cell type.
 With simple methods we can't make the distribution closer to Gaussian dist.
+
+
+## Box-Cos Transformation
+
+The transformation is based on the formula:
+
+$$x' = \Bigg\{ \matrix{\frac{x^{\lambda}-1}{\lambda} & \lambda \neq0 \\
+log(x) & \lambda = 0}$$
+
+```{r WT Box-Cox}
+# At first we have to calculate the lambda
+lambda.22 <- car::powerTransform(LFQ_WT$WT_TOTALS_22)$lambda
+lambda.23 <- car::powerTransform(LFQ_WT$WT_TOTALS_23)$lambda
+lambda.24 <- car::powerTransform(LFQ_WT$WT_TOTALS_24)$lambda
+cbind(lambda.22, lambda.23, lambda.24)
+```
+
+The lambda is not equal to 0, so will make the first transformation.
+
+```{r}
+LFQ_WT.boxcox.22 <- car::bcPower(LFQ_WT$WT_TOTALS_22, lambda.22)
+LFQ_WT.boxcox.23 <- car::bcPower(LFQ_WT$WT_TOTALS_23, lambda.23)
+LFQ_WT.boxcox.24 <- car::bcPower(LFQ_WT$WT_TOTALS_24, lambda.24)
+LFQ_WT.boxcox <- data.frame(LFQ_WT.boxcox.22, LFQ_WT.boxcox.23, LFQ_WT.boxcox.24)
+colnames(LFQ_WT.boxcox) <- c('WT_TOTALS_22', 'WT_TOTALS_23', 'WT_TOTALS_24')
+```
+
+```{r echo=FALSE}
+plots <- ggarrange(ggplot(LFQ_WT) + geom_histogram(aes(x=WT_TOTALS_22), bins = 10, fill='red', alpha=0.4) + ylab('Frequency'),
+                   ggplot(LFQ_WT) + geom_histogram(aes(x=WT_TOTALS_23), bins = 10, fill='green', alpha=0.4) + ylab(''),
+                   ggplot(LFQ_WT) + geom_histogram(aes(x=WT_TOTALS_24), bins = 10, fill='blue', alpha=0.4) + ylab(''),
+                   ncol=3)
+
+annotate_figure(plots, top=text_grob('Histogram of Transformed Data with Box-Cox', 
+                                     face='bold', size=13))
+```
+
+```{r}
+moments::skewness(LFQ_WT.boxcox)
+```
+
+And again the Box-Cox Tranformation gave us expected result. 
+The distributions are similar to a normal distribution.
+
+# Normalization - WT
 
 ## Z-score Normalization
 
@@ -336,7 +424,7 @@ LFQ_WT.lm <- LFQ_WT_long %>%
     reshape2::dcast(row ~ Rep, value.var='normalized') %>%
     select(-row)
 
-plothist(LFQ_WT.lm)
+plothist(LFQ_WT.lm, '- Linear Normalization')
 ```
 
 ```{r}
@@ -373,20 +461,33 @@ knockout and wild type intensity.
 **Experiment 22**
 
 ```{r autonorm KO 22}
-bestNormalize::bestNormalize(LFQ_KO$KO_TOTALS_22)
+best.22 <- bestNormalize::bestNormalize(LFQ_KO$KO_TOTALS_22)
 ```
 
 **Experiment 23**
 
 ```{r autonorm KO 23}
-bestNormalize::bestNormalize(LFQ_KO$KO_TOTALS_23)
+best.23 <- bestNormalize::bestNormalize(LFQ_KO$KO_TOTALS_23)
 ```
 
 **Experiment 24**
 
 ```{r autonorm KO 24}
-bestNormalize::bestNormalize(LFQ_KO$KO_TOTALS_24)
+best.24 <- bestNormalize::bestNormalize(LFQ_KO$KO_TOTALS_24)
 ```
+
+**Summary**
+
+```{r echo=FALSE}
+autonorm_ko <- data.frame(Exp_22=environment(best.22[["norm_stat_fn"]])[["best_idx"]],
+                          Exp_23=environment(best.23[["norm_stat_fn"]])[["best_idx"]],
+                          Exp_24=environment(best.24[["norm_stat_fn"]])[["best_idx"]])
+
+rownames(autonorm_ko) <- 'Method'
+autonorm_ko
+```
+
+Based on the result for each column, the best method to normalize the data is Order Quntile Normalization.
 
 ```{r}
 LFQ_KO.ordernorm <- ordernorm(LFQ_KO)
@@ -398,20 +499,33 @@ plothist(LFQ_KO.ordernorm, '- Order Normalization')
 **Experiment 22**
 
 ```{r autonorm WT 22}
-bestNormalize::bestNormalize(LFQ_WT$WT_TOTALS_22)
+best.22 <- bestNormalize::bestNormalize(LFQ_WT$WT_TOTALS_22)
 ```
 
 **Experiment 23**
 
 ```{r autonorm WT 23}
-bestNormalize::bestNormalize(LFQ_WT$WT_TOTALS_23)
+best.23 <- bestNormalize::bestNormalize(LFQ_WT$WT_TOTALS_23)
 ```
 
 **Experiment 24**
 
 ```{r autonorm WT 24}
-bestNormalize::bestNormalize(LFQ_WT$WT_TOTALS_24)
+best.24 <- bestNormalize::bestNormalize(LFQ_WT$WT_TOTALS_24)
 ```
+
+**Summary**
+
+```{r echo=FALSE}
+autonorm_wt <- data.frame(Exp_22=environment(best.22[["norm_stat_fn"]])[["best_idx"]],
+                          Exp_23=environment(best.23[["norm_stat_fn"]])[["best_idx"]],
+                          Exp_24=environment(best.24[["norm_stat_fn"]])[["best_idx"]])
+
+rownames(autonorm_wt) <- 'Method'
+autonorm_wt
+```
+
+Like earlier the best method for each column is Order Quantile Normalization.
 
 ```{r}
 LFQ_WT.ordernorm <- ordernorm(LFQ_WT)
