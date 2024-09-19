@@ -1,0 +1,138 @@
+---
+title: "Non-imputed Normalization"
+author: "Kacper Kaszuba"
+date: "`r Sys.Date()`"
+output: 
+    html_document:
+        css: mystyle.css
+        toc: true
+        toc_float: 
+            collapsed: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = 'center')
+
+plothist <- function(df, title='', plot.title.and.legend=TRUE) {
+    if (!is.data.frame(df)) { df <- as.data.frame(df)}
+    
+    # Assuming LFQ_KO is our data frame with at least 3 columns
+    # Reshape the data to a long format
+    df <- df %>%
+      pivot_longer(cols = 1:3, names_to = "Rep", values_to = "LFQValue")
+    
+    # Plot all histograms on the same plot using ggplot
+    if (plot.title.and.legend) {
+        ret_plot <- ggplot(df, aes(x = LFQValue, fill = Rep)) +
+            geom_histogram(alpha = 0.4, position = "identity", bins = 30) +
+            labs(title = paste("Histograms of Columns", title), x = "Values", y = "Frequency") +
+            theme(legend.title = element_blank())
+    } else {
+        ret_plot <- ggplot(df, aes(x = LFQValue, fill = Rep)) +
+            geom_histogram(alpha = 0.4, position = "identity", bins = 30) +
+            labs(x = "Values", y = "Frequency") +
+            theme(legend.title = element_blank(), legend.position = 'none')
+    }
+    return(ret_plot)
+}
+
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(tidyr)
+options(scipen=123)
+
+writeLines("td, th { padding:6px ; text-align:center} th { background-color:black ; color:white ; border:1px solid black; } td { color:black ; border:1px solid black ; text-align:center}", con = "mystyle.css")
+```
+
+# Load Data
+
+<center>
+```{r load data}
+lfq <- read.csv('./data/nonimputed_lfq.csv')
+knitr::kable(head(lfq, n = 10), format = 'html')
+```
+</center>
+
+# Data Preprocessing
+
+```{r}
+LFQ_KO <- lfq %>%
+    select(contains('KO'))
+
+LFQ_WT <- lfq %>%
+    select(contains('WT'))
+```
+
+# Data Mining
+
+```{r}
+ggarrange(
+    plothist(LFQ_KO, '- KO'),
+    plothist(LFQ_WT, '- WT'),
+    nrow=2,ncol=1
+)
+```
+
+```{r}
+moments::skewness(lfq, na.rm = TRUE)
+```
+
+The imputation doesn't have influence on skewness of data. 🕺
+
+
+# `protti` library
+
+```{r}
+library(protti)
+```
+
+## Data Preprocessing
+
+Thanks to Mateusz, we have data almost ready for analysis with `protti`.
+
+```{r}
+proteingroups <- readr::read_tsv("data/proteinGroups.txt", show_col_types = FALSE)
+
+proteingroups <- proteingroups %>% filter(is.na(`Only identified by site`),
+                         is.na(Reverse),
+                         is.na(`Potential contaminant`))
+
+proteingroups <- proteingroups %>%
+    select(`Protein IDs`, `Peptide sequences`, 
+           contains('LFQ intensity') & (ends_with('22') | ends_with('23') | ends_with('24')))
+```
+
+
+When we performe code bellow we have data frame with 5138 rows.
+
+```{r}
+nrow(LFQ_long[LFQ_long$Sample == 'KO_MITOS_22',])
+```
+
+But when you read the original data from `proteingroups.txt` we have 5905 rows.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

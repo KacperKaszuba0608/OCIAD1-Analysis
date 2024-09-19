@@ -62,12 +62,42 @@ ordernorm <- function(df) {
     }
 }
 
+plotviolin <- function(df, xlab='', ylab='LFQValue') {
+    if (!is.data.frame(df)) { df <- as.data.frame(df)}
+    
+    df <- df %>%
+        pivot_longer(1:6,names_to = 'Exp', values_to = 'LFQValue') %>%
+        mutate(short.name = gsub("_TOTALS_", ".", Exp))
+    
+    violin <- ggplot(data=df, aes(x=short.name, y=LFQValue, fill=short.name))+
+        geom_boxplot(width=0.3) +
+        geom_violin(alpha=0.4)+
+        theme(legend.position = 'none') +
+        labs(x=xlab, y=ylab)
+    
+    return(violin)
+}
+
+plotoneviolin <- function(object, xlab, fill = 'green', colour='black') {
+    object <- as.data.frame(object) %>%
+        pivot_longer(1, names_to = 'Method', values_to = 'LFQ_CV')
+    
+    ggplot(data=object, aes(x=Method, y=LFQ_CV)) +
+        geom_boxplot(width=0.3, fill=fill, colour=colour)+
+        geom_violin(alpha=0.4, fill=fill, colour=colour)+
+        labs(title='',x=xlab,y='LFQ CV[%]')+
+        theme(legend.position = 'none', axis.text.x=element_blank(), axis.ticks.x=element_blank(),
+              panel.background = element_rect(fill='white', colour = 'grey'),
+              panel.grid = element_line(colour = 'grey'))
+}
+
 library(ggplot2)
 library(ggpubr)
 library(dplyr)
 library(tidyr)
 library(vsn)
 source('EigenMS/EigenMS/EigenMS.R')
+options(scipen=123)
 
 writeLines("td, th { padding:6px ; text-align:center} th { background-color:black ; color:white ; border:1px solid black; } td { color:black ; border:1px solid black ; text-align:center}", con = "mystyle.css")
 ```
@@ -602,9 +632,9 @@ distributions are skewed all the time.
 
 # Comparison
 
-<center><b style='font-size:26px'>TRANSFORMATIONS</b></center>
-
 ## Visualizations
+
+<center><b style='font-size:26px'>TRANSFORMATIONS</b></center>
 
 ```{r comparison trans KO, echo=FALSE}
 plots_tKO <- ggarrange(ggarrange(plothist(LFQ_KO, '', FALSE) + xlab('Original'),
@@ -631,6 +661,33 @@ annotate_figure(plots_tWT, top=text_grob('Comparison of Transformation Methods -
 
 
 <center><b style='font-size:26px'>NORMALIZATIONS</b></center>
+
+```{r violin1, echo=FALSE}
+plotviolin(lfq, 'Original') + ggtitle('Comparison of Normalization Methods - Violin plots')
+```
+
+
+```{r violin2, echo=FALSE}
+ggarrange(
+    plotviolin(cbind(LFQ_KO.standard,LFQ_WT.standard), 'Z-score'),
+    plotviolin(cbind(LFQ_KO.minmax,LFQ_WT.minmax), 'Min-Max', ''),
+    plotviolin(cbind(LFQ_KO.med,LFQ_WT.med), 'Median Scaling'),
+    plotviolin(cbind(LFQ_KO.mad,LFQ_WT.mad), 'MAD Scaling', ''),
+    nrow=2, ncol=2
+)
+```
+
+```{r violin3, echo=FALSE}
+ggarrange(
+    plotviolin(cbind(LFQ_KO.lm,LFQ_WT.lm), 'Linear Norm'),
+    plotviolin(cbind(LFQ_ALL.vsn@assayData[['R']],LFQ_ALL.vsn@assayData[['G']]), 'VSN', ''),
+    plotviolin(cbind(LFQ_KO.ordernorm,LFQ_WT.ordernorm), 'Order Quantile'),
+    plotviolin(LFQ.eig_norm$norm_m, 'EigenMS', ''),
+    nrow=2, ncol=2
+)
+```
+
+<center><b style='font-size:26px'>HISTOGRAMS</b></center>
 
 ```{r comparison KO, echo=FALSE}
 plots_KO <- ggarrange(plothist(LFQ_KO, '', FALSE) + xlab('Original'),
@@ -666,26 +723,83 @@ annotate_figure(plots_WT, top=text_grob('Comparison of Normalization Methods - W
 
 ## Statistical Metrics
 
-**RELATIVE STANDARD DEVIATION (RSD)** - a lower RSD indicates better normalization.
+**COEFFICIENT OF VARIATION (CV) / RELATIVE STANDARD DEVIATION (RSD)**
+
+This is a way to measure how spread out values are in a dataset relative to the mean.
+A lower RSD/CV indicates better normalization. It is calculated as:
+
+$CV = \frac{\sigma}{\mu}$
+
+where:
+
+* $\sigma$: The standard deviation of dataset
+* $\mu$: The mean of dataset
 
 ```{r echo=FALSE}
-rsd <- function(x) (sd(x) / mean(x)) * 100
+cv <- function (x) sd(x) / mean(x) * 100
 exp <- c('KO.22', 'KO.23', 'KO.24', 'WT.22', 'WT.23', 'WT.24')
 
-rsd_before <- apply(cbind(LFQ_KO, LFQ_WT), 2, rsd)
-rsd.standard <- apply(cbind(LFQ_KO.standard,LFQ_WT.standard), 2, rsd)
-rsd.minmax <- apply(cbind(LFQ_KO.minmax, LFQ_WT.minmax), 2, rsd)
-rsd.med <- apply(cbind(LFQ_KO.med,LFQ_WT.med), 2, rsd)
-rsd.mad <- apply(cbind(LFQ_KO.mad,LFQ_WT.mad), 2, rsd)
-rsd.lm <- apply(cbind(LFQ_KO.lm,LFQ_WT.lm), 2, rsd)
-rsd.vsn <- apply(cbind(LFQ_ALL.vsn@assayData[['R']],LFQ_ALL.vsn@assayData[['G']]), 2, rsd)
-rsd.ordernorm <- apply(cbind(LFQ_KO.ordernorm,LFQ_WT.ordernorm), 2, rsd)
-rsd.eig <- apply(LFQ.eig_norm$norm_m, 2, rsd)
+cv_before <- apply(cbind(LFQ_KO, LFQ_WT), 1, cv)
+cv.standard <- apply(cbind(LFQ_KO.standard,LFQ_WT.standard), 1, cv)
+cv.minmax <- apply(cbind(LFQ_KO.minmax, LFQ_WT.minmax), 1, cv)
+cv.med <- apply(cbind(LFQ_KO.med,LFQ_WT.med), 1, cv)
+cv.mad <- apply(cbind(LFQ_KO.mad,LFQ_WT.mad), 1, cv)
+cv.lm <- apply(cbind(LFQ_KO.lm,LFQ_WT.lm), 1, cv)
+cv.vsn <- apply(cbind(LFQ_ALL.vsn@assayData[['R']],LFQ_ALL.vsn@assayData[['G']]), 1, cv)
+cv.ordernorm <- apply(cbind(LFQ_KO.ordernorm,LFQ_WT.ordernorm), 1, cv)
+cv.eig <- apply(LFQ.eig_norm$norm_m, 1, cv)
 
-rsd_all <- data.frame(exp, rsd_before, rsd.standard, rsd.minmax, rsd.med, rsd.mad, rsd.lm, rsd.vsn, rsd.ordernorm, rsd.eig)
-colnames(rsd_all) <- c('Exp', 'Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 'VSN', 'OrderQuantile', 'EigenMS')
-knitr::kable(rsd_all, format='html', row.names = FALSE)
+cv_all <- data.frame(cv_before, cv.standard, cv.minmax, cv.med, cv.mad, cv.lm, cv.vsn, cv.ordernorm, cv.eig)
+colnames(cv_all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 'VSN', 'OrderQuantile', 'EigenMS')
+
+vplots1 <- ggarrange(
+    plotoneviolin(cv_before, 'Original', 'red'),
+    plotoneviolin(cv.minmax, 'MinMax', 'green'),
+    plotoneviolin(cv.vsn, 'VSN', 'orange'),
+    plotoneviolin(cv.eig, 'EigenMS', 'blue'),
+    nrow=2,ncol=2
+)
+
+annotate_figure(vplots1, 
+                top=text_grob('Violin plots of LFQ CV [%] - comparison of normalization methods', 
+                              face = 'bold'))
 ```
+
+
+```{r echo=FALSE}
+ggarrange(
+    plotoneviolin(cv.standard, 'Z-score', 'yellow', 'yellow'),
+    plotoneviolin(cv.med, 'Median', 'magenta', 'magenta'),
+    plotoneviolin(cv.mad, 'MAD', 'pink', 'pink'),
+    plotoneviolin(cv.lm, 'Linear', 'purple', 'purple'),
+    plotoneviolin(cv.ordernorm, 'OrderQuantile', 'brown', 'brown'),
+    nrow=2, ncol=3
+)
+```
+
+<center>
+**SUMMARY OF COEFFICIENT OF VARIATION**
+
+```{r echo=FALSE}
+cv_summary <- cv_all %>%
+    pivot_longer(1:9, names_to = 'method', values_to = 'LFQ_CV') %>%
+    group_by(method) %>%
+    summarise('mean'=round(mean(LFQ_CV),5), 
+              'median'=round(median(LFQ_CV),5), 
+              'sd'=round(sd(LFQ_CV),5))
+
+knitr::kable(cv_summary, format='html')
+```
+
+</center>
+
+<br>As we can see above, the best methods were:
+
+* Min-Max Normalization
+* VSN
+* EigenMS
+
+Coefficient of Variation for the rest of the methods have a poor performance.
 
 <br>
 **REPRODUCIBILITY OF BIOLOGICAL REPLICATES**
@@ -702,23 +816,22 @@ A guidelines for interpretation by [Koo and Li (2016)](https://doi.org/10.1016%2
 * above 0.90: excellent
 
 
-```{r include=FALSE}
-icc_before <- psych::ICC(lfq)$results['ICC']
-icc.standard <- psych::ICC(cbind(LFQ_KO.standard,LFQ_WT.standard))$results['ICC']
-icc.minmax <- psych::ICC(cbind(LFQ_KO.standard,LFQ_WT.standard))$results['ICC']
-icc.med <- psych::ICC(cbind(LFQ_KO.med,LFQ_WT.med))$results['ICC']
-icc.mad <- psych::ICC(cbind(LFQ_KO.mad,LFQ_WT.mad))$results['ICC']
-icc.lm <- psych::ICC(cbind(LFQ_KO.lm,LFQ_WT.lm))$results['ICC']
-icc.vsn <- psych::ICC(cbind(LFQ_ALL.vsn@assayData[['R']],LFQ_ALL.vsn@assayData[['G']]))$results['ICC']
-icc.ordernorm <- psych::ICC(cbind(LFQ_KO.ordernorm,LFQ_WT.ordernorm))$results['ICC']
-icc.eig <- psych::ICC(LFQ.eig_norm$norm_m)$results['ICC']
-```
 ```{r echo=FALSE}
-icc_all <- data.frame(icc_before, icc.standard, icc.minmax, icc.med, icc.mad, icc.lm, icc.vsn, icc.ordernorm, icc.eig)
-colnames(icc_all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 'VSN', 'OrderQuantile', 'EigenMS')
+icc_before <- irr::icc(lfq)$value
+icc.standard <- irr::icc(cbind(LFQ_KO.standard,LFQ_WT.standard))$value
+icc.minmax <- irr::icc(cbind(LFQ_KO.standard,LFQ_WT.standard))$value
+icc.med <- irr::icc(cbind(LFQ_KO.med,LFQ_WT.med))$value
+icc.mad <- irr::icc(cbind(LFQ_KO.mad,LFQ_WT.mad))$value
+icc.lm <- irr::icc(cbind(LFQ_KO.lm,LFQ_WT.lm))$value
+icc.vsn <- irr::icc(cbind(LFQ_ALL.vsn@assayData[['R']],LFQ_ALL.vsn@assayData[['G']]))$value
+icc.ordernorm <- irr::icc(cbind(LFQ_KO.ordernorm,LFQ_WT.ordernorm))$value
+icc.eig <- irr::icc(LFQ.eig_norm$norm_m)$value
+
+icc_all <- data.frame(ICC=c(icc_before, icc.standard, icc.minmax, icc.med, 
+                            icc.mad, icc.lm, icc.vsn, icc.ordernorm, icc.eig))
+rownames(icc_all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 'VSN', 'OrderQuantile', 'EigenMS')
 knitr::kable(icc_all, format='html')
 ```
-
 
 # Conclusion
 

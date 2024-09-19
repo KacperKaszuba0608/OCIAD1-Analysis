@@ -78,6 +78,14 @@ LFQ_WT_MITO <- LFQ.imp %>% select(contains('WT_MITO'))
 ```
 
 
+```{r}
+# Extracting nonimputed data
+LFQ.log.totals <- LFQ.log %>%
+    select(contains('TOTALS'))
+
+colnames(LFQ.log.totals) <- gsub('_TOTALS_', '.', colnames(LFQ.log.totals))
+write.csv(LFQ.log.totals, file='./data/nonimputed_lfq.csv', row.names=FALSE)
+```
 
 
 
