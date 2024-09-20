@@ -47,16 +47,19 @@ writeLines("td, th { padding:6px ; text-align:center} th { background-color:blac
 
 # Load Data
 
-<center>
 ```{r load data}
 lfq <- read.csv('./data/nonimputed_lfq.csv')
+```
+
+<center>
+```{r echo=FALSE}
 knitr::kable(head(lfq, n = 10), format = 'html')
 ```
 </center>
 
 # Data Preprocessing
 
-```{r}
+```{r extracting data}
 LFQ_KO <- lfq %>%
     select(contains('KO'))
 
@@ -66,7 +69,7 @@ LFQ_WT <- lfq %>%
 
 # Data Mining
 
-```{r}
+```{r plotting hists}
 ggarrange(
     plothist(LFQ_KO, '- KO'),
     plothist(LFQ_WT, '- WT'),
@@ -74,11 +77,20 @@ ggarrange(
 )
 ```
 
-```{r}
+```{r skewnes nonimputed}
+# skewness of nonimputed data
 moments::skewness(lfq, na.rm = TRUE)
 ```
 
-The imputation doesn't have influence on skewness of data. 🕺
+```{r skewnes imputed}
+# skewnes of imputed data
+lfq.imp <- read.csv('./data/LFQ_raw_totals_imp.csv')
+moments::skewness(lfq.imp)
+```
+
+
+The imputation doesn't have influence on skewness of data. 🕺 Furthermore the 
+imputation fixed it in some level, because the skewness coeff is lower for imputed data.
 
 
 # `protti` library
@@ -89,9 +101,13 @@ library(protti)
 
 ## Data Preprocessing
 
-Thanks to Mateusz, we have data almost ready for analysis with `protti`.
+Thanks to Mateusz, we had data almost ready for analysis with `protti`, but there
+were some important columns missing. So, based on Matis' code, I transformed and
+selected features based on 
+[The Input Preparation Workflow](https://jpquast.github.io/protti/articles/input_preparation_workflow.html) 
+from the `protti` documentation.
 
-```{r}
+```{r preprocessing data for protti}
 proteingroups <- readr::read_tsv("data/proteinGroups.txt", show_col_types = FALSE)
 
 proteingroups <- proteingroups %>% filter(is.na(`Only identified by site`),
@@ -100,39 +116,201 @@ proteingroups <- proteingroups %>% filter(is.na(`Only identified by site`),
 
 proteingroups <- proteingroups %>%
     select(`Protein IDs`, `Peptide sequences`, 
-           contains('LFQ intensity') & (ends_with('22') | ends_with('23') | ends_with('24')))
+           contains('LFQ intensity') & contains('TOTALS') & (ends_with('22') | ends_with('23') | ends_with('24'))) %>%
+    mutate(`Protein IDs`= paste('prot_', 1:nrow(proteingroups), sep='')) %>%
+    pivot_longer(3:8, names_to = 'Sample', values_to = 'Intensity')%>%
+    mutate(Sample = gsub('LFQ intensity ', '', Sample)) %>%
+    separate(col =  Sample, into = c("celltype","sampletype","rep"), sep = "_", remove = F) %>%
+    mutate(Condition = ifelse(celltype == 'KO', 'treated', 'control'),
+           Intensity = ifelse(Intensity == 0, NA, log2(Intensity))) %>%
+    select(Sample, `Protein IDs`, `Peptide sequences`, Condition, Intensity) 
 ```
 
+<center>
+```{r echo=FALSE}
+knitr::kable(head(proteingroups), format = 'html', row.names = FALSE)
+```
+</center>
 
-When we performe code bellow we have data frame with 5138 rows.
+<br>**We can do most of the calculations from the `protti` library with data structured as above.**
+
+## Normalization
+
+The `protti` library gives us fxn to normalise data, but the function has only 
+median method which is the original intensity minus the run median plus the global median. 
+
+```{r normalisation}
+normalised_data <- proteingroups %>%
+    protti::normalise(sample = Sample,
+              intensity_log2 = Intensity,
+              method = 'median')
+```
+
+```{r echo=FALSE}
+ggplot(data=normalised_data) + 
+    geom_histogram(aes(x=normalised_intensity_log2), bins=20) +
+    labs(title='Histogram of Normalised LFQ Intensity', x=' Normalised LFQ Values')
+```
+
 
 ```{r}
-nrow(LFQ_long[LFQ_long$Sample == 'KO_MITOS_22',])
+ggplot(data=normalised_data, mapping=aes(x=Sample, y = normalised_intensity_log2, fill=Sample)) + 
+    geom_boxplot(width=0.2)+
+    geom_violin(alpha=0.4)+
+    theme(legend.position = 'none') +
+    labs(title='Violin plot of Normalised LFQ Intensity', y=' Normalised LFQ Values', x='')
 ```
 
-But when you read the original data from `proteingroups.txt` we have 5905 rows.
+```{r skewness after normalisation}
+normalised_data %>%
+    group_by(Sample) %>%
+    summarise(skewness = moments::skewness(normalised_intensity_log2, na.rm=TRUE))
+```
+
+
+## Imputation
+
+The library gives us 2 methods for imputation:
+
+1. `method = "ludovic"`, MNAR missingness is sampled from a normal distribution 
+around a value that is three lower (log2) than the lowest intensity value recorded
+for the precursor/peptide and that has a spread of the mean standard deviation for the precursor/peptide.
+2. `method = "noise"`, MNAR missingness is sampled from a normal distribution around 
+the mean noise for the precursor/peptide and that has a spread of the mean standard 
+deviation (from each condition) for the precursor/peptide.
+
+```{r handle with missing data}
+# Assigning missing rows
+data_missing <- normalised_data %>%
+    assign_missingness(sample=Sample,
+                       condition = Condition,
+                       grouping = `Protein IDs`,
+                       intensity = normalised_intensity_log2,
+                       ref_condition = 'all')
+```
+
+### Method `ludovic`
+
+```{r ludovic method}
+ludovic_imp <- impute(
+    data_missing,
+    sample = Sample,
+    grouping = `Protein IDs`,
+    intensity_log2 = normalised_intensity_log2,
+    condition = Condition,
+    comparison = comparison,
+    missingness = missingness,
+    method = 'ludovic',
+    skip_log2_transform_error = TRUE
+)
+```
+
+
+The imputation is done, but we have too much missing data in the column and the 
+fxn can't impute a value there. The conclusion is that we still have a lot of 
+missing values for peptides that didn't have an LFQ value.
+
+### Method `noise`
+
+```{r noise method}
+noise_imp <- impute(
+    data_missing,
+    sample = Sample,
+    grouping = `Protein IDs`,
+    intensity_log2 = normalised_intensity_log2,
+    condition = Condition,
+    comparison = comparison,
+    missingness = missingness,
+    method = 'noise',
+    skip_log2_transform_error = TRUE
+)
+```
+
+### Visualizations
+
+```{r echo=FALSE}
+ggarrange(
+    ggplot()+geom_histogram(aes(x=ludovic_imp$imputed_intensity), fill='red', alpha=0.4, bins=20),
+    ggplot()+geom_histogram(aes(x=noise_imp$imputed_intensity), fill='green', alpha=0.4, bins=20),
+    nrow=2
+)
+```
+
+```{r skewness after imp by group}
+df_to_skew <- data.frame(ludovic_imp$Sample,ludovic_imp$imputed_intensity, noise_imp$imputed_intensity)
+colnames(df_to_skew) <- c('sample', 'ludovic', 'noise')
+
+df_to_skew %>%
+    group_by(sample) %>%
+    summarise(skewness_ludovic = moments::skewness(ludovic, na.rm=TRUE),
+              skewness_noise = moments::skewness(noise, na.rm=TRUE))
+```
+
+```{r skewness after imp}
+moments::skewness(df_to_skew[,2:3], na.rm=TRUE)
+```
+
+
+Ludovic imputation method has less skewness coefficient. Important is that both 
+imputation methods decreases the skewness coefficient.
+
+### Statistics
+
+**DIFFERENTIAL ABUNDANCE AND SIGNIFICANCE**
+
+In the tutorial, they calculating Differential Abundance and Significance using 
+data prepared like above. We can run calculations on missing or imputed data.
+Like in tutorial we are using the moderate t-test to calculate this statistic.
+
+All methods:
+
+1. `t-test` - Welch test.
+2. `t-test_mean_sd` - Welch test on means, standard deviations and number of replicates.
+3. `moderated_t-test` - a moderated t-test based on the `limma` package
+4. `proDA` - can be used to infer means across samples based on a probabilistic 
+dropout model. This eliminates the need for data imputation since missing values 
+are inferred from the model.
+
+```{r DAAS}
+result <- ludovic_imp %>%
+    calculate_diff_abundance(sample=Sample,
+                             condition = Condition,
+                             grouping = `Protein IDs`,
+                             intensity_log2 = imputed_intensity,
+                             missingness = missingness,
+                             comparison = comparison,
+                             filter_NA_missingness = TRUE,
+                             method = 'moderated_t-test')
+```
+
+The result can be visualize with the volcano plot, which can be also interactive.
+
+```{r volcano plot}
+result %>%
+    volcano_plot(grouping = `Protein IDs`,
+                 log2FC = diff,
+                 significance = pval,
+                 method = 'significant',
+                 significance_cutoff = c(0.05, "adj_pval"),
+                 interactive = TRUE)
+```
 
 
 
+# Interesting Observation
+
+When we run code bellow, we have data frame with 5138 rows.
+
+```{r}
+lfq_long <- read.csv('./data/LFQ_long_raw.csv')
 
 
+lfq_long %>%
+    select(Sample) %>%
+    filter(grepl('TOTALS', Sample) & (grepl('22', Sample) | grepl('23', Sample) | grepl('24', Sample)))%>%
+    group_by(Sample) %>%
+    summarise(test = length(Sample))
+```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+But, when you read the original data from `proteingroups.txt` and make some basic 
+filtration we have 5905 rows.
