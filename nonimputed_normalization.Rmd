@@ -36,6 +36,20 @@ plothist <- function(df, title='', plot.title.and.legend=TRUE) {
     return(ret_plot)
 }
 
+plotoneviolin <- function(object, xlab, fill = 'green', colour='black') {
+    object <- as.data.frame(object) %>%
+        pivot_longer(1, names_to = 'Method', values_to = 'LFQ_CV')
+    
+    ggplot(data=object, aes(x=Method, y=LFQ_CV)) +
+        geom_boxplot(width=0.3, fill=fill, colour=colour)+
+        geom_violin(alpha=0.4, fill=fill, colour=colour)+
+        labs(title='',x=xlab,y='LFQ CV[%]')+
+        theme(legend.position = 'none', axis.text.x=element_blank(), axis.ticks.x=element_blank(),
+              panel.background = element_rect(fill='white', colour = 'grey'),
+              panel.grid = element_line(colour = 'grey'))
+}
+
+
 library(ggplot2)
 library(ggpubr)
 library(dplyr)
@@ -296,6 +310,30 @@ result %>%
 ```
 
 
+**CORELATION OF VARIATION**
+
+```{r}
+cv <- function(x) (sd(x) / mean(x)) * 100
+
+# extract data with values for all samples
+all_imp <- as.data.frame(ludovic_imp)[which(ludovic_imp$`Protein IDs` %in% result$`Protein IDs`),]
+
+lfq_wider <- all_imp %>%
+    select(Sample, imputed_intensity) %>%
+    pivot_wider(names_from = Sample, values_from = imputed_intensity, values_fn = list) %>%
+    unnest(cols = c(KO_TOTALS_22, KO_TOTALS_23, KO_TOTALS_24, WT_TOTALS_22, WT_TOTALS_23, WT_TOTALS_24))
+
+cv_imp <- apply(lfq_wider, 1, cv)
+
+plotoneviolin(cv_imp, xlab='Non-Imputed')
+```
+
+<center>
+```{r echo=FALSE}
+base_cv_stats <- data.frame(mean = mean(cv_imp), median=median(cv_imp), sd = sd(cv_imp))
+knitr::kable(base_cv_stats, format = 'html', row.names = FALSE)
+```
+</center>
 
 # Interesting Observation
 
