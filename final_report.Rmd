@@ -4,7 +4,6 @@ author: "Kacper Kaszuba"
 date: "`r Sys.Date()`"
 output: 
     html_document:
-        css: mystyle.css
         toc: true
         toc_float: 
             collapsed: false
@@ -66,7 +65,7 @@ plotviolin <- function(df, xlab='', ylab='LFQValue') {
     if (!is.data.frame(df)) { df <- as.data.frame(df)}
     
     df <- df %>%
-        pivot_longer(1:6,names_to = 'Exp', values_to = 'LFQValue') %>%
+        pivot_longer(1:ncol(df),names_to = 'Exp', values_to = 'LFQValue') %>%
         mutate(Sample = gsub("_TOTALS_", ".", Exp))
     
     violin <- ggplot(data=df, aes(x=Sample, y=LFQValue, fill=Sample))+
@@ -78,15 +77,15 @@ plotviolin <- function(df, xlab='', ylab='LFQValue') {
     return(violin)
 }
 
-plotoneviolin <- function(object, xlab, fill = 'green', colour='black') {
+plotoneviolin <- function(object, xlab) {
     object <- as.data.frame(object) %>%
-        pivot_longer(1, names_to = 'Method', values_to = 'LFQ_CV')
+        pivot_longer(everything(), names_to = 'Sample', values_to = 'LFQ_CV')
     
-    ggplot(data=object, aes(x=Method, y=LFQ_CV)) +
-        geom_boxplot(width=0.3, fill=fill, colour=colour)+
-        geom_violin(alpha=0.4, fill=fill, colour=colour)+
+    ggplot(data=object, aes(x=Sample, y=LFQ_CV, fill=Sample))+
+        geom_boxplot(width=0.2)+
+        geom_violin(alpha=0.4)+
         labs(title='',x=xlab,y='LFQ CV[%]')+
-        theme(legend.position = 'none', axis.text.x=element_blank(), axis.ticks.x=element_blank(),
+        theme(legend.position = 'none',
               panel.background = element_rect(fill='white', colour = 'grey'),
               panel.grid = element_line(colour = 'grey'))
 }
@@ -98,8 +97,6 @@ library(tidyr)
 library(vsn)
 source('EigenMS/EigenMS/EigenMS.R')
 options(scipen=123)
-
-writeLines("td, th { padding:6px ; text-align:center} th { background-color:black ; color:white ; border:1px solid black; } td { color:black ; border:1px solid black ; text-align:center}", con = "mystyle.css")
 ```
 
 # Load Data
@@ -107,14 +104,14 @@ writeLines("td, th { padding:6px ; text-align:center} th { background-color:blac
 ```{r data loading}
 # non-imputed data
 lfq <- read.csv('./data/nonimputed_lfq.csv')
-knitr::kable(head(lfq), format='html')
+DT::datatable(lfq)
 ```
 <br>
 ```{r imp data loading}
 # imputed data
 lfq_imp <- read.csv('./data/LFQ_raw_totals_imp.csv')
 colnames(lfq_imp) <- gsub('_TOTALS_', '.I.', colnames(lfq_imp))
-knitr::kable(head(lfq_imp), format='html')
+DT::datatable(lfq_imp)
 ```
 
 # Data Preparation
@@ -245,7 +242,8 @@ lambda.24 <- car::powerTransform(LFQ_KO$KO.24)$lambda
 ```
 <center>
 ```{r echo=FALSE}
-knitr::kable(data.frame(lambda.22, lambda.23, lambda.24, row.names = 'lambda'), format = 'html')
+DT::datatable(data.frame(lambda.22, lambda.23, lambda.24, row.names = 'lambda'), 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE))
 ```
 </center>
     
@@ -287,7 +285,8 @@ lambda.24 <- car::powerTransform(LFQ_KO_imp$KO.I.24)$lambda
 
 <center>
 ```{r echo=FALSE}
-knitr::kable(data.frame(lambda.22, lambda.23, lambda.24, row.names = 'lambda'), format = 'html')
+DT::datatable(data.frame(lambda.22, lambda.23, lambda.24, row.names = 'lambda'), 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE))
 ```
 </center>
 
@@ -532,7 +531,8 @@ lambda.24 <- car::powerTransform(LFQ_WT$WT.24)$lambda
 ```
 <center>
 ```{r echo=FALSE}
-knitr::kable(data.frame(lambda.22, lambda.23, lambda.24, row.names = 'lambda'), format = 'html')
+DT::datatable(data.frame(lambda.22, lambda.23, lambda.24, row.names = 'lambda'), 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE))
 ```
 </center>
     
@@ -574,7 +574,8 @@ lambda.24 <- car::powerTransform(LFQ_WT_imp$WT.I.24)$lambda
 ```
 <center>
 ```{r echo=FALSE}
-knitr::kable(data.frame(lambda.22, lambda.23, lambda.24, row.names = 'lambda'), format = 'html')
+DT::datatable(data.frame(lambda.22, lambda.23, lambda.24, row.names = 'lambda'), 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE))
 ```
 </center>
 
@@ -757,8 +758,16 @@ LFQ_imp.vsn <- justvsn(lfq_rglist_imp)@assayData # Imputed
 
 ```{r echo=FALSE}
 ggarrange(
-    plothist(cbind(LFQ.vsn$R, LFQ.vsn$G), 'Non-Imputed Transformed by VSN'),
-    plothist(cbind(LFQ_imp.vsn$R, LFQ_imp.vsn$G), 'Imputed Transformed by VSN'),
+    ggarrange(plothist(LFQ.vsn$R, 'Non-Imputed Transformed by VSN')+
+                  theme(legend.position = 'none')+xlab(''), 
+              plothist(LFQ.vsn$G, '')+
+                  theme(legend.position = 'none')+xlab('WT'),
+              nrow=1,ncol=2),
+    ggarrange(plothist(LFQ_imp.vsn$R, 'Imputed Transformed by VSN')+
+                  theme(legend.position = 'none')+xlab('KO'), 
+              plothist(LFQ_imp.vsn$G, '')+
+                  theme(legend.position = 'none')+xlab('WT'),
+              nrow=1,ncol=2),
     nrow=2,ncol=1
 )
 ```
@@ -783,62 +792,46 @@ moments::skewness(cbind(LFQ_imp.vsn$R, LFQ_imp.vsn$G), na.rm=TRUE)
 **Experiment 22**
 
 ```{r autonorm KO 22}
-best.22 <- bestNormalize::bestNormalize(LFQ_KO$KO.22) # Non-Imputed
-best_imp.22 <- bestNormalize::bestNormalize(LFQ_KO_imp$KO.I.22) # Imputed
+best.KO.22 <- bestNormalize::bestNormalize(LFQ_KO$KO.22) # Non-Imputed
+best.KO_imp.22 <- bestNormalize::bestNormalize(LFQ_KO_imp$KO.I.22) # Imputed
 ```
 
 **Experiment 23**
 
 ```{r autonorm KO 23}
-best.23 <- bestNormalize::bestNormalize(LFQ_KO$KO.23) # Non-Imputed
-best_imp.23 <- bestNormalize::bestNormalize(LFQ_KO_imp$KO.I.23) # Imputed
+best.KO.23 <- bestNormalize::bestNormalize(LFQ_KO$KO.23) # Non-Imputed
+best.KO_imp.23 <- bestNormalize::bestNormalize(LFQ_KO_imp$KO.I.23) # Imputed
 ```
 
 **Experiment 24**
 
 ```{r autonorm KO 24}
-best.24 <- bestNormalize::bestNormalize(LFQ_KO$KO.24) # Non-Imputed
-best_imp.24 <- bestNormalize::bestNormalize(LFQ_KO_imp$KO.I.24) # Imputed
+best.KO.24 <- bestNormalize::bestNormalize(LFQ_KO$KO.24) # Non-Imputed
+best.KO_imp.24 <- bestNormalize::bestNormalize(LFQ_KO_imp$KO.I.24) # Imputed
 ```
 
 **Summary**
 
 ```{r echo=FALSE}
-autonorm_ko <- data.frame(Exp_22=environment(best.22[["norm_stat_fn"]])[["best_idx"]],
-                          Exp_22_imp=environment(best_imp.22[["norm_stat_fn"]])[["best_idx"]],
-                          Exp_23=environment(best.23[["norm_stat_fn"]])[["best_idx"]],
-                          Exp_23_imp=environment(best_imp.23[["norm_stat_fn"]])[["best_idx"]],
-                          Exp_24=environment(best.24[["norm_stat_fn"]])[["best_idx"]],
-                          Exp_24_imp=environment(best_imp.24[["norm_stat_fn"]])[["best_idx"]])
+autonorm_ko <- data.frame(Rep_22=environment(best.KO.22[["norm_stat_fn"]])[["best_idx"]],
+                          Rep_22_imp=environment(best.KO_imp.22[["norm_stat_fn"]])[["best_idx"]],
+                          Rep_23=environment(best.KO.23[["norm_stat_fn"]])[["best_idx"]],
+                          Rep_23_imp=environment(best.KO_imp.23[["norm_stat_fn"]])[["best_idx"]],
+                          Rep_24=environment(best.KO.24[["norm_stat_fn"]])[["best_idx"]],
+                          Rep_24_imp=environment(best.KO_imp.24[["norm_stat_fn"]])[["best_idx"]])
 
 rownames(autonorm_ko) <- 'Method'
 autonorm_ko
 ```
 
 Based on the result for each column, the best method to normalize the data is 
-Order Quntile Normalization for samples:
-
-* KO 22 Imputed,
-* KO 23 Non-Imputed,
-* KO 23 Imputed and
-* KO 24 Imputed.
-
-For the rest of samples the best method is Yeo-Johnson.
+Order Quntile Normalization for all of the samples:
 
 ```{r echo=FALSE}
-LFQ_KO.22 <- bestNormalize::yeojohnson(LFQ_KO$KO.22)$x.t # Non-Imputed
-LFQ_KO_imp.22 <- bestNormalize::orderNorm(LFQ_KO_imp$KO.I.22)$x.t # Imputed
-
-LFQ_KO.23 <- bestNormalize::orderNorm(LFQ_KO$KO.23)$x.t # Non-Imputed
-LFQ_KO_imp.23 <- bestNormalize::orderNorm(LFQ_KO_imp$KO.I.23)$x.t # Imputed
-
-LFQ_KO.24 <- bestNormalize::yeojohnson(LFQ_KO$KO.24)$x.t # Non-Imputed
-LFQ_KO_imp.24 <- bestNormalize::orderNorm(LFQ_KO_imp$KO.I.24)$x.t # Imputed
-
- # Non-Imputed
-LFQ_KO.bestNorm <- data.frame('KO.22'=LFQ_KO.22,'KO.23'=LFQ_KO.23,'KO.24'=LFQ_KO.24)
- # Imputed
-LFQ_KO_imp.bestNorm <- data.frame('KO.I.22'=LFQ_KO_imp.22,'KO.I.23'=LFQ_KO_imp.23,'KO.I.24'=LFQ_KO_imp.24)
+# Non-Imputed
+LFQ_KO.bestNorm <- data.frame('KO.22'=best.KO.22$x.t,'KO.23'=best.KO.23$x.t,'KO.24'=best.KO.24$x.t)
+# Imputed
+LFQ_KO_imp.bestNorm <- data.frame('KO.I.22'=best.KO_imp.22$x.t,'KO.I.23'=best.KO_imp.23$x.t,'KO.I.24'=best.KO_imp.24$x.t)
 
 ggarrange(
     plothist(LFQ_KO.bestNorm, 'Non-Imputed - BestNormalize'),
@@ -847,38 +840,42 @@ ggarrange(
 )
 ```
 
+```{r}
+moments::skewness(cbind(LFQ_KO.bestNorm, LFQ_KO_imp.bestNorm), na.rm = TRUE)
+```
+
 ## WT
 
 **Experiment 22**
 
 ```{r autonorm WT 22}
-best.22 <- bestNormalize::bestNormalize(LFQ_WT$WT.22) # Non-Imputed
-best_imp.22 <- bestNormalize::bestNormalize(LFQ_WT_imp$WT.I.22) # Imputed
+best.WT.22 <- bestNormalize::bestNormalize(LFQ_WT$WT.22) # Non-Imputed
+best.WT_imp.22 <- bestNormalize::bestNormalize(LFQ_WT_imp$WT.I.22) # Imputed
 ```
 
 **Experiment 23**
 
 ```{r autonorm WT 23}
-best.23 <- bestNormalize::bestNormalize(LFQ_WT$WT.23) # Non-Imputed
-best_imp.23 <- bestNormalize::bestNormalize(LFQ_WT_imp$WT.I.23) # Imputed
+best.WT.23 <- bestNormalize::bestNormalize(LFQ_WT$WT.23) # Non-Imputed
+best.WT_imp.23 <- bestNormalize::bestNormalize(LFQ_WT_imp$WT.I.23) # Imputed
 ```
 
 **Experiment 24**
 
 ```{r autonorm WT 24}
-best.24 <- bestNormalize::bestNormalize(LFQ_WT$WT.24) # Non-Imputed
-best_imp.24 <- bestNormalize::bestNormalize(LFQ_WT_imp$WT.I.24) # Imputed
+best.WT.24 <- bestNormalize::bestNormalize(LFQ_WT$WT.24) # Non-Imputed
+best.WT_imp.24 <- bestNormalize::bestNormalize(LFQ_WT_imp$WT.I.24) # Imputed
 ```
 
 **Summary**
 
 ```{r echo=FALSE}
-autonorm_wt <- data.frame(Exp_22=environment(best.22[["norm_stat_fn"]])[["best_idx"]],
-                          Exp_22_imp=environment(best_imp.22[["norm_stat_fn"]])[["best_idx"]],
-                          Exp_23=environment(best.23[["norm_stat_fn"]])[["best_idx"]],
-                          Exp_23_imp=environment(best_imp.23[["norm_stat_fn"]])[["best_idx"]],
-                          Exp_24=environment(best.24[["norm_stat_fn"]])[["best_idx"]],
-                          Exp_24_imp=environment(best_imp.24[["norm_stat_fn"]])[["best_idx"]])
+autonorm_wt <- data.frame(Rep_22=environment(best.WT.22[["norm_stat_fn"]])[["best_idx"]],
+                          Rep_22_imp=environment(best.WT_imp.22[["norm_stat_fn"]])[["best_idx"]],
+                          Rep_23=environment(best.WT.23[["norm_stat_fn"]])[["best_idx"]],
+                          Rep_23_imp=environment(best.WT_imp.23[["norm_stat_fn"]])[["best_idx"]],
+                          Rep_24=environment(best.WT.24[["norm_stat_fn"]])[["best_idx"]],
+                          Rep_24_imp=environment(best.WT_imp.24[["norm_stat_fn"]])[["best_idx"]])
 
 rownames(autonorm_wt) <- 'Method'
 autonorm_wt
@@ -887,19 +884,10 @@ autonorm_wt
 Like earlier the best method for each column is Order Quantile Normalization.
 
 ```{r echo=FALSE}
-LFQ_WT.22 <- bestNormalize::orderNorm(LFQ_WT$WT.22)$x.t # Non-Imputed
-LFQ_WT_imp.22 <- bestNormalize::orderNorm(LFQ_WT_imp$WT.I.22)$x.t # Imputed
-
-LFQ_WT.23 <- bestNormalize::orderNorm(LFQ_WT$WT.23)$x.t # Non-Imputed
-LFQ_WT_imp.23 <- bestNormalize::orderNorm(LFQ_WT_imp$WT.I.23)$x.t # Imputed
-
-LFQ_WT.24 <- bestNormalize::orderNorm(LFQ_WT$WT.24)$x.t # Non-Imputed
-LFQ_WT_imp.24 <- bestNormalize::orderNorm(LFQ_WT_imp$WT.I.24)$x.t # Imputed
-
- # Non-Imputed
-LFQ_WT.bestNorm <- data.frame('WT.22'=LFQ_WT.22,'WT.23'=LFQ_WT.23,'WT.24'=LFQ_WT.24)
- # Imputed
-LFQ_WT_imp.bestNorm <- data.frame('WT.I.22'=LFQ_WT_imp.22,'WT.I.23'=LFQ_WT_imp.23,'WT.I.24'=LFQ_WT_imp.24)
+# Non-Imputed
+LFQ_WT.bestNorm <- data.frame('WT.22'=best.WT.22$x.t,'WT.23'=best.WT.23$x.t,'WT.24'=best.WT.24$x.t)
+# Imputed
+LFQ_WT_imp.bestNorm <- data.frame('WT.I.22'=best.WT_imp.22$x.t,'WT.I.23'=best.WT_imp.23$x.t,'WT.I.24'=best.WT_imp.24$x.t)
 
 ggarrange(
     plothist(LFQ_WT.bestNorm, 'Non-Imputed - BestNormalize'),
@@ -1219,21 +1207,21 @@ where:
 cv <- function (x) sd(x) / mean(x) * 100
 exp <- c('KO.22', 'KO.23', 'KO.24', 'WT.22', 'WT.23', 'WT.24')
 
-cv.before <- apply(cbind(LFQ_KO, LFQ_WT), 1, cv)
-cv.standard <- apply(cbind(LFQ_KO.standard,LFQ_WT.standard), 1, cv)
-cv.minmax <- apply(cbind(LFQ_KO.minmax, LFQ_WT.minmax), 1, cv)
-cv.med <- apply(cbind(LFQ_KO.med,LFQ_WT.med), 1, cv)
-cv.mad <- apply(cbind(LFQ_KO.mad,LFQ_WT.mad), 1, cv)
-cv.lm <- apply(cbind(LFQ_KO.lm,LFQ_WT.lm), 1, cv)
-cv.vsn <- apply(cbind(LFQ.vsn$R,LFQ.vsn$G), 1, cv)
-cv.bestnorm <- apply(cbind(LFQ_KO.bestNorm,LFQ_WT.bestNorm), 1, cv)
-cv.eig <- apply(LFQ.eig_norm$norm_m, 1, cv)
+cv.before <- data.frame(KO=apply(2^LFQ_KO, 1, cv), WT=apply(2^LFQ_WT,1,cv))
+cv.standard <- data.frame(KO=apply(2^LFQ_KO.standard, 1, cv), WT=apply(2^LFQ_WT.standard, 1, cv))
+cv.minmax <- data.frame(KO=apply(2^LFQ_KO.minmax, 1, cv), WT= apply(2^LFQ_WT.minmax, 1, cv))
+cv.med <- data.frame(KO=apply(2^LFQ_KO.med, 1, cv), WT=apply(2^LFQ_WT.med, 1, cv))
+cv.mad <- data.frame(KO=apply(2^LFQ_KO.mad, 1, cv), WT=apply(2^LFQ_WT.mad, 1, cv))
+cv.lm <- data.frame(KO=apply(2^LFQ_KO.lm, 1, cv), WT=apply(2^LFQ_WT.lm, 1, cv))
+cv.vsn <- data.frame(KO=apply(2^LFQ.vsn$R, 1, cv), WT=apply(2^LFQ.vsn$G, 1, cv))
+cv.bestnorm <- data.frame(KO=apply(2^LFQ_KO.bestNorm, 1, cv), WT=apply(2^LFQ_WT.bestNorm, 1, cv))
+cv.eig <- data.frame(KO=apply(2^LFQ.eig_norm$norm_m[,1:3], 1, cv), WT=apply(2^LFQ.eig_norm$norm_m[,4:6], 1, cv))
 
 vplots1 <- ggarrange(
-    plotoneviolin(cv.before, 'Original', 'red'),
-    plotoneviolin(cv.minmax, 'MinMax', 'green'),
-    plotoneviolin(cv.vsn, 'VSN', 'orange'),
-    plotoneviolin(cv.eig, 'EigenMS', 'blue'),
+    plotoneviolin(cv.before, 'Original'),
+    plotoneviolin(cv.minmax, 'MinMax'),
+    plotoneviolin(cv.vsn, 'VSN'),
+    plotoneviolin(cv.eig, 'EigenMS'),
     nrow=2,ncol=2
 )
 
@@ -1242,40 +1230,82 @@ annotate_figure(vplots1,
                               face = 'bold'))
 ```
 
-
 ```{r echo=FALSE}
 ggarrange(
-    plotoneviolin(cv.standard, 'Z-score', 'yellow', 'yellow'),
-    plotoneviolin(cv.med, 'Median', 'magenta', 'magenta'),
-    plotoneviolin(cv.mad, 'MAD', 'pink', 'pink'),
-    plotoneviolin(cv.lm, 'Linear', 'purple', 'purple'),
-    plotoneviolin(cv.bestnorm, 'bestNormalize Package', 'brown', 'brown'),
+    plotoneviolin(cv.standard, 'Z-score'),
+    plotoneviolin(cv.med, 'Median'),
+    plotoneviolin(cv.mad, 'MAD'),
+    plotoneviolin(cv.lm, 'Linear'),
+    plotoneviolin(cv.bestnorm, 'bestNormalize Package'),
     nrow=2, ncol=3
 )
 ```
 
 <center>
 **SUMMARY OF COEFFICIENT OF VARIATION**
+</center>
 
 ```{r cv summary, echo=FALSE}
 cv_all <- data.frame(cv.before, cv.standard, cv.minmax, cv.med, cv.mad, cv.lm, cv.vsn, cv.bestnorm)
-colnames(cv_all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 'VSN', 'bestNormalize')
+colnames(cv_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
+                      'MinMax_KO', 'MinMax_WT', 'Median_KO', 'Median_WT', 
+                      'MAD_KO', 'MAD_WT', 'Linear_KO', 'Linear_WT', 
+                      'VSN_KO', 'VSN_WT', 'bestNormalize_KO', 'bestNormalize_WT')
+colnames(cv.eig) <- c('EigenMS_KO', 'EigenMS_WT')
 
-cv_summary <- cv_all %>%
-    pivot_longer(1:8, names_to = 'method', values_to = 'LFQ_CV') %>%
-    group_by(method) %>%
-    summarise('mean'=round(mean(LFQ_CV, na.rm=TRUE),5), 
-              'median'=round(median(LFQ_CV, na.rm=TRUE),5), 
-              'sd'=round(sd(LFQ_CV, na.rm=TRUE),5))
+cv_summary_KO <- cv_all %>%
+    select(contains('KO')) %>%
+    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') %>%
+    group_by(`method KO`) %>%
+    summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
+              'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-summary_eigen <- tibble(cv.eig) %>%
-    pivot_longer(1, names_to = 'method', values_to = 'LFQ_CV') %>%
-    group_by(method) %>%
-    summarise('mean'=round(mean(LFQ_CV, na.rm=TRUE),5), 
-              'median'=round(median(LFQ_CV, na.rm=TRUE),5), 
-              'sd'=round(sd(LFQ_CV, na.rm=TRUE),5))
+summary_eigen_KO <- tibble(cv.eig) %>%
+    select(contains('KO')) %>%
+    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') %>%
+    group_by(`method KO`) %>%
+    summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
+              'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-knitr::kable(rbind(cv_summary, summary_eigen), format='html')
+cv_summary_WT <- cv_all %>%
+    select(contains('WT')) %>%
+    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') %>%
+    group_by(`method WT`) %>%
+    summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
+              'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
+
+summary_eigen_WT <- tibble(cv.eig) %>%
+    select(contains('WT')) %>%
+    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') %>%
+    group_by(`method WT`) %>%
+    summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
+              'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
+```
+
+<center>
+```{r echo=FALSE}
+cv_imp_summary <- as.data.frame(cbind(rbind(cv_summary_KO, summary_eigen_KO),
+                                      rbind(cv_summary_WT, summary_eigen_WT)))
+colnames(cv_imp_summary)[1] <- 'method'
+cv_imp_summary <- cv_imp_summary[,-5]
+cv_imp_summary$method <- gsub('_KO', '', cv_imp_summary$method)
+
+DT::datatable(cv_imp_summary, rownames = FALSE, 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
+    DT::formatStyle(columns = 'mean_KO', 
+                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+    DT::formatStyle(columns = 'mean_WT', 
+                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+    DT::formatStyle(columns = 'median_KO', 
+                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+    DT::formatStyle(columns = 'median_WT', 
+                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white')))
+   
+
 ```
 </center>
 
@@ -1290,21 +1320,21 @@ Coefficient of Variation for the rest of the methods have a poor performance.
 ### Imputed CV
 
 ```{r cv imp, echo=FALSE}
-cv_imp.before <- apply(cbind(LFQ_KO_imp, LFQ_WT_imp), 1, cv)
-cv_imp.standard <- apply(cbind(LFQ_KO_imp.standard,LFQ_WT_imp.standard), 1, cv)
-cv_imp.minmax <- apply(cbind(LFQ_KO_imp.minmax, LFQ_WT_imp.minmax), 1, cv)
-cv_imp.med <- apply(cbind(LFQ_KO_imp.med,LFQ_WT_imp.med), 1, cv)
-cv_imp.mad <- apply(cbind(LFQ_KO_imp.mad,LFQ_WT_imp.mad), 1, cv)
-cv_imp.lm <- apply(cbind(LFQ_KO_imp.lm,LFQ_WT_imp.lm), 1, cv)
-cv_imp.vsn <- apply(cbind(LFQ_imp.vsn$R,LFQ_imp.vsn$G), 1, cv)
-cv_imp.bestnorm <- apply(cbind(LFQ_KO_imp.bestNorm,LFQ_WT_imp.bestNorm), 1, cv)
-cv_imp.eig <- apply(LFQ_imp.eig_norm$norm_m, 1, cv)
+cv_imp.before <- data.frame(KO=apply(2^LFQ_KO_imp, 1, cv), WT=apply(2^LFQ_WT_imp,1,cv))
+cv_imp.standard <- data.frame(KO=apply(2^LFQ_KO_imp.standard, 1, cv), WT=apply(2^LFQ_WT_imp.standard, 1, cv))
+cv_imp.minmax <- data.frame(KO=apply(2^LFQ_KO_imp.minmax, 1, cv), WT= apply(2^LFQ_WT_imp.minmax, 1, cv))
+cv_imp.med <- data.frame(KO=apply(2^LFQ_KO_imp.med, 1, cv), WT=apply(2^LFQ_WT_imp.med, 1, cv))
+cv_imp.mad <- data.frame(KO=apply(2^LFQ_KO_imp.mad, 1, cv), WT=apply(2^LFQ_WT_imp.mad, 1, cv))
+cv_imp.lm <- data.frame(KO=apply(2^LFQ_KO_imp.lm, 1, cv), WT=apply(2^LFQ_WT_imp.lm, 1, cv))
+cv_imp.vsn <- data.frame(KO=apply(2^LFQ_imp.vsn$R, 1, cv), WT=apply(2^LFQ_imp.vsn$G, 1, cv))
+cv_imp.bestnorm <- data.frame(KO=apply(2^LFQ_KO_imp.bestNorm, 1, cv), WT=apply(2^LFQ_WT_imp.bestNorm, 1, cv))
+cv_imp.eig <- data.frame(KO=apply(2^LFQ_imp.eig_norm$norm_m[,1:3], 1, cv), WT=apply(2^LFQ_imp.eig_norm$norm_m[,4:6], 1, cv))
 
 vplots2 <- ggarrange(
-    plotoneviolin(cv_imp.before, 'Original', 'red'),
-    plotoneviolin(cv_imp.minmax, 'MinMax', 'green'),
-    plotoneviolin(cv_imp.vsn, 'VSN', 'orange'),
-    plotoneviolin(cv_imp.eig, 'EigenMS', 'blue'),
+    plotoneviolin(cv_imp.before, 'Original'),
+    plotoneviolin(cv_imp.minmax, 'MinMax'),
+    plotoneviolin(cv_imp.vsn, 'VSN'),
+    plotoneviolin(cv_imp.eig, 'EigenMS'),
     nrow=2,ncol=2
 )
 
@@ -1316,38 +1346,80 @@ annotate_figure(vplots2,
 
 ```{r echo=FALSE}
 ggarrange(
-    plotoneviolin(cv_imp.standard, 'Z-score', 'yellow', 'yellow'),
-    plotoneviolin(cv_imp.med, 'Median', 'magenta', 'magenta'),
-    plotoneviolin(cv_imp.mad, 'MAD', 'pink', 'pink'),
-    plotoneviolin(cv_imp.lm, 'Linear', 'purple', 'purple'),
-    plotoneviolin(cv_imp.bestnorm, 'bestNormalize Package', 'brown', 'brown'),
+    plotoneviolin(cv_imp.standard, 'Z-score'),
+    plotoneviolin(cv_imp.med, 'Median'),
+    plotoneviolin(cv_imp.mad, 'MAD'),
+    plotoneviolin(cv_imp.lm, 'Linear'),
+    plotoneviolin(cv_imp.bestnorm, 'bestNormalize Package'),
     nrow=2, ncol=3
 )
 ```
 
 <center>
 **SUMMARY OF COEFFICIENT OF VARIATION**
+</center>
 
 ```{r cv summary imp,  echo=FALSE}
-cv_all <- data.frame(cv_imp.before, cv_imp.standard, cv_imp.minmax, cv_imp.med,
-                     cv_imp.mad, cv_imp.lm, cv_imp.vsn, cv_imp.bestnorm)
-colnames(cv_all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 'VSN', 'bestNormalize')
+cv_imp_all <- data.frame(cv_imp.before, cv_imp.standard, cv_imp.minmax, cv_imp.med,
+                         cv_imp.mad, cv_imp.lm, cv_imp.vsn, cv_imp.bestnorm)
+colnames(cv_imp_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
+                          'MinMax_KO', 'MinMax_WT', 'Median_KO', 'Median_WT', 
+                          'MAD_KO', 'MAD_WT', 'Linear_KO', 'Linear_WT', 
+                          'VSN_KO', 'VSN_WT', 'bestNormalize_KO', 'bestNormalize_WT')
+colnames(cv_imp.eig) <- c('EigenMS_KO', 'EigenMS_WT')
 
-cv_imp_summary <- cv_all %>%
-    pivot_longer(1:8, names_to = 'method', values_to = 'LFQ_CV') %>%
-    group_by(method) %>%
-    summarise('mean'=round(mean(LFQ_CV, na.rm=TRUE),5), 
-              'median'=round(median(LFQ_CV, na.rm=TRUE),5), 
-              'sd'=round(sd(LFQ_CV, na.rm=TRUE),5))
+cv_imp_summary_KO <- cv_imp_all %>%
+    select(contains('KO')) %>%
+    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') %>%
+    group_by(`method KO`) %>%
+    summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
+              'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-summary_eigen <- tibble(cv_imp.eig) %>%
-    pivot_longer(1, names_to = 'method', values_to = 'LFQ_CV') %>%
-    group_by(method) %>%
-    summarise('mean'=round(mean(LFQ_CV, na.rm=TRUE),5), 
-              'median'=round(median(LFQ_CV, na.rm=TRUE),5), 
-              'sd'=round(sd(LFQ_CV, na.rm=TRUE),5))
+summary_imp_eigen_KO <- tibble(cv_imp.eig) %>%
+    select(contains('KO')) %>%
+    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') %>%
+    group_by(`method KO`) %>%
+    summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
+              'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-knitr::kable(rbind(cv_imp_summary, summary_eigen), format='html')
+cv_imp_summary_WT <- cv_imp_all %>%
+    select(contains('WT')) %>%
+    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') %>%
+    group_by(`method WT`) %>%
+    summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
+              'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
+
+summary_imp_eigen_WT <- tibble(cv_imp.eig) %>%
+    select(contains('WT')) %>%
+    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') %>%
+    group_by(`method WT`) %>%
+    summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
+              'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
+```
+
+<center>
+```{r echo=FALSE}
+cv_imp_summary <- as.data.frame(cbind(rbind(cv_imp_summary_KO, summary_imp_eigen_KO),
+                                      rbind(cv_imp_summary_WT, summary_imp_eigen_WT)))
+colnames(cv_imp_summary)[1] <- 'method'
+cv_imp_summary <- cv_imp_summary[,-5]
+cv_imp_summary$method <- gsub('_KO', '', cv_imp_summary$method)
+
+DT::datatable(cv_imp_summary, rownames = FALSE, 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
+    DT::formatStyle(columns = 'mean_KO', 
+                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+    DT::formatStyle(columns = 'mean_WT', 
+                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+    DT::formatStyle(columns = 'median_KO', 
+                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+    DT::formatStyle(columns = 'median_WT', 
+                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white')))
+    
 ```
 </center>
 
@@ -1360,69 +1432,104 @@ replicates cluster together.
 
 A guidelines for interpretation by [Koo and Li (2016)](https://doi.org/10.1016%2Fj.jcm.2016.02.012):
 
-* below 0.50: poor
-* between 0.50 and 0.75: moderate
-* between 0.75 and 0.90: good
-* above 0.90: excellent
-
-:::::::::::::: {.columns}
-::: {.column width="50%"}
+* below 0.50: poor <span style="color:#D3D3D3;font-size:16px">■</span>
+* between 0.50 and 0.75: moderate <span style="color:#aefda1;font-size:16px">■</span>
+* between 0.75 and 0.90: good <span style="color:#6dff54;font-size:16px">■</span>
+* above 0.90: excellent <span style="color:#1bb400;font-size:16px">■</span>
 
 ### Non-Imputed ICC
 
-```{r icc, echo=FALSE}
-icc_before <- irr::icc(lfq)$value
-icc.standard <- irr::icc(cbind(LFQ_KO.standard,LFQ_WT.standard))$value
-icc.minmax <- irr::icc(cbind(LFQ_KO.standard,LFQ_WT.standard))$value
-icc.med <- irr::icc(cbind(LFQ_KO.med,LFQ_WT.med))$value
-icc.mad <- irr::icc(cbind(LFQ_KO.mad,LFQ_WT.mad))$value
-icc.lm <- irr::icc(cbind(LFQ_KO.lm,LFQ_WT.lm))$value
-icc.vsn <- irr::icc(cbind(LFQ.vsn$R,LFQ.vsn$G))$value
-icc.ordernorm <- irr::icc(cbind(LFQ_KO.bestNorm,LFQ_WT.bestNorm))$value
-icc.eig <- irr::icc(LFQ.eig_norm$norm_m)$value
+```{r icc KO, echo=FALSE}
+icc.KO.before <- irr::icc(2^LFQ_KO)$value
+icc.KO.standard <- irr::icc(2^LFQ_KO.standard)$value
+icc.KO.minmax <- irr::icc(2^LFQ_KO.minmax)$value
+icc.KO.med <- irr::icc(2^LFQ_KO.med)$value
+icc.KO.mad <- irr::icc(2^LFQ_KO.mad)$value
+icc.KO.lm <- irr::icc(2^LFQ_KO.lm)$value
+icc.KO.vsn <- irr::icc(2^LFQ.vsn$R)$value
+icc.KO.ordernorm <- irr::icc(2^LFQ_KO.bestNorm)$value
+icc.KO.eig <- irr::icc(2^LFQ.eig_norm$norm_m[,1:3])$value
 
-icc_all <- data.frame(ICC=c(icc_before, icc.standard, icc.minmax, icc.med, 
-                            icc.mad, icc.lm, icc.vsn, icc.ordernorm, icc.eig))
-rownames(icc_all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
+icc.KO.all <- data.frame(`ICC KO`=c(icc.KO.before, icc.KO.standard, icc.KO.minmax, icc.KO.med, 
+                            icc.KO.mad, icc.KO.lm, icc.KO.vsn, icc.KO.ordernorm, icc.KO.eig))
+rownames(icc.KO.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
+                       'VSN', 'bestNormalize', 'EigenMS')
+```
+
+```{r icc WT, echo=FALSE}
+icc.WT.before <- irr::icc(2^LFQ_WT)$value
+icc.WT.standard <- irr::icc(2^LFQ_WT.standard)$value
+icc.WT.minmax <- irr::icc(2^LFQ_WT.minmax)$value
+icc.WT.med <- irr::icc(2^LFQ_WT.med)$value
+icc.WT.mad <- irr::icc(2^LFQ_WT.mad)$value
+icc.WT.lm <- irr::icc(2^LFQ_WT.lm)$value
+icc.WT.vsn <- irr::icc(2^LFQ.vsn$G)$value
+icc.WT.ordernorm <- irr::icc(2^LFQ_WT.bestNorm)$value
+icc.WT.eig <- irr::icc(2^LFQ.eig_norm$norm_m[,4:6])$value
+
+icc.WT.all <- data.frame(`ICC WT`=c(icc.WT.before, icc.WT.standard, icc.WT.minmax, icc.WT.med, 
+                            icc.WT.mad, icc.WT.lm, icc.WT.vsn, icc.WT.ordernorm, icc.WT.eig))
+rownames(icc.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'bestNormalize', 'EigenMS')
 ```
 
 <center>
 ```{r echo=FALSE}
-knitr::kable(icc_all, format='html')
+DT::datatable(cbind(icc.KO.all, icc.WT.all), 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
+    DT::formatStyle(columns = 'ICC.KO', 
+                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400'))) %>%
+    DT::formatStyle(columns = 'ICC.WT', 
+                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
 ```
 </center>
-:::
-::: {.column width="50%"}
 
 ### Imputed ICC
 
-```{r icc imp, echo=FALSE}
-icc_before_imp <- irr::icc(lfq_imp)$value
-icc.standard_imp <- irr::icc(cbind(LFQ_KO_imp.standard,LFQ_WT_imp.standard))$value
-icc.minmax_imp <- irr::icc(cbind(LFQ_KO_imp.standard,LFQ_WT_imp.standard))$value
-icc.med_imp <- irr::icc(cbind(LFQ_KO_imp.med,LFQ_WT_imp.med))$value
-icc.mad_imp <- irr::icc(cbind(LFQ_KO_imp.mad,LFQ_WT_imp.mad))$value
-icc.lm_imp <- irr::icc(cbind(LFQ_KO_imp.lm,LFQ_WT_imp.lm))$value
-icc.vsn_imp <- irr::icc(cbind(LFQ_imp.vsn$R,LFQ_imp.vsn$G))$value
-icc.ordernorm_imp <- irr::icc(cbind(LFQ_KO_imp.bestNorm,LFQ_WT_imp.bestNorm))$value
-icc.eig_imp <- irr::icc(LFQ_imp.eig_norm$norm_m)$value
+```{r icc imp KO, echo=FALSE}
+icc.KO.before <- irr::icc(2^LFQ_KO_imp)$value
+icc.KO.standard <- irr::icc(2^LFQ_KO_imp.standard)$value
+icc.KO.minmax <- irr::icc(2^LFQ_KO_imp.minmax)$value
+icc.KO.med <- irr::icc(2^LFQ_KO_imp.med)$value
+icc.KO.mad <- irr::icc(2^LFQ_KO_imp.mad)$value
+icc.KO.lm <- irr::icc(2^LFQ_KO_imp.lm)$value
+icc.KO.vsn <- irr::icc(2^LFQ_imp.vsn$R)$value
+icc.KO.ordernorm <- irr::icc(2^LFQ_KO_imp.bestNorm)$value
+icc.KO.eig <- irr::icc(2^LFQ_imp.eig_norm$norm_m[,1:3])$value
 
-icc_all_imp <- data.frame(ICC=c(icc_before_imp, icc.standard_imp, icc.minmax_imp, 
-                                icc.med_imp, icc.mad_imp, icc.lm_imp, icc.vsn_imp, 
-                                icc.ordernorm_imp, icc.eig_imp))
-rownames(icc_all_imp) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
+icc_imp.KO.all <- data.frame(`ICC KO`=c(icc.KO.before, icc.KO.standard, icc.KO.minmax, icc.KO.med,
+                                   icc.KO.mad, icc.KO.lm, icc.KO.vsn, icc.KO.ordernorm, icc.KO.eig))
+rownames(icc_imp.KO.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 
+                              'Linear', 'VSN', 'bestNormalize', 'EigenMS')
+```
+
+```{r icc imp WT, echo=FALSE}
+icc.WT.before <- irr::icc(2^LFQ_WT_imp)$value
+icc.WT.standard <- irr::icc(2^LFQ_WT_imp.standard)$value
+icc.WT.minmax <- irr::icc(2^LFQ_WT_imp.minmax)$value
+icc.WT.med <- irr::icc(2^LFQ_WT_imp.med)$value
+icc.WT.mad <- irr::icc(2^LFQ_WT_imp.mad)$value
+icc.WT.lm <- irr::icc(2^LFQ_WT_imp.lm)$value
+icc.WT.vsn <- irr::icc(2^LFQ_imp.vsn$G)$value
+icc.WT.ordernorm <- irr::icc(2^LFQ_WT_imp.bestNorm)$value
+icc.WT.eig <- irr::icc(2^LFQ_imp.eig_norm$norm_m[,4:6])$value
+
+icc_imp.WT.all <- data.frame(`ICC WT`=c(icc.WT.before, icc.WT.standard, icc.WT.minmax, icc.WT.med, 
+                            icc.WT.mad, icc.WT.lm, icc.WT.vsn, icc.WT.ordernorm, icc.WT.eig))
+rownames(icc_imp.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'bestNormalize', 'EigenMS')
 ```
 
 <center>
 ```{r echo=FALSE}
-knitr::kable(icc_all_imp, format='html')
+DT::datatable(cbind(icc_imp.KO.all, icc_imp.WT.all), 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
+    DT::formatStyle(columns = 'ICC.KO', 
+                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400'))) %>%
+    DT::formatStyle(columns = 'ICC.WT', 
+                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
 ```
 </center>
-
-:::
-::::::::::::::
 
 # Conclusion
 
