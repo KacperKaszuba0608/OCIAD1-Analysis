@@ -917,6 +917,27 @@ prot.info <- data.frame(protein.groups[,"Peptide sequences"], paste('prot_', 1:n
 LFQ.eig1 <- eig_norm1(lfq, treatment = as.factor(c('KO', 'KO', 'KO', 'WT', 'WT', 'WT')), prot.info = prot.info)
 ```
 
+On the plots we can see the result of `svd()` fxn, which is:
+
+The SVD decomposition of the matrix as computed by LAPACK,
+
+$$X=UDV',$$
+
+where $U$ and $V$ are orthogonal, $V'$ means *V transposed* (and conjugated for complex input), and 
+$D$ is a diagonal matrix with the (non-negative) singular values $D_{ii}$ in decreasing order. Equivalently, 
+$D=U'XV$, which is verified in the examples.
+
+The returned value is a list with components:
+
+* `d` - a vector containing the singular values of x, of length min(n, p), sorted decreasingly.
+* `u` - a matrix whose columns contain the left singular vectors of x, present if nu > 0. Dimension c(n, nu).
+* `v` - a matrix whose columns contain the right singular vectors of x, present if nv > 0. Dimension c(p, nv).
+
+Axis of the plots:
+
+* **x-axis** - the number corresponding to the imputed samples in the order in which we imputed them.
+* **y-axis** - the `u` value from the `svd()` fnx.
+
 ```{r EigenMS 2, results='hide', fig.keep='all'}
 # Performing eig normalization
 LFQ.eig_norm <- eig_norm2(LFQ.eig1)
