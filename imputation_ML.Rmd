@@ -1,0 +1,436 @@
+---
+title: "Imputation with Machine Learning"
+author: "Kacper Kaszuba"
+date: "`r Sys.Date()`"
+output: 
+    html_document:
+        toc: true
+        toc_float: 
+            collapsed: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", fig.keep = "all")
+
+if (!require("missForest", quietly = TRUE))
+    install.packages("missForest")
+if (!require("randomForest", quietly = TRUE))
+    install.packages("randomForest")
+if (!require("VIM", quietly = TRUE))
+    install.packages("VIM")
+
+library(missForest)
+library(ggplot2)
+```
+
+# Package `missForest`
+
+* Documentation: https://cran.r-project.org/web/packages/missForest/missForest.pdf
+
+```{r load data}
+# Loading data
+df <- read.csv('./data/LFQ_long_raw.csv')
+
+# Data preparation
+df <- df |>
+    dplyr::select(Exp, celltype, sampletype, rep, LFQvalue) |>
+    dplyr::mutate(Exp = as.factor(Exp), celltype = as.factor(celltype), 
+                  sampletype= as.factor(sampletype),rep = as.factor(rep))
+```
+
+```{r}
+# Imputing with Random Forest
+df.imp <- missForest(df, verbose = TRUE)
+```
+
+**Estimated OOB Imputation Error**
+
+```{r}
+df.imp$OOBerror
+```
+
+**Estimated Data**
+
+```{r}
+DT::datatable(head(df.imp$ximp, n=100), rownames = FALSE)
+```
+
+```{r echo=FALSE}
+# extracting rows for TOTALS KO and WT
+df_imp_TOTALS_KO <- df.imp$ximp[which(df.imp$ximp$celltype == 'KO' & df.imp$ximp$sampletype == 'TOTALS' & (df.imp$ximp$rep == '22' | df.imp$ximp$rep == '23' | df.imp$ximp$rep == '24')), ]
+df_imp_TOTALS_WT <- df.imp$ximp[which(df.imp$ximp$celltype == 'WT' & df.imp$ximp$sampletype == 'TOTALS' & (df.imp$ximp$rep == '22' | df.imp$ximp$rep == '23' | df.imp$ximp$rep == '24')), ]
+```
+
+
+```{r}
+#summary of KO TOTALS imputed data
+summary(df_imp_TOTALS_KO$LFQvalue)
+```
+
+```{r}
+#summary of WT TOTALS imputed data
+summary(df_imp_TOTALS_WT$LFQvalue)
+```
+
+```{r echo=FALSE}
+ggpubr::annotate_figure(
+    ggpubr::ggarrange(
+        ggplot(data = df_imp_TOTALS_KO, aes(x=LFQvalue, fill=rep))+
+            geom_histogram(position='identity', alpha=0.5, bins=20)+labs(fill='KO'),
+        ggplot(data = df_imp_TOTALS_WT, aes(x=LFQvalue, fill=rep))+
+            geom_histogram(position='identity', alpha=0.5, bins=20)+labs(fill='WT'),
+        nrow=2,ncol=1
+    ),
+    top = 'Histograms of Imputed Data with Random Forest'
+)
+```
+
+```{r}
+# skewness for imputed KO and WT
+rbind(df_imp_TOTALS_KO, df_imp_TOTALS_WT) |>
+    dplyr::group_by(celltype, rep) |>
+    dplyr::summarise(skewness = moments::skewness(LFQvalue))
+```
+
+I think we should use more columns to make the predicted value more specific. We could use:
+
+* Sequence coverage;
+* Sequence length;
+* Mol weigth kDa;
+* Qvalue;
+* Score;
+* Identyfication type (?);
+* MS.MS.Count
+
+# Package `randomForest`
+
+* Documentation: https://cran.r-project.org/web/packages/randomForest/randomForest.pdf
+
+```{r data preparation}
+# Data preparation to run random forest
+
+# load raw data
+protein.groups <- readr::read_tsv('./data/proteinGroups.txt',show_col_types = FALSE)
+
+# filtering and keeping the protein IDs and gene names
+protein.ids <- protein.groups |> 
+    dplyr::filter(is.na(`Only identified by site`), is.na(Reverse),
+                  is.na(`Potential contaminant`)) |>
+    dplyr::select('Protein IDs', `Gene names`)
+
+# extracting columns to random forest
+protein.groups <- protein.groups |> 
+    dplyr::filter(is.na(`Only identified by site`), is.na(Reverse),
+                  is.na(`Potential contaminant`)) |>
+    dplyr::select(`Number of proteins`, Peptides, `Sequence coverage [%]`, `Sequence length`, 
+                  `Mol. weight [kDa]`, `Q-value`, Score, `MS/MS count`, 
+                  dplyr::starts_with('LFQ Intensity') & (ends_with('22') | ends_with('23') | ends_with('24')) & dplyr::contains('TOTALS'))
+
+# changing the colnames
+colnames(protein.groups)[9:14] <- gsub('LFQ intensity ', '', colnames(protein.groups)[9:14])
+
+# making longer data frame with one column containing all LFQ values
+protein.groups <- protein.groups |>
+    tidyr::pivot_longer(9:14, names_to = 'Sample', values_to = 'LFQvalue') |>
+    tidyr::separate(col=Sample, into=c("celltype","sampletype","rep"), sep = "_") |>
+    dplyr::mutate(celltype = as.factor(celltype), sampletype = as.factor(sampletype),
+                  rep = as.factor(rep))
+
+# changing values with 0 to NA
+protein.groups$LFQvalue[protein.groups$LFQvalue==0] <- NA
+
+# removing blank spaces and all separators from colnames
+colnames(protein.groups)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq.len',
+                                      'mol.weight.kDa','q.value','score','ms.count')
+```
+
+```{r}
+# creating data with no NA to create random forest model
+prot.groups.no.na <- na.omit(protein.groups)
+colnames(prot.groups.no.na)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq.len',
+                                      'mol.weight.kDa','q.value','score','ms.count') 
+```
+
+```{r random forest}
+# running random forest model
+set.seed(123) # set seed to avoid different models with each run
+rforest <- randomForest::randomForest(LFQvalue ~ ., data=prot.groups.no.na)
+```
+
+```{r}
+# Fitted model
+rforest
+```
+
+```{r}
+# number of trees that produce lowest test MSE
+which.min(rforest$mse)
+```
+
+```{r RMSE of best model}
+# RMSE of best model
+sqrt(rforest$mse[which.min(rforest$mse)]) 
+```
+
+```{r varImpPlot}
+#produce variable importance plot
+randomForest::varImpPlot(rforest)
+```
+
+```{r predict}
+# predict the values for NA rows
+predictions <- predict(rforest, protein.groups[which(is.na(protein.groups$LFQvalue)),1:11])
+
+# extracting missing rows - can be usefull later
+missing <- which(is.na(protein.groups$LFQvalue))
+
+# data frame with predicted LFQ values by random forest model
+imputed_RF <- protein.groups
+imputed_RF[missing,12] <- predictions
+```
+
+```{r echo=FALSE}
+# extracting rows for KO and WT type
+imputed_RF_KO_TOTALS <- imputed_RF[which(imputed_RF$celltype == 'KO' & imputed_RF$sampletype == 'TOTALS'),]
+imputed_RF_WT_TOTALS <- imputed_RF[which(imputed_RF$celltype == 'WT' & imputed_RF$sampletype == 'TOTALS'),]
+
+# plotting histograms of extracted rows
+hist_RF <- ggpubr::annotate_figure(
+    ggpubr::ggarrange(
+        ggplot(data = imputed_RF_KO_TOTALS, aes(x=log2(LFQvalue), fill=rep))+
+            geom_histogram(position='identity', alpha=0.5, bins=20)+labs(fill='KO'),
+        ggplot(data = imputed_RF_WT_TOTALS, aes(x=log2(LFQvalue), fill=rep))+
+            geom_histogram(position='identity', alpha=0.5, bins=20)+labs(fill='WT'),
+        nrow=2,ncol=1
+    ),
+    top = 'Histograms of Imputed Data with Random Forest - more features'
+)
+
+hist_RF
+```
+
+```{r}
+# calculating skewness for imputed data
+rbind(imputed_RF_KO_TOTALS, imputed_RF_WT_TOTALS) |>
+    dplyr::group_by(celltype, rep) |>
+    dplyr::summarise(skewness = moments::skewness(log2(LFQvalue)))
+```
+
+```{r}
+# preparing data to calculate CV (Corelation of Variation)
+imputed_RF_KO_wide <- imputed_RF_KO_TOTALS |>
+    dplyr::select(celltype, rep, LFQvalue) |>
+    dplyr::mutate(batch = paste(celltype,rep,sep = '_')) |>
+    dplyr::select(batch, LFQvalue) |>
+    tidyr::pivot_wider(dplyr::everything(), names_from = batch, values_from = LFQvalue) |>
+    tidyr::unnest()
+
+imputed_RF_WT_wide <- imputed_RF_WT_TOTALS |>
+    dplyr::select(celltype, rep, LFQvalue) |>
+    dplyr::mutate(batch = paste(celltype,rep,sep = '_')) |>
+    dplyr::select(batch, LFQvalue) |>
+    tidyr::pivot_wider(dplyr::everything(), names_from = batch, values_from = LFQvalue) |>
+    tidyr::unnest()
+```
+
+```{r}
+# calculating the CV [%]
+cv <- function(x) sd(x) / mean(x) * 100
+
+cv_RF_KO <- apply(imputed_RF_KO_wide, 1, cv)
+cv_RF_WT <- apply(imputed_RF_WT_wide, 1, cv)
+
+# data frame containing calculated CV
+cv_all_RF <- data.frame(RF_KO = cv_RF_KO, RF_WT = cv_RF_WT) |>
+    tidyr::pivot_longer(dplyr::everything(), names_to = 'Sample', values_to = 'CV')
+
+# plotting the CV results
+cv_RF_plot <-ggplot(data = cv_all_RF, aes(x=Sample, y=CV, fill=Sample))+
+    geom_boxplot(width=0.3)+
+    geom_violin(alpha=0.4)+
+    labs(title='Violin Plots for CV [%] - RF Imputation', x=NULL, y='CV [%]')+
+    theme(legend.position = 'none')
+cv_RF_plot
+```
+
+```{r}
+# basic stats of CV for RF
+cv_RF_stats <- DT::datatable(
+    cv_all_RF |>
+        dplyr::group_by(Sample) |>
+        dplyr::summarise(mean=mean(CV),median=median(CV),sd=sd(CV)),
+    rownames = FALSE, options = list(searching=FALSE, paging=FALSE, info=FALSE)
+)
+cv_RF_stats
+```
+
+```{r}
+# plotting the result of RF imputation 
+violin_RF_by_group <- ggpubr::ggarrange(
+    ggplot(data = imputed_RF_KO_TOTALS, aes(x=rep, y=log2(LFQvalue), fill=rep))+
+        geom_boxplot(width=0.3)+
+        geom_violin(alpha=0.4)+
+        labs(title='KO TOTALS - RF Imputation', x=NULL)+theme(legend.position = 'none'),
+    ggplot(data = imputed_RF_WT_TOTALS, aes(x=rep, y=log2(LFQvalue), fill=rep))+
+        geom_boxplot(width=0.3)+
+        geom_violin(alpha=0.4)+
+        labs(title='WT TOTALS - RF Imputation', x=NULL)+theme(legend.position = 'none'),
+    nrow=2,ncol=1
+)
+
+violin_RF_by_group
+```
+
+# Package `VIM` - KNN
+
+```{r kNN}
+# calculating kNN model
+imputed_kNN <- VIM::kNN(protein.groups, k=5)
+
+# removing unnecessary columns
+imputed_kNN <- imputed_kNN[,-c(13:23)]
+```
+
+```{r}
+# extracting rows for KO and WT type
+imputed_kNN_KO_TOTALS <- imputed_kNN[which(imputed_kNN$celltype == 'KO' & imputed_kNN$sampletype == 'TOTALS'),]
+imputed_kNN_WT_TOTALS <- imputed_kNN[which(imputed_kNN$celltype == 'WT' & imputed_kNN$sampletype == 'TOTALS'),]
+
+# ploting distribution of extracted rows
+hist_kNN <- ggpubr::annotate_figure(
+    ggpubr::ggarrange(
+        ggplot(data = imputed_kNN_KO_TOTALS, aes(x=log2(LFQvalue), fill=rep))+
+            geom_histogram(position='identity', alpha=0.5, bins=20)+labs(fill='KO'),
+        ggplot(data = imputed_kNN_WT_TOTALS, aes(x=log2(LFQvalue), fill=rep))+
+            geom_histogram(position='identity', alpha=0.5, bins=20)+labs(fill='WT'),
+        nrow=2,ncol=1
+    ),
+    top = 'Histograms of Imputed Data with kNN - more features'
+)
+hist_kNN
+```
+
+```{r}
+# calculating skewnnes of imputed data with kNN
+rbind(imputed_kNN_KO_TOTALS, imputed_kNN_WT_TOTALS) |>
+    dplyr::group_by(celltype, rep) |>
+    dplyr::summarise(skewness = moments::skewness(log2(LFQvalue)))
+```
+
+```{r}
+# preparing data to calculate CV (Corelation of Variation)
+imputed_kNN_KO_wide <- imputed_kNN_KO_TOTALS |>
+    dplyr::select(celltype, rep, LFQvalue) |>
+    dplyr::mutate(batch = paste(celltype,rep,sep = '_')) |>
+    dplyr::select(batch, LFQvalue) |>
+    tidyr::pivot_wider(dplyr::everything(), names_from = batch, values_from = LFQvalue) |>
+    tidyr::unnest()
+
+imputed_kNN_WT_wide <- imputed_kNN_WT_TOTALS |>
+    dplyr::select(celltype, rep, LFQvalue) |>
+    dplyr::mutate(batch = paste(celltype,rep,sep = '_')) |>
+    dplyr::select(batch, LFQvalue) |>
+    tidyr::pivot_wider(dplyr::everything(), names_from = batch, values_from = LFQvalue) |>
+    tidyr::unnest()
+```
+
+```{r echo=FALSE}
+# calculating the CV [%]
+cv <- function(x) sd(x) / mean(x) * 100
+
+cv_kNN_KO <- apply(imputed_kNN_KO_wide, 1, cv)
+cv_kNN_WT <- apply(imputed_kNN_WT_wide, 1, cv)
+
+# data frame with calculated CV
+cv_all <- data.frame(kNN_KO = cv_kNN_KO, kNN_WT = cv_kNN_WT) |>
+    tidyr::pivot_longer(dplyr::everything(), names_to = 'Sample', values_to = 'CV')
+
+# ploting the calculated CV
+cv_kNN_plot <- ggplot(data = cv_all, aes(x=Sample, y=CV, fill=Sample))+
+    geom_boxplot(width=0.3)+
+    geom_violin(alpha=0.4)+
+    labs(title='Violin Plots for CV [%] - kNN Imputation', x=NULL, y='CV [%]')+
+    theme(legend.position = 'none')
+cv_kNN_plot
+```
+
+```{r}
+# basic stats
+cv_kNN_stats <- DT::datatable(
+    cv_all |>
+        dplyr::group_by(Sample) |>
+        dplyr::summarise(mean=mean(CV),median=median(CV),sd=sd(CV)),
+    rownames = FALSE, options = list(searching=FALSE, paging=FALSE, info=FALSE)
+)
+cv_kNN_stats
+```
+
+```{r}
+# plotting the result of kNN imputation 
+violin_kNN_by_group <- ggpubr::ggarrange(
+    ggplot(data = imputed_kNN_KO_TOTALS, aes(x=rep, y=log2(LFQvalue), fill=rep))+
+        geom_boxplot(width=0.3)+
+        geom_violin(alpha=0.4)+
+        labs(title='KO TOTALS - kNN Imputation', x=NULL)+theme(legend.position = 'none'),
+    ggplot(data = imputed_kNN_WT_TOTALS, aes(x=rep, y=log2(LFQvalue), fill=rep))+
+        geom_boxplot(width=0.3)+
+        geom_violin(alpha=0.4)+
+        labs(title='WT TOTALS - kNN Imputation', x=NULL)+theme(legend.position = 'none'),
+    nrow=2,ncol=1
+)
+violin_kNN_by_group
+```
+
+# Comparison RF vs kNN
+
+---
+
+<center><b style='font-size:26px'>HISTOGRAMS</b></center>
+
+---
+
+```{r comp hist, echo=FALSE}
+hist_RF
+hist_kNN
+```
+
+---
+
+<center><b style='font-size:26px'>VIOLIN + BOX</b></center>
+
+---
+
+```{r comp violin+box, echo=FALSE}
+violin_RF_by_group
+violin_kNN_by_group
+```
+
+---
+
+<center><b style='font-size:26px'>CORELATION OF VARIATION</b></center>
+
+---
+
+```{r comp cv, echo=FALSE}
+ggpubr::ggarrange(cv_RF_plot,cv_kNN_plot+ylab(NULL), nrow=1,ncol=2)
+```
+
+---
+
+<center><b style='font-size:26px'>CV BASIC STATS</b></center>
+
+---
+
+```{r echo=FALSE}
+cv_RF_stats
+cv_kNN_stats
+```
+
+```{r}
+# Add protein IDs
+imputed_df <- cbind.data.frame(imputed_RF, protein.ids) |>
+    dplyr::select(`Protein IDs`, `Gene names`, celltype, sampletype, rep, LFQvalue) |>
+    dplyr::mutate(Imputed = ifelse(seq_along(LFQvalue) %in% missing, TRUE, FALSE))
+
+DT::datatable(imputed_df, rownames = FALSE)
+```
