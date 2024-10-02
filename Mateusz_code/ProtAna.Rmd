@@ -469,7 +469,6 @@ my.data_temp <- my.data
 my.data_temp$description <- case_when(
   grepl("Fatty acid oxidation", my.data$MitoCarta3.0_MitoPathways) ~ 2,
   grepl("Protein import", my.data$MitoCarta3.0_MitoPathways) ~ 3,
-  my.data$`Gene names` %in% pero$`Gene names` ~ 4,
   !is.na(my.data$MitoCarta3.0_MitoPathways) ~ 1,
   TRUE ~ 0
 )
@@ -481,7 +480,6 @@ my.data_temp$label <- case_when(
   abs(my.data_temp$FC_MITOS_OCIAD1) > 2.5 & my.data_temp$sig_MITOS_OCIAD1 == TRUE & my.data_temp$description == 1 ~ my.data_temp$`Gene names`,
   my.data_temp$sig_MITOS_OCIAD1 == TRUE & my.data_temp$description == 2 ~ my.data_temp$`Gene names`,
   my.data_temp$sig_MITOS_OCIAD1 == TRUE & my.data_temp$description == 3 ~ my.data_temp$`Gene names`,
-  my.data_temp$sig_MITOS_OCIAD1 == TRUE & my.data_temp$description == 4 ~ my.data_temp$`Gene names`,
   my.data_temp$`Gene names` == 'OCIAD1' ~ my.data_temp$`Gene names`,
   my.data_temp$`Gene names` == 'TIMM17A' ~ my.data_temp$`Gene names`,
   my.data_temp$`Gene names` == 'TIMM17B' ~ my.data_temp$`Gene names`,
@@ -492,7 +490,6 @@ my.data_temp$label <- case_when(
 my.data_temp$color <- case_when(
   grepl("Fatty acid oxidation", my.data$MitoCarta3.0_MitoPathways) ~ 'blue',
   grepl("Protein import", my.data$MitoCarta3.0_MitoPathways) ~ 'darkorange',
-  my.data$`Gene names` %in% pero$`Gene names` ~ '#A020F0', 
   !is.na(my.data$MitoCarta3.0_MitoPathways) ~ '#76EE35',
   TRUE ~ 'darkgrey'
 )
@@ -506,7 +503,6 @@ v1 <- ggplot(my.data_temp, aes(x = FC_MITOS_OCIAD1, y = -log10(p_OCIAD1_MITOS), 
   geom_point(data = filter(my.data_temp, description == 1), stroke = 1.2, alpha = 0.55) +
   geom_point(data = filter(my.data_temp, description == 2), stroke = 1.2, alpha = 0.7) +
   geom_point(data = filter(my.data_temp, description == 3), stroke = 1.2, alpha = 0.7) +
-  geom_point(data = filter(my.data_temp, description == 4), stroke = 1.2, alpha = 0.7) +
   xlab("Fold Change between KO and WT") +
   ylab("-log10(p-value)") +
   theme_bw() +
@@ -516,7 +512,7 @@ v1 <- ggplot(my.data_temp, aes(x = FC_MITOS_OCIAD1, y = -log10(p_OCIAD1_MITOS), 
   guides(shape=FALSE, alpha = FALSE) +
   scale_shape_manual(values = c(1, 16)) +
   xlim(-max(abs(my.data_temp$FC_MITOS_OCIAD1)), max(abs(my.data_temp$FC_MITOS_OCIAD1))) +
-  scale_color_manual(labels = c('Non-mitochondrial', 'Other mitochondrial', 'Fatty acid oxidation', 'Protein import', 'Peroxisomal'), values = c('darkgrey', '#76EE35', 'blue', 'darkorange', '#A020F0')) +
+  scale_color_manual(labels = c('Non-mitochondrial', 'Other mitochondrial', 'Fatty acid oxidation', 'Protein import'), values = c('darkgrey', '#76EE35', 'blue', 'darkorange')) +
   geom_text_repel(aes(label = label), max.overlaps = Inf, verbose = TRUE, min.segment.length = 0, color = my.data_temp$color, box.padding = 1)
 
 v1
