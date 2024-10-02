@@ -145,16 +145,27 @@ colnames(protein.groups)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq
 ```
 
 ```{r}
-# creating data with no NA to create random forest model
+# creating data with no NA to train random forest model
 prot.groups.no.na <- na.omit(protein.groups)
 colnames(prot.groups.no.na)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq.len',
                                       'mol.weight.kDa','q.value','score','ms.count') 
 ```
 
+## RF Model
+
+```{r}
+# set seed to avoid different models and test/train data with each run
+set.seed(123)
+# split data to train and test
+test_data_idx <- sample(1:nrow(prot.groups.no.na), ceiling(0.3*nrow(prot.groups.no.na)))
+test_data <- prot.groups.no.na[test_data_idx,]
+test_data_na <- test_data |> dplyr::mutate(LFQvalue = NA)
+train_data <- prot.groups.no.na[-test_data_idx,]
+```
+
 ```{r random forest}
 # running random forest model
-set.seed(123) # set seed to avoid different models with each run
-rforest <- randomForest::randomForest(LFQvalue ~ ., data=prot.groups.no.na)
+rforest <- randomForest::randomForest(LFQvalue ~ ., data=train_data)
 ```
 
 ```{r}
@@ -177,17 +188,56 @@ sqrt(rforest$mse[which.min(rforest$mse)])
 randomForest::varImpPlot(rforest)
 ```
 
-```{r predict}
-# predict the values for NA rows
-predictions <- predict(rforest, protein.groups[which(is.na(protein.groups$LFQvalue)),1:11])
+```{r}
+# predict the values for missing data
+pred_test_na <- predict(rforest, test_data_na[,1:11])
+test_data_imp <- test_data_na |> dplyr::mutate(LFQvalue = pred_test_na)
+```
 
+## Model Evaluation
+
+```{r}
+# Model Evaluation
+y_pred <- test_data_imp$LFQvalue
+y_true <- test_data$LFQvalue
+
+# NRMSE
+nrmse <- round(missForest::nrmse(ximp = test_data_imp, xmis = test_data_na, xtrue = test_data),4)
+
+# MSE
+mse <- round(mean((log2(y_pred) - log2(y_true))^2),4)
+
+# RMSE
+rmse <- round(sqrt(mse),4)
+
+# MAE
+mae <- round(mean(abs(log2(y_pred) - log2(y_true))),4)
+
+# R-Squared
+r2 <- round(summary(lm(y_true ~ y_pred))$r.squared,4)
+```
+
+```{r echo=FALSE}
+rf_measures <- data.frame(NRMSE=nrmse, MSE=mse, RMSE=rmse, MAE=mae, R2=r2, row.names = 'RF')
+
+DT::datatable(rf_measures, options=list(searching=FALSE, paging=FALSE, info=FALSE))
+```
+
+## Predict Orginal Data
+
+```{r predict rf}
 # extracting missing rows - can be usefull later
 missing <- which(is.na(protein.groups$LFQvalue))
+
+# predict the values for NA rows
+predictions <- predict(rforest, protein.groups[missing,1:11])
 
 # data frame with predicted LFQ values by random forest model
 imputed_RF <- protein.groups
 imputed_RF[missing,12] <- predictions
 ```
+
+## Results
 
 ```{r echo=FALSE}
 # extracting rows for KO and WT type
@@ -281,15 +331,68 @@ violin_RF_by_group <- ggpubr::ggarrange(
 violin_RF_by_group
 ```
 
-# Package `VIM` - KNN
+# Package `caret` - KNN
+
+## kNN Model
 
 ```{r kNN}
 # calculating kNN model
-imputed_kNN <- VIM::kNN(protein.groups, k=5)
+model_kNN <- caret::train(LFQvalue ~ ., data=train_data[,-10], method='knn')
 
-# removing unnecessary columns
-imputed_kNN <- imputed_kNN[,-c(13:23)]
+model_kNN
 ```
+
+```{r}
+plot(model_kNN)
+```
+
+```{r}
+# predict the values for missing data
+kNN_pred_test_na <- predict(model_kNN, test_data_na[,1:11])
+kNN_test_data_imp <- test_data_na |> dplyr::mutate(LFQvalue = kNN_pred_test_na)
+```
+
+## Model Evaluation
+
+```{r}
+# Model Evaluation
+y_pred_kNN <- kNN_test_data_imp$LFQvalue
+y_true_kNN <- test_data$LFQvalue
+
+# NRMSE
+nrmse_kNN <- round(missForest::nrmse(ximp = kNN_test_data_imp, xmis = test_data_na, xtrue = test_data),4)
+
+# MSE
+mse_kNN <- round(mean((log2(y_pred_kNN) - log2(y_true_kNN))^2),4)
+
+# RMSE
+rmse_kNN <- round(sqrt(mse_kNN),4)
+
+# MAE
+mae_kNN <- round(mean(abs(log2(y_pred_kNN) - log2(y_true_kNN))),4)
+
+# R-Squared
+r2_kNN <- round(summary(lm(y_true_kNN ~ y_pred_kNN))$r.squared,4)
+```
+
+```{r echo=FALSE}
+kNN_measures <- data.frame(NRMSE=nrmse_kNN, MSE=mse_kNN, RMSE=rmse_kNN, MAE=mae_kNN, R2=r2_kNN, row.names = 'kNN')
+
+DT::datatable(kNN_measures, options=list(searching=FALSE, paging=FALSE, info=FALSE))
+```
+
+## Predict Original Data
+
+```{r predict kNN}
+# predict the values for NA rows
+predictions2 <- predict(model_kNN, protein.groups[missing,1:11])
+
+# data frame with predicted LFQ values by random forest model
+imputed_kNN <- protein.groups
+imputed_kNN[missing,12] <- predictions2
+```
+
+## Results
 
 ```{r}
 # extracting rows for KO and WT type
@@ -385,6 +488,16 @@ violin_kNN_by_group
 
 ---
 
+<center><b style='font-size:26px'>MODELS</b></center>
+
+---
+
+```{r echo=FALSE}
+DT::datatable(rbind(rf_measures, kNN_measures), options=list(searching=FALSE, paging=FALSE, info=FALSE))
+```
+
+---
+
 <center><b style='font-size:26px'>HISTOGRAMS</b></center>
 
 ---
@@ -426,7 +539,9 @@ cv_RF_stats
 cv_kNN_stats
 ```
 
-```{r}
+---
+
+```{r include=FALSE}
 # Add protein IDs
 imputed_df <- cbind.data.frame(imputed_RF, protein.ids) |>
     dplyr::select(`Protein IDs`, `Gene names`, celltype, sampletype, rep, LFQvalue) |>
