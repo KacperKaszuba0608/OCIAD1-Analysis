@@ -484,6 +484,114 @@ violin_kNN_by_group <- ggpubr::ggarrange(
 violin_kNN_by_group
 ```
 
+# Linear Regression
+
+## LM Model
+
+```{r}
+# train model - stepwise selection
+lm_model <- lm(LFQvalue ~ ., data=train_data[,-10])
+summary(lm_model)
+```
+
+After stepwise selection the final model has formula:
+
+$$LFQvalue = 8631815 \cdot no.proteins -18172773 \cdot peptides + 1794237 \cdot
+seq.coverage +\\ + 807933 \cdot mol.weight.kDa + 430143 \cdot score + 1490175 \cdot ms.count$$
+
+```{r}
+lm_model <- lm(LFQvalue ~ 0 + no.proteins + peptides + seq.coverage + mol.weight.kDa + score + ms.count,
+               data=train_data[,-10])
+summary(lm_model)
+```
+
+```{r}
+# Correlation plot
+corrplot::corrplot(cor(train_data[,-c(9:11)]), method = "color", addCoef.col = "black", number.cex = 0.7)
+```
+
+```{r}
+# predict the values for missing data
+lm_pred_test_na <- predict(lm_model, test_data_na[,1:11])
+lm_test_data_imp <- test_data_na |> dplyr::mutate(LFQvalue = abs(lm_pred_test_na))
+```
+
+## Model Evaluation
+
+```{r}
+# Model Evaluation
+y_pred_lm <- lm_test_data_imp$LFQvalue
+y_true_lm <- test_data$LFQvalue
+
+# NRMSE
+nrmse_lm <- round(missForest::nrmse(ximp = lm_test_data_imp, xmis = test_data_na, xtrue = test_data),4)
+
+# MSE
+mse_lm <- round(mean((log2(y_pred_lm) - log2(y_true_lm))^2),4)
+
+# RMSE
+rmse_lm <- round(sqrt(mse_lm),4)
+
+# MAE
+mae_lm <- round(mean(abs(log2(y_pred_lm) - log2(y_true_lm))),4)
+
+# R-Squared
+r2_lm <- round(summary(lm(y_true_lm ~ y_pred_lm))$r.squared,4)
+```
+
+```{r echo=FALSE}
+lm_measures <- data.frame(NRMSE=nrmse_lm, MSE=mse_lm, RMSE=rmse_lm, MAE=mae_lm, R2=r2_lm, row.names = 'LM')
+
+DT::datatable(lm_measures, options=list(searching=FALSE, paging=FALSE, info=FALSE))
+```
+
+# Package `pcaMethods` - PCA
+
+* Documentation: https://www.bioconductor.org/packages/release/bioc/manuals/pcaMethods/man/pcaMethods.pdf
+
+## PCA Model
+
+```{r}
+# train pca model
+pca_model <- pcaMethods::pca(test_data[, -c(9:11)])
+pca_model
+```
+
+```{r}
+# predict the values for missing data
+pca_pred_test_na <- predict(pca_model, test_data_na[,c(1:8,12)])
+pca_test_data_imp <- test_data_na |> dplyr::mutate(LFQvalue = pca_pred_test_na$x[,"LFQvalue"])
+```
+
+## Model Evaluation
+
+```{r}
+# Model Evaluation
+y_pred_pca <- pca_test_data_imp$LFQvalue
+y_true_pca <- test_data$LFQvalue
+
+# NRMSE
+nrmse_pca <- round(missForest::nrmse(ximp = pca_test_data_imp, xmis = test_data_na, xtrue = test_data),4)
+
+# MSE
+mse_pca <- round(mean((log2(y_pred_pca) - log2(y_true_pca))^2),4)
+
+# RMSE
+rmse_pca <- round(sqrt(mse_pca),4)
+
+# MAE
+mae_pca <- round(mean(abs(log2(y_pred_pca) - log2(y_true_pca))),4)
+
+# R-Squared
+r2_pca <- round(summary(lm(y_true_pca ~ y_pred_pca))$r.squared,4)
+```
+
+```{r echo=FALSE}
+pca_measures <- data.frame(NRMSE=nrmse_pca, MSE=mse_pca, RMSE=rmse_pca, MAE=mae_pca, R2=r2_pca, row.names = 'PCA')
+
+DT::datatable(pca_measures, options=list(searching=FALSE, paging=FALSE, info=FALSE))
+```
+
 # Comparison RF vs kNN
 
 ---
@@ -493,7 +601,19 @@ violin_kNN_by_group
 ---
 
 ```{r echo=FALSE}
-DT::datatable(rbind(rf_measures, kNN_measures), options=list(searching=FALSE, paging=FALSE, info=FALSE))
+measures <- rbind(rf_measures, kNN_measures, lm_measures, pca_measures)
+
+# Find the minimum values in the first four columns
+min_val <- apply(measures[, 1:4], 2, min, na.rm = TRUE)
+
+# Find the maximum value in the 5th column
+max_val <- max(measures[, 5], na.rm = TRUE)
+
+# Create the datatable and apply conditional formatting
+DT::datatable(measures, 
+          options = list(searching = FALSE, paging = FALSE, info = FALSE)) |>
+  DT::formatStyle(columns = 1:4, backgroundColor = DT::styleEqual(min_val, 'lightgreen')) |>
+  DT::formatStyle(columns = 5, backgroundColor = DT::styleEqual(max_val, 'lightgreen'))
 ```
 
 ---
