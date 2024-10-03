@@ -21,6 +21,58 @@ if (!require("VIM", quietly = TRUE))
 
 library(missForest)
 library(ggplot2)
+
+
+assign_missing <- function(protein.ids, condition, lfq_intensity) {
+    # verification of the fxn assumptions
+    if (!is.factor(condition)) {rlang::abort('The condition are not factor!')}
+    
+    # occurences of protein IDs per condition
+    occur <- dplyr::tibble(protein.ids) |> 
+        dplyr::group_by(protein.ids) |> 
+        dplyr::summarise(len = length(protein.ids)) |> 
+        dplyr::distinct(len)
+    
+    # occurences of condition
+    occur_per_cond <- dplyr::tibble(protein.ids, condition) |> 
+        dplyr::group_by(protein.ids, condition) |> 
+        dplyr::summarise(len = length(protein.ids))
+    occur_per_cond <- unique(occur_per_cond$len)
+
+    if (length(protein.ids)/occur != length(unique(protein.ids))) {rlang::abort('The protein IDs are not unique!')}
+    if (!is.numeric(lfq_intensity)) {rlang::abort('The lfq intensities are not numeric!')}
+    
+    df <- data.frame('prot.IDs'=protein.ids, 'condition'=condition, 'lfq'=lfq_intensity)
+    
+    number_missing <- df |> 
+        dplyr::group_by(prot.IDs, condition) |> 
+        dplyr::summarise(no_NAs = sum(is.na(lfq)))
+    
+    missingness <- map(number_missing$no_NAs, function(no) {
+            if (no == occur_per_cond) {
+              rep('all_NA', occur_per_cond)
+            } else if (no == occur_per_cond-1) {
+              rep('MNAR', occur_per_cond)
+            } else if (no < occur_per_cond-1 & no != 0) {
+              rep('MAR', occur_per_cond)
+            } else {
+              rep('complete', occur_per_cond)
+            }
+        })
+    missingness <- data.frame(do.call(c,missingness))
+    
+    prot.id.miss <- map(unique(number_missing$prot.IDs), function(id) rep(id, occur))
+    prot.id.miss <- data.frame(do.call(c,prot.id.miss))
+    
+    df_miss <- data.frame(prot.id.miss, missingness)
+    colnames(df_miss) <- c('prot.IDs', 'missingness')
+    
+    
+    missingness <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),'missingness'])
+    df$missingness <- do.call(c,missingness)
+    
+    ret_list <- list(df = df, missingness=df$missingness)
+}
 ```
 
 # Package `missForest`
@@ -131,13 +183,16 @@ colnames(protein.groups)[9:14] <- gsub('LFQ intensity ', '', colnames(protein.gr
 
 # making longer data frame with one column containing all LFQ values
 protein.groups <- protein.groups |>
+    dplyr::mutate(prot.id = paste('prot',1:nrow(protein.groups),sep='_')) |>
     tidyr::pivot_longer(9:14, names_to = 'Sample', values_to = 'LFQvalue') |>
-    tidyr::separate(col=Sample, into=c("celltype","sampletype","rep"), sep = "_") |>
+    tidyr::separate(col=Sample, into=c("celltype","sampletype","rep"), sep = "_", remove = FALSE) |>
     dplyr::mutate(celltype = as.factor(celltype), sampletype = as.factor(sampletype),
                   rep = as.factor(rep))
 
 # changing values with 0 to NA
 protein.groups$LFQvalue[protein.groups$LFQvalue==0] <- NA
+
+protein.groups$missingness <- assign_missing(protein.groups$prot.id, protein.groups$celltype, protein.groups$LFQvalue)$missingness
 
 # removing blank spaces and all separators from colnames
 colnames(protein.groups)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq.len',
@@ -190,7 +245,7 @@ randomForest::varImpPlot(rforest)
 
 ```{r}
 # predict the values for missing data
-pred_test_na <- predict(rforest, test_data_na[,1:11])
+pred_test_na <- predict(rforest, test_data_na[,c(1:13,15)])
 test_data_imp <- test_data_na |> dplyr::mutate(LFQvalue = pred_test_na)
 ```
 
@@ -230,11 +285,11 @@ DT::datatable(rf_measures, options=list(searching=FALSE, paging=FALSE, info=FALS
 missing <- which(is.na(protein.groups$LFQvalue))
 
 # predict the values for NA rows
-predictions <- predict(rforest, protein.groups[missing,1:11])
+predictions <- predict(rforest, protein.groups[missing,c(1:13,15)])
 
 # data frame with predicted LFQ values by random forest model
 imputed_RF <- protein.groups
-imputed_RF[missing,12] <- predictions
+imputed_RF[missing,14] <- predictions
 ```
 
 ## Results
@@ -592,7 +647,7 @@ pca_measures <- data.frame(NRMSE=nrmse_pca, MSE=mse_pca, RMSE=rmse_pca, MAE=mae_
 DT::datatable(pca_measures, options=list(searching=FALSE, paging=FALSE, info=FALSE))
 ```
 
-# Comparison RF vs kNN
+# Comparison of Models
 
 ---
 
@@ -659,13 +714,169 @@ cv_RF_stats
 cv_kNN_stats
 ```
 
+# p-value
+
+```{r echo=FALSE}
+mitocarta <- read.csv("./data/Human.MitoCarta3.0.csv")
+
+ttest <- function(df, grp1, grp2){ 
+  x = df[grp1]
+  y = df[grp2]
+  x = as.numeric((x))
+  y = as.numeric((y))
+  results = t.test(x,y, 
+                   alternative = 'two.sided', #one-sided: 'greater' is x > y
+                   paired = T,
+                   na.action=na.omit) 
+  results$p.value
+}
+
+p.cutoff = 0.05 #set p value cutoff
+FC.cutoff = 1 # set fold change cutoff
+```
+
+```{r echo=FALSE}
+protein.groups[is.na(protein.groups$LFQvalue), "LFQvalue"] <- 0
+
+nonimputed_df <- protein.groups |>
+    dplyr::select(celltype, sampletype, rep, LFQvalue) |>
+    dplyr::mutate(sample = paste(celltype,sampletype,rep, sep='_')) |>
+    dplyr::select(sample,LFQvalue) |>
+    tidyr::pivot_wider(dplyr::everything(), names_from = sample, values_from = LFQvalue) |>
+    tidyr::unnest() |>
+    dplyr::mutate(`Protein IDs` = protein.ids$`Protein IDs`) |>
+    dplyr::select(`Protein IDs`, dplyr::contains('TOTALS'))
+```
+
+```{r echo=FALSE}
+pvalue_nonimp <- nonimputed_df %>% 
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(nonimputed_df, 1, ttest, 
+                  grp1=grep("KO_TOTALS_2", colnames(nonimputed_df)), 
+                  grp2=grep("WT_TOTALS_2", colnames(nonimputed_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_nonimp <-ggplot(data = pvalue_nonimp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r}
+mean_p_nonimp <- mean(pvalue_nonimp$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+```{r echo=FALSE}
+# Add protein IDs
+imputed_df_RF <- cbind.data.frame(imputed_RF, protein.ids) |>
+    dplyr::select(`Protein IDs`, `Gene names`, celltype, sampletype, rep, LFQvalue) |>
+    dplyr::mutate(Imputed = ifelse(seq_along(LFQvalue) %in% missing, TRUE, FALSE),
+                  sample= paste(sampletype, celltype, sep='_'),
+                  group = paste(celltype,sampletype,rep, sep='_'))
+
+imputed_df_RF$LFQvalue <- log2(imputed_df_RF$LFQvalue)
+```
+
+```{r echo=FALSE}
+imputed_df_RF_wide <- imputed_df_RF |>
+    dplyr::select(group, `Protein IDs`, LFQvalue) |>
+    tidyr::pivot_wider(names_from = group, values_from = LFQvalue)
+
+# means <- imputed_df_RF %>%
+#   dplyr::select(sample, `Protein IDs`, LFQvalue) %>%
+#   dplyr::group_by(sample, `Protein IDs`) %>% 
+#   dplyr::summarise(mean=mean(LFQvalue))
+# 
+# means <- tidyr::pivot_wider(means, names_from = sample, values_from = mean) |>
+#     dplyr::mutate(FC_TOTALS = TOTALS_KO - TOTALS_WT)
+# 
+# FC <- merge(means, imputed_df_RF_wide)
+# FC <- FC |> dplyr::mutate(gene.names = proteingroups$`Gene names`)
+# FC <- merge(FC, mitocarta, by.x = 'gene.names', by.y = 'Symbol')
+```
+
+```{r echo=FALSE}
+pvalue_RF <- imputed_df_RF_wide %>% 
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_df_RF_wide, 1, ttest, 
+                  grp1=grep("KO_TOTALS_2", colnames(imputed_df_RF_wide)), 
+                  grp2=grep("WT_TOTALS_2", colnames(imputed_df_RF_wide)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_RF <- ggplot(data = pvalue_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_RF <- mean(pvalue_RF$p_OCIAD1_TOTALS)
+```
+
+```{r}
+# Add protein IDs
+imputed_df_kNN <- cbind.data.frame(imputed_kNN, protein.ids) |>
+    dplyr::select(`Protein IDs`, `Gene names`, celltype, sampletype, rep, LFQvalue) |>
+    dplyr::mutate(Imputed = ifelse(seq_along(LFQvalue) %in% missing, TRUE, FALSE),
+                  sample= paste(sampletype, celltype, sep='_'),
+                  group = paste(celltype,sampletype,rep, sep='_'))
+
+imputed_df_kNN$LFQvalue <- log2(imputed_df_kNN$LFQvalue)
+```
+
+```{r}
+imputed_df_kNN_wide <- imputed_df_kNN |>
+    dplyr::select(group, `Protein IDs`, LFQvalue) |>
+    tidyr::pivot_wider(names_from = group, values_from = LFQvalue)
+
+# means <- imputed_df_kNN %>%
+#   dplyr::select(sample, `Protein IDs`, LFQvalue) %>%
+#   dplyr::group_by(sample, `Protein IDs`) %>% 
+#   dplyr::summarise(mean=mean(LFQvalue))
+# 
+# means <- tidyr::pivot_wider(means, names_from = sample, values_from = mean) |>
+#     dplyr::mutate(FC_TOTALS = TOTALS_KO - TOTALS_WT)
+# 
+# FC <- merge(means, imputed_df_kNN_wide)
+# FC <- FC |> dplyr::mutate(gene.names = proteingroups$`Gene names`)
+# FC <- merge(FC, mitocarta, by.x = 'gene.names', by.y = 'Symbol')
+```
+
+```{r}
+pvalue_kNN <- imputed_df_kNN_wide %>% 
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_df_kNN_wide, 1, ttest, 
+                  grp1=grep("KO_TOTALS_2", colnames(imputed_df_kNN_wide)), 
+                  grp2=grep("WT_TOTALS_2", colnames(imputed_df_kNN_wide)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r}
+hist_p_kNN <- ggplot(data = pvalue_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r}
+mean_p_kNN <- mean(pvalue_kNN$p_OCIAD1_TOTALS)
+```
+
+```{r echo=FALSE}
+# Compare all together
+ggpubr::ggarrange(hist_p_nonimp+ 
+                      labs(title = 't-test p-value of non-imputed data', x=NULL), 
+                  hist_p_RF + 
+                      labs(title = 't-test p-value of imputed data with Random Forest', x=NULL) +
+                      theme(legend.position = 'none'), 
+                  hist_p_kNN + 
+                      labs(title = 't-test p-value of imputed data with kNN') +
+                      theme(legend.position = 'none'), 
+                  nrow=3, ncol=1)
+```
+
 ---
 
-```{r include=FALSE}
-# Add protein IDs
-imputed_df <- cbind.data.frame(imputed_RF, protein.ids) |>
-    dplyr::select(`Protein IDs`, `Gene names`, celltype, sampletype, rep, LFQvalue) |>
-    dplyr::mutate(Imputed = ifelse(seq_along(LFQvalue) %in% missing, TRUE, FALSE))
+<center><b style='font-size:26px'>MEAN OF t-test p-value</b></center>
 
-DT::datatable(imputed_df, rownames = FALSE)
+---
+
+```{r echo=FALSE}
+# means of p-value comparison
+means <- data.frame(`Non-Imputed` = mean_p_nonimp, RF = mean_p_RF, kNN = mean_p_kNN, row.names='mean')
+
+DT::datatable(means, options=list(searching=FALSE, paging=FALSE, info=FALSE))
 ```
+
