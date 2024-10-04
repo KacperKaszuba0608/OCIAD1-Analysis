@@ -12,6 +12,21 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning=FALSE, fig.align='center')
 
+ttest <- function(df, grp1, grp2){ 
+  x = df[grp1]
+  y = df[grp2]
+  x = as.numeric((x))
+  y = as.numeric((y))
+  results = t.test(x,y, 
+                   alternative = 'two.sided', #one-sided: 'greater' is x > y
+                   paired = T,
+                   na.action=na.omit) 
+  results$p.value
+}
+
+p.cutoff = 0.05 #set p value cutoff
+FC.cutoff = 1 # set fold change cutoff
+
 transform_M <- function(i, df) {
     if (df[i,2] == 22) {
         return(median(df[df[,2] == 22,1]))
@@ -1551,6 +1566,176 @@ DT::datatable(cbind(icc_imp.KO.all, icc_imp.WT.all),
                     background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
 ```
 </center>
+
+# p-value non-imputed
+
+## Box-Cox
+
+```{r echo=FALSE}
+boxcox_df <- data.frame(LFQ_KO.boxcox, LFQ_WT.boxcox)
+boxcox_df[is.na(boxcox_df)] <- 0
+
+pvalue_boxcox <- boxcox_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(boxcox_df, 1, ttest, 
+                  grp1=grep("KO", colnames(boxcox_df)), 
+                  grp2=grep("WT", colnames(boxcox_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_boxcox <- ggplot(data = pvalue_boxcox, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_boxcox <- mean(pvalue_boxcox$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## Z-Score
+
+```{r echo=FALSE}
+standard_df <- data.frame(LFQ_KO.standard, LFQ_WT.standard)
+standard_df[is.na(standard_df)] <- 0
+
+pvalue_standard <- standard_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df)), 
+                  grp2=grep("WT", colnames(standard_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_standard <- ggplot(data = pvalue_standard, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_standard <- mean(pvalue_standard$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## Min-Max
+
+```{r echo=FALSE}
+minmax_df <- data.frame(LFQ_KO.minmax, LFQ_WT.minmax)
+minmax_df[is.na(minmax_df)] <- 0
+
+pvalue_minmax <- minmax_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df)), 
+                  grp2=grep("WT", colnames(minmax_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_minmax <- ggplot(data = pvalue_minmax, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_minmax <- mean(pvalue_minmax$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## Median
+
+```{r echo=FALSE}
+median_df <- data.frame(LFQ_KO.med, LFQ_WT.med)
+median_df[is.na(median_df)] <- 0
+
+pvalue_med <- median_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(median_df, 1, ttest, 
+                  grp1=grep("KO", colnames(median_df)), 
+                  grp2=grep("WT", colnames(median_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_med <- ggplot(data = pvalue_med, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_med <- mean(pvalue_med$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## MAD
+
+```{r echo=FALSE}
+mad_df <- data.frame(LFQ_KO.mad, LFQ_WT.mad)
+mad_df[is.na(mad_df)] <- 0
+
+pvalue_mad <- mad_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df)), 
+                  grp2=grep("WT", colnames(mad_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_mad <- ggplot(data = pvalue_mad, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_mad <- mean(pvalue_mad$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## LM
+
+```{r echo=FALSE}
+lm_df <- data.frame(LFQ_KO.lm, LFQ_WT.lm)
+lm_df[is.na(lm_df)] <- 0
+
+pvalue_lm <- lm_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df)), 
+                  grp2=grep("WT", colnames(lm_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_lm <- ggplot(data = pvalue_lm, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_lm <- mean(pvalue_lm$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## VSN
+
+```{r echo=FALSE}
+vsn_df <- data.frame(LFQ.vsn$R, LFQ.vsn$G)
+vsn_df[is.na(vsn_df)] <- 0
+
+pvalue_vsn <- vsn_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df)), 
+                  grp2=grep("WT", colnames(vsn_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_vsn <- ggplot(data = pvalue_vsn, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_vsn <- mean(pvalue_vsn$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## EigenMS
+
+```{r echo=FALSE}
+eigen_df <- as.data.frame(LFQ.eig_norm$norm_m)
+eigen_df[is.na(eigen_df)] <- 0
+
+pvalue_eigen <- eigen_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df)), 
+                  grp2=grep("WT", colnames(eigen_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_eigen <- ggplot(data = pvalue_eigen, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_eigen <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
 
 # Conclusion
 

@@ -26,28 +26,28 @@ library(ggplot2)
 assign_missing <- function(protein.ids, condition, lfq_intensity) {
     # verification of the fxn assumptions
     if (!is.factor(condition)) {rlang::abort('The condition are not factor!')}
-    
+
     # occurences of protein IDs per condition
-    occur <- dplyr::tibble(protein.ids) |> 
-        dplyr::group_by(protein.ids) |> 
-        dplyr::summarise(len = length(protein.ids)) |> 
+    occur <- dplyr::tibble(protein.ids) |>
+        dplyr::group_by(protein.ids) |>
+        dplyr::summarise(len = length(protein.ids)) |>
         dplyr::distinct(len)
-    
+
     # occurences of condition
-    occur_per_cond <- dplyr::tibble(protein.ids, condition) |> 
-        dplyr::group_by(protein.ids, condition) |> 
+    occur_per_cond <- dplyr::tibble(protein.ids, condition) |>
+        dplyr::group_by(protein.ids, condition) |>
         dplyr::summarise(len = length(protein.ids))
     occur_per_cond <- unique(occur_per_cond$len)
 
     if (length(protein.ids)/occur != length(unique(protein.ids))) {rlang::abort('The protein IDs are not unique!')}
     if (!is.numeric(lfq_intensity)) {rlang::abort('The lfq intensities are not numeric!')}
-    
+
     df <- data.frame('prot.IDs'=protein.ids, 'condition'=condition, 'lfq'=lfq_intensity)
-    
-    number_missing <- df |> 
-        dplyr::group_by(prot.IDs, condition) |> 
+
+    number_missing <- df |>
+        dplyr::group_by(prot.IDs, condition) |>
         dplyr::summarise(no_NAs = sum(is.na(lfq)))
-    
+
     missingness <- purrr::map(number_missing$no_NAs, function(no) {
             if (no == occur_per_cond) {
               rep('all_NA', occur_per_cond)
@@ -60,17 +60,17 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
             }
         })
     missingness <- data.frame(do.call(c,missingness))
-    
+
     prot.id.miss <- purrr::map(unique(number_missing$prot.IDs), function(id) rep(id, occur))
     prot.id.miss <- data.frame(do.call(c,prot.id.miss))
-    
+
     df_miss <- data.frame(prot.id.miss, missingness)
     colnames(df_miss) <- c('prot.IDs', 'missingness')
-    
-    
+
+
     missingness <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),'missingness'])
     df$missingness <- do.call(c,missingness)
-    
+
     ret_list <- list(df = df, missingness=df$missingness)
 }
 ```
