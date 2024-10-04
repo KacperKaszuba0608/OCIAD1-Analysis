@@ -48,7 +48,7 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
         dplyr::group_by(prot.IDs, condition) |> 
         dplyr::summarise(no_NAs = sum(is.na(lfq)))
     
-    missingness <- map(number_missing$no_NAs, function(no) {
+    missingness <- purrr::map(number_missing$no_NAs, function(no) {
             if (no == occur_per_cond) {
               rep('all_NA', occur_per_cond)
             } else if (no == occur_per_cond-1) {
@@ -61,7 +61,7 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
         })
     missingness <- data.frame(do.call(c,missingness))
     
-    prot.id.miss <- map(unique(number_missing$prot.IDs), function(id) rep(id, occur))
+    prot.id.miss <- purrr::map(unique(number_missing$prot.IDs), function(id) rep(id, occur))
     prot.id.miss <- data.frame(do.call(c,prot.id.miss))
     
     df_miss <- data.frame(prot.id.miss, missingness)
@@ -75,76 +75,8 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
 }
 ```
 
-# Package `missForest`
-
-* Documentation: https://cran.r-project.org/web/packages/missForest/missForest.pdf
-
-```{r load data}
-# Loading data
-df <- read.csv('./data/LFQ_long_raw.csv')
-
-# Data preparation
-df <- df |>
-    dplyr::select(Exp, celltype, sampletype, rep, LFQvalue) |>
-    dplyr::mutate(Exp = as.factor(Exp), celltype = as.factor(celltype), 
-                  sampletype= as.factor(sampletype),rep = as.factor(rep))
-```
-
-```{r}
-# Imputing with Random Forest
-df.imp <- missForest(df, verbose = TRUE)
-```
-
-**Estimated OOB Imputation Error**
-
-```{r}
-df.imp$OOBerror
-```
-
-**Estimated Data**
-
-```{r}
-DT::datatable(head(df.imp$ximp, n=100), rownames = FALSE)
-```
-
-```{r echo=FALSE}
-# extracting rows for TOTALS KO and WT
-df_imp_TOTALS_KO <- df.imp$ximp[which(df.imp$ximp$celltype == 'KO' & df.imp$ximp$sampletype == 'TOTALS' & (df.imp$ximp$rep == '22' | df.imp$ximp$rep == '23' | df.imp$ximp$rep == '24')), ]
-df_imp_TOTALS_WT <- df.imp$ximp[which(df.imp$ximp$celltype == 'WT' & df.imp$ximp$sampletype == 'TOTALS' & (df.imp$ximp$rep == '22' | df.imp$ximp$rep == '23' | df.imp$ximp$rep == '24')), ]
-```
-
-
-```{r}
-#summary of KO TOTALS imputed data
-summary(df_imp_TOTALS_KO$LFQvalue)
-```
-
-```{r}
-#summary of WT TOTALS imputed data
-summary(df_imp_TOTALS_WT$LFQvalue)
-```
-
-```{r echo=FALSE}
-ggpubr::annotate_figure(
-    ggpubr::ggarrange(
-        ggplot(data = df_imp_TOTALS_KO, aes(x=LFQvalue, fill=rep))+
-            geom_histogram(position='identity', alpha=0.5, bins=20)+labs(fill='KO'),
-        ggplot(data = df_imp_TOTALS_WT, aes(x=LFQvalue, fill=rep))+
-            geom_histogram(position='identity', alpha=0.5, bins=20)+labs(fill='WT'),
-        nrow=2,ncol=1
-    ),
-    top = 'Histograms of Imputed Data with Random Forest'
-)
-```
-
-```{r}
-# skewness for imputed KO and WT
-rbind(df_imp_TOTALS_KO, df_imp_TOTALS_WT) |>
-    dplyr::group_by(celltype, rep) |>
-    dplyr::summarise(skewness = moments::skewness(LFQvalue))
-```
-
-I think we should use more columns to make the predicted value more specific. We could use:
+I think we should use more columns to make the predicted value more specific,
+more accurate. We could use:
 
 * Sequence coverage;
 * Sequence length;
@@ -154,9 +86,9 @@ I think we should use more columns to make the predicted value more specific. We
 * Identyfication type (?);
 * MS.MS.Count
 
-# Package `randomForest`
+# Package `ranger`
 
-* Documentation: https://cran.r-project.org/web/packages/randomForest/randomForest.pdf
+* Documentation: https://cran.r-project.org/web/packages/ranger/ranger.pdf
 
 ```{r data preparation}
 # Data preparation to run random forest
@@ -197,13 +129,23 @@ protein.groups$missingness <- assign_missing(protein.groups$prot.id, protein.gro
 # removing blank spaces and all separators from colnames
 colnames(protein.groups)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq.len',
                                       'mol.weight.kDa','q.value','score','ms.count')
+
+# Remove unnecessary columns and reordering columns
+protein.groups.to.models <- protein.groups |>
+    dplyr::select(-prot.id, -Sample) |> dplyr::select(1:11, 13, 12) |>
+    dplyr::mutate(missingness = as.numeric(as.factor(missingness)),
+                  celltype = as.numeric(celltype),
+                  sampletype = as.numeric(sampletype),
+                  rep = as.numeric(rep))
+
+protein.groups <- protein.groups |>
+    dplyr::select(-prot.id, -Sample) |> dplyr::select(1:11, 13, 12) |>
+    dplyr::mutate(missingness = as.factor(missingness))
 ```
 
 ```{r}
 # creating data with no NA to train random forest model
-prot.groups.no.na <- na.omit(protein.groups)
-colnames(prot.groups.no.na)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq.len',
-                                      'mol.weight.kDa','q.value','score','ms.count') 
+prot.groups.no.na <- na.omit(protein.groups.to.models)
 ```
 
 ## RF Model
@@ -218,9 +160,222 @@ test_data_na <- test_data |> dplyr::mutate(LFQvalue = NA)
 train_data <- prot.groups.no.na[-test_data_idx,]
 ```
 
+```{r}
+# training default random forest model
+n_features <- ncol(train_data[,-13])
+
+ames_rf1 <- ranger::ranger(
+  LFQvalue ~ ., 
+  data = train_data,
+  mtry = floor(n_features / 3),
+  respect.unordered.factors = "order",
+  seed = 123
+)
+
+# get OOB RMSE
+(default_rmse <- sqrt(ames_rf1$prediction.error))
+```
+
+## Model Tunning
+
+```{r echo=FALSE}
+# # hyperparameter grid
+# hyper_grid_rf <- expand.grid(
+#     num.trees = c(100,300,500),
+#     mtry = floor(n_features * c(.05, .15, .25, .333, .4)),
+#     min.node.size = c(1, 3, 5, 10), 
+#     replace = c(TRUE, FALSE),                               
+#     sample.fraction = c(.5, .63, .8),                       
+#     rmse = NA 
+# )
+# 
+# # execute full cartesian grid search
+# for(i in seq_len(nrow(hyper_grid_rf))) {
+#   # fit model for ith hyperparameter combination
+#   fit <- ranger::ranger(
+#     formula         = LFQvalue ~ ., 
+#     data            = train_data, 
+#     num.trees       = hyper_grid_rf$num.trees[i],
+#     mtry            = hyper_grid_rf$mtry[i],
+#     min.node.size   = hyper_grid_rf$min.node.size[i],
+#     replace         = hyper_grid_rf$replace[i],
+#     sample.fraction = hyper_grid_rf$sample.fraction[i],
+#     verbose         = FALSE,
+#     seed            = 123,
+#     respect.unordered.factors = 'order',
+#   )
+#   # export OOB error 
+#   hyper_grid_rf$rmse[i] <- sqrt(fit$prediction.error)
+# }
+```
+
+```{r echo=FALSE}
+# # assess top 10 models
+# DT::datatable(
+#     hyper_grid_rf |>
+#       dplyr::arrange(rmse) |>
+#       dplyr::mutate(perc_gain = (default_rmse - rmse) / default_rmse * 100) |>
+#       head(10),
+#     options=list(searching=FALSE, paging=FALSE, info=FALSE)
+# )
+```
+
+<style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      width: 14.28%; /* Distribute width equally (100% / 7 columns) */
+      border: 1px #f2f2f2;
+      text-align: center; /* Center the text */
+      padding: 8px;
+    }
+    th {
+      background-color: #f2f2f2;
+      border: 0px;
+    }
+</style>
+
+<table>
+  <thead>
+    <tr>
+      <th></th>
+      <th>num.trees</th>
+      <th>mtry</th>
+      <th>min.node.size</th>
+      <th>replace</th>
+      <th>sample.fraction</th>
+      <th>rmse</th>
+      <th>perc_gain</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td>100</td>
+      <td>4</td>
+      <td>5</td>
+      <td>false</td>
+      <td>0.8</td>
+      <td>36184321.6466</td>
+      <td>2.8631</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>500</td>
+      <td>4</td>
+      <td>5</td>
+      <td>false</td>
+      <td>0.8</td>
+      <td>367032968.8757</td>
+      <td>1.47133</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>300</td>
+      <td>4</td>
+      <td>5</td>
+      <td>false</td>
+      <td>0.8</td>
+      <td>367963900.30284</td>
+      <td>1.2214</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>500</td>
+      <td>4</td>
+      <td>1</td>
+      <td>true</td>
+      <td>0.8</td>
+      <td>370084110.1524</td>
+      <td>0.6523</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>500</td>
+      <td>4</td>
+      <td>10</td>
+      <td>false</td>
+      <td>0.8</td>
+      <td>370380581.2619</td>
+      <td>0.5727</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td>300</td>
+      <td>4</td>
+      <td>1</td>
+      <td>true</td>
+      <td>0.63</td>
+      <td>371446664.9562</td>
+      <td>0.2865</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td>100</td>
+      <td>4</td>
+      <td>5</td>
+      <td>false</td>
+      <td>0.8</td>
+      <td>372131148.9947</td>
+      <td>0.1027</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td>300</td>
+      <td>4</td>
+      <td>10</td>
+      <td>false</td>
+      <td>0.8</td>
+      <td>372169999.3198</td>
+      <td>0.0923</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td>300</td>
+      <td>4</td>
+      <td>4</td>
+      <td>true</td>
+      <td>0.63</td>
+      <td>372767670.8139</td>
+      <td>-0.0681</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td>300</td>
+      <td>4</td>
+      <td>3</td>
+      <td>true</td>
+      <td>0.8</td>
+      <td>373586116.5828</td>
+      <td>-0.2878</td>
+    </tr>
+  </tbody>
+</table>
+
+
+Base on the output of the grid search, we can see that there is better model than default and 
+it is random forest model with the following hyperparameters:
+
+* num.trees = 100
+* mtry = 4
+* min.node.size = 5
+* replace = FALSE
+* sample.fraction = 0.80
+
 ```{r random forest}
 # running random forest model
-rforest <- randomForest::randomForest(LFQvalue ~ ., data=train_data)
+# rforest <- randomForest::randomForest(LFQvalue ~ ., data=train_data,)
+rforest <- ranger::ranger(LFQvalue ~ .,
+                          data=train_data,
+                          num.trees = 100,
+                          mtry = 4,
+                          min.node.size = 5,
+                          replace = FALSE,
+                          sample.fraction = 0.8,
+                          seed = 123,
+                          importance = 'impurity')
 ```
 
 ```{r}
@@ -228,25 +383,16 @@ rforest <- randomForest::randomForest(LFQvalue ~ ., data=train_data)
 rforest
 ```
 
-```{r}
-# number of trees that produce lowest test MSE
-which.min(rforest$mse)
-```
-
-```{r RMSE of best model}
-# RMSE of best model
-sqrt(rforest$mse[which.min(rforest$mse)]) 
-```
-
 ```{r varImpPlot}
-#produce variable importance plot
-randomForest::varImpPlot(rforest)
+# produce variable importance plot
+f1 <- vip::vip(rforest, num_features=12)
+gridExtra::grid.arrange(f1)
 ```
 
 ```{r}
 # predict the values for missing data
-pred_test_na <- predict(rforest, test_data_na[,c(1:13,15)])
-test_data_imp <- test_data_na |> dplyr::mutate(LFQvalue = pred_test_na)
+pred_test_na <- predict(object = rforest, data = test_data_na)
+test_data_imp <- test_data_na |> dplyr::mutate(LFQvalue = pred_test_na$predictions)
 ```
 
 ## Model Evaluation
@@ -285,11 +431,11 @@ DT::datatable(rf_measures, options=list(searching=FALSE, paging=FALSE, info=FALS
 missing <- which(is.na(protein.groups$LFQvalue))
 
 # predict the values for NA rows
-predictions <- predict(rforest, protein.groups[missing,c(1:13,15)])
+predictions <- predict(rforest, protein.groups.to.models[missing,])
 
 # data frame with predicted LFQ values by random forest model
 imputed_RF <- protein.groups
-imputed_RF[missing,14] <- predictions
+imputed_RF[missing,13] <- predictions$predictions
 ```
 
 ## Results
@@ -390,9 +536,10 @@ violin_RF_by_group
 
 ## kNN Model
 
+
 ```{r kNN}
 # calculating kNN model
-model_kNN <- caret::train(LFQvalue ~ ., data=train_data[,-10], method='knn')
+model_kNN <- caret::train(LFQvalue ~ ., data=train_data, method='knn')
 
 model_kNN
 ```
@@ -403,7 +550,7 @@ plot(model_kNN)
 
 ```{r}
 # predict the values for missing data
-kNN_pred_test_na <- predict(model_kNN, test_data_na[,1:11])
+kNN_pred_test_na <- predict(model_kNN, test_data_na[,1:12])
 kNN_test_data_imp <- test_data_na |> dplyr::mutate(LFQvalue = kNN_pred_test_na)
 ```
 
@@ -440,11 +587,11 @@ DT::datatable(kNN_measures, options=list(searching=FALSE, paging=FALSE, info=FAL
 
 ```{r predict kNN}
 # predict the values for NA rows
-predictions2 <- predict(model_kNN, protein.groups[missing,1:11])
+predictions2 <- predict(model_kNN, protein.groups.to.models[missing,1:12])
 
 # data frame with predicted LFQ values by random forest model
 imputed_kNN <- protein.groups
-imputed_kNN[missing,12] <- predictions2
+imputed_kNN[missing,13] <- predictions2
 ```
 
 ## Results
@@ -545,7 +692,7 @@ violin_kNN_by_group
 
 ```{r}
 # train model - stepwise selection
-lm_model <- lm(LFQvalue ~ ., data=train_data[,-10])
+lm_model <- lm(LFQvalue ~ ., data=train_data)
 summary(lm_model)
 ```
 
@@ -556,18 +703,18 @@ seq.coverage +\\ + 807933 \cdot mol.weight.kDa + 430143 \cdot score + 1490175 \c
 
 ```{r}
 lm_model <- lm(LFQvalue ~ 0 + no.proteins + peptides + seq.coverage + mol.weight.kDa + score + ms.count,
-               data=train_data[,-10])
+               data=train_data)
 summary(lm_model)
 ```
 
 ```{r}
 # Correlation plot
-corrplot::corrplot(cor(train_data[,-c(9:11)]), method = "color", addCoef.col = "black", number.cex = 0.7)
+corrplot::corrplot(cor(train_data), method = "color", addCoef.col = "black", number.cex = 0.7)
 ```
 
 ```{r}
 # predict the values for missing data
-lm_pred_test_na <- predict(lm_model, test_data_na[,1:11])
+lm_pred_test_na <- predict(lm_model, test_data_na)
 lm_test_data_imp <- test_data_na |> dplyr::mutate(LFQvalue = abs(lm_pred_test_na))
 ```
 
@@ -608,13 +755,13 @@ DT::datatable(lm_measures, options=list(searching=FALSE, paging=FALSE, info=FALS
 
 ```{r}
 # train pca model
-pca_model <- pcaMethods::pca(test_data[, -c(9:11)])
+pca_model <- pcaMethods::pca(train_data)
 pca_model
 ```
 
 ```{r}
 # predict the values for missing data
-pca_pred_test_na <- predict(pca_model, test_data_na[,c(1:8,12)])
+pca_pred_test_na <- predict(pca_model, test_data_na)
 pca_test_data_imp <- test_data_na |> dplyr::mutate(LFQvalue = pca_pred_test_na$x[,"LFQvalue"])
 ```
 
@@ -749,7 +896,7 @@ nonimputed_df <- protein.groups |>
 ```
 
 ```{r echo=FALSE}
-pvalue_nonimp <- nonimputed_df %>% 
+pvalue_nonimp <- nonimputed_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(nonimputed_df, 1, ttest, 
                   grp1=grep("KO_TOTALS_2", colnames(nonimputed_df)), 
                   grp2=grep("WT_TOTALS_2", colnames(nonimputed_df)))) |>
@@ -794,7 +941,7 @@ imputed_df_RF_wide <- imputed_df_RF |>
 ```
 
 ```{r echo=FALSE}
-pvalue_RF <- imputed_df_RF_wide %>% 
+pvalue_RF <- imputed_df_RF_wide |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_df_RF_wide, 1, ttest, 
                   grp1=grep("KO_TOTALS_2", colnames(imputed_df_RF_wide)), 
                   grp2=grep("WT_TOTALS_2", colnames(imputed_df_RF_wide)))) |>
@@ -839,7 +986,7 @@ imputed_df_kNN_wide <- imputed_df_kNN |>
 ```
 
 ```{r}
-pvalue_kNN <- imputed_df_kNN_wide %>% 
+pvalue_kNN <- imputed_df_kNN_wide |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_df_kNN_wide, 1, ttest, 
                   grp1=grep("KO_TOTALS_2", colnames(imputed_df_kNN_wide)), 
                   grp2=grep("WT_TOTALS_2", colnames(imputed_df_kNN_wide)))) |>
