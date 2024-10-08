@@ -12,16 +12,16 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", fig.keep = "all")
 
-if (!require("missForest", quietly = TRUE))
-    install.packages("missForest")
 if (!require("randomForest", quietly = TRUE))
     install.packages("randomForest")
-if (!require("VIM", quietly = TRUE))
-    install.packages("VIM")
+if (!require("caret", quietly = TRUE))
+    install.packages("caret")
+if (!require('pcaMethods', quietly = TRUE))
+    install.packages('pcaMethods')
+if (!require('DT', quietly = TRUE))
+    install.packages('DT')
 
-library(missForest)
 library(ggplot2)
-
 
 assign_missing <- function(protein.ids, condition, lfq_intensity) {
     # verification of the fxn assumptions
@@ -132,10 +132,9 @@ colnames(protein.groups)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq
 
 # Remove unnecessary columns and reordering columns
 protein.groups.to.models <- protein.groups |>
-    dplyr::select(-prot.id, -Sample) |> dplyr::select(1:11, 13, 12) |>
+    dplyr::select(-prot.id, -Sample, -sampletype) |> dplyr::select(1:10, 12, 11) |>
     dplyr::mutate(missingness = as.numeric(as.factor(missingness)),
                   celltype = as.numeric(celltype),
-                  sampletype = as.numeric(sampletype),
                   rep = as.numeric(rep))
 
 protein.groups <- protein.groups |>
@@ -162,7 +161,7 @@ train_data <- prot.groups.no.na[-test_data_idx,]
 
 ```{r}
 # training default random forest model
-n_features <- ncol(train_data[,-13])
+n_features <- ncol(train_data[,-12])
 
 ames_rf1 <- ranger::ranger(
   LFQvalue ~ ., 
@@ -366,7 +365,6 @@ it is random forest model with the following hyperparameters:
 
 ```{r random forest}
 # running random forest model
-# rforest <- randomForest::randomForest(LFQvalue ~ ., data=train_data,)
 rforest <- ranger::ranger(LFQvalue ~ .,
                           data=train_data,
                           num.trees = 100,
@@ -864,8 +862,6 @@ cv_kNN_stats
 # p-value
 
 ```{r echo=FALSE}
-mitocarta <- read.csv("./data/Human.MitoCarta3.0.csv")
-
 ttest <- function(df, grp1, grp2){ 
   x = df[grp1]
   y = df[grp2]
@@ -926,18 +922,6 @@ imputed_df_RF$LFQvalue <- log2(imputed_df_RF$LFQvalue)
 imputed_df_RF_wide <- imputed_df_RF |>
     dplyr::select(group, `Protein IDs`, LFQvalue) |>
     tidyr::pivot_wider(names_from = group, values_from = LFQvalue)
-
-# means <- imputed_df_RF %>%
-#   dplyr::select(sample, `Protein IDs`, LFQvalue) %>%
-#   dplyr::group_by(sample, `Protein IDs`) %>% 
-#   dplyr::summarise(mean=mean(LFQvalue))
-# 
-# means <- tidyr::pivot_wider(means, names_from = sample, values_from = mean) |>
-#     dplyr::mutate(FC_TOTALS = TOTALS_KO - TOTALS_WT)
-# 
-# FC <- merge(means, imputed_df_RF_wide)
-# FC <- FC |> dplyr::mutate(gene.names = proteingroups$`Gene names`)
-# FC <- merge(FC, mitocarta, by.x = 'gene.names', by.y = 'Symbol')
 ```
 
 ```{r echo=FALSE}
@@ -971,18 +955,6 @@ imputed_df_kNN$LFQvalue <- log2(imputed_df_kNN$LFQvalue)
 imputed_df_kNN_wide <- imputed_df_kNN |>
     dplyr::select(group, `Protein IDs`, LFQvalue) |>
     tidyr::pivot_wider(names_from = group, values_from = LFQvalue)
-
-# means <- imputed_df_kNN %>%
-#   dplyr::select(sample, `Protein IDs`, LFQvalue) %>%
-#   dplyr::group_by(sample, `Protein IDs`) %>% 
-#   dplyr::summarise(mean=mean(LFQvalue))
-# 
-# means <- tidyr::pivot_wider(means, names_from = sample, values_from = mean) |>
-#     dplyr::mutate(FC_TOTALS = TOTALS_KO - TOTALS_WT)
-# 
-# FC <- merge(means, imputed_df_kNN_wide)
-# FC <- FC |> dplyr::mutate(gene.names = proteingroups$`Gene names`)
-# FC <- merge(FC, mitocarta, by.x = 'gene.names', by.y = 'Symbol')
 ```
 
 ```{r}

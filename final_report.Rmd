@@ -1333,13 +1333,13 @@ cv_imp_summary$method <- gsub('_KO', '', cv_imp_summary$method)
 DT::datatable(cv_imp_summary, rownames = FALSE, 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
     DT::formatStyle(columns = 'mean_KO', 
-                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+                    background = DT::styleInterval(c(-20, 20), c('white','lightgreen', 'white'))) %>%
     DT::formatStyle(columns = 'mean_WT', 
-                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+                    background = DT::styleInterval(c(-20,20), c('white','lightgreen', 'white'))) %>%
     DT::formatStyle(columns = 'median_KO', 
-                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+                    background = DT::styleInterval(c(-20,20), c('white','lightgreen', 'white'))) %>%
     DT::formatStyle(columns = 'median_WT', 
-                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white')))
+                    background = DT::styleInterval(c(-20, 20), c('white','lightgreen', 'white')))
    
 
 ```
@@ -1448,13 +1448,13 @@ cv_imp_summary$method <- gsub('_KO', '', cv_imp_summary$method)
 DT::datatable(cv_imp_summary, rownames = FALSE, 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
     DT::formatStyle(columns = 'mean_KO', 
-                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+                    background = DT::styleInterval(c(-20,20), c('white','lightgreen', 'white'))) %>%
     DT::formatStyle(columns = 'mean_WT', 
-                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+                    background = DT::styleInterval(c(-20,20), c('white','lightgreen', 'white'))) %>%
     DT::formatStyle(columns = 'median_KO', 
-                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white'))) %>%
+                    background = DT::styleInterval(c(-20,20), c('white','lightgreen', 'white'))) %>%
     DT::formatStyle(columns = 'median_WT', 
-                    background = DT::styleInterval(c(-5,5), c('white','lightgreen', 'white')))
+                    background = DT::styleInterval(c(-20,20), c('white','lightgreen', 'white')))
     
 ```
 </center>
@@ -1736,6 +1736,180 @@ hist_p_eigen <- ggplot(data = pvalue_eigen, aes(x = p_OCIAD1_TOTALS, fill=signif
 ```{r echo=FALSE}
 mean_p_eigen <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE)
 ```
+
+# p-value imputed Mati
+
+## Box-Cox
+
+```{r echo=FALSE}
+boxcox_df_imp <- data.frame(LFQ_KO_imp.boxcox, LFQ_WT_imp.boxcox)
+boxcox_df_imp[is.na(boxcox_df_imp)] <- 0
+
+pvalue_boxcox <- boxcox_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(boxcox_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(boxcox_df_imp)), 
+                  grp2=grep("WT", colnames(boxcox_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_boxcox_imp <- ggplot(data = pvalue_boxcox, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_boxcox_imp <- mean(pvalue_boxcox$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## Z-Score
+
+```{r echo=FALSE}
+standard_df_imp <- data.frame(LFQ_KO_imp.standard, LFQ_WT_imp.standard)
+standard_df_imp[is.na(standard_df_imp)] <- 0
+
+pvalue_standard <- standard_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_imp)), 
+                  grp2=grep("WT", colnames(standard_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_standard_imp <- ggplot(data = pvalue_standard, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_standard_imp <- mean(pvalue_standard$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## Min-Max
+
+```{r echo=FALSE}
+minmax_df_imp <- data.frame(LFQ_KO_imp.minmax, LFQ_WT_imp.minmax)
+minmax_df_imp[is.na(minmax_df_imp)] <- 0
+
+pvalue_minmax <- minmax_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_imp)), 
+                  grp2=grep("WT", colnames(minmax_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_minmax_imp <- ggplot(data = pvalue_minmax, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_minmax_imp <- mean(pvalue_minmax$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## Median
+
+```{r echo=FALSE}
+median_df_imp <- data.frame(LFQ_KO_imp.med, LFQ_WT_imp.med)
+median_df_imp[is.na(median_df_imp)] <- 0
+
+pvalue_med <- median_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(median_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(median_df_imp)), 
+                  grp2=grep("WT", colnames(median_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_med_imp <- ggplot(data = pvalue_med, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_med_imp <- mean(pvalue_med$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## MAD
+
+```{r echo=FALSE}
+mad_df_imp <- data.frame(LFQ_KO_imp.mad, LFQ_WT_imp.mad)
+mad_df_imp[is.na(mad_df_imp)] <- 0
+
+pvalue_mad <- mad_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_imp)), 
+                  grp2=grep("WT", colnames(mad_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_mad_imp <- ggplot(data = pvalue_mad, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_mad_imp <- mean(pvalue_mad$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## LM
+
+```{r echo=FALSE}
+lm_df_imp <- data.frame(LFQ_KO_imp.lm, LFQ_WT_imp.lm)
+lm_df_imp[is.na(lm_df_imp)] <- 0
+
+pvalue_lm <- lm_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_imp)), 
+                  grp2=grep("WT", colnames(lm_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_lm_imp <- ggplot(data = pvalue_lm, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_lm_imp <- mean(pvalue_lm$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## VSN
+
+```{r echo=FALSE}
+vsn_df_imp <- data.frame(LFQ_imp.vsn$R, LFQ_imp.vsn$G)
+vsn_df_imp[is.na(vsn_df_imp)] <- 0
+
+pvalue_vsn <- vsn_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_imp)), 
+                  grp2=grep("WT", colnames(vsn_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_vsn_imp <- ggplot(data = pvalue_vsn, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_vsn_imp <- mean(pvalue_vsn$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+## EigenMS
+
+```{r echo=FALSE}
+eigen_df_imp <- as.data.frame(LFQ_imp.eig_norm$norm_m)
+eigen_df_imp[is.na(eigen_df_imp)] <- 0
+
+pvalue_eigen <- eigen_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_imp)), 
+                  grp2=grep("WT", colnames(eigen_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+```
+
+```{r echo=FALSE}
+hist_p_eigen_imp <- ggplot(data = pvalue_eigen, aes(x = p_OCIAD1_TOTALS, fill=significant)) + geom_histogram(bins = 100)
+```
+
+```{r echo=FALSE}
+mean_p_eigen_imp <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE)
+```
+
+# p-value imputed RF
+
+
 
 # Conclusion
 
