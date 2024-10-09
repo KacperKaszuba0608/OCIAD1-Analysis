@@ -7,24 +7,10 @@ output:
         toc: true
         toc_float: 
             collapsed: false
+        code_download: true
+fontsize: 14pt
+css: document_style.css
 ---
-
-<style>
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      width: 14.28%; /* Distribute width equally (100% / 7 columns) */
-      border: 1px #f2f2f2;
-      text-align: center; /* Center the text */
-      padding: 8px;
-    }
-    th {
-      background-color: #f2f2f2;
-      border: 0px;
-    }
-</style>
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", fig.keep = "all", echo=FALSE)
@@ -37,18 +23,23 @@ if (!require('pcaMethods', quietly = TRUE))
     install.packages('pcaMethods')
 if (!require('DT', quietly = TRUE))
     install.packages('DT')
+if (!require('ggpubr', quietly = TRUE))
+    install.packages('ggpubr')
+if (!require('ggplot2', quietly = TRUE))
+    install.packages('ggplot2')
+if (!require('dplyr', quietly = TRUE))
+    install.packages('dplyr')
+if (!require('tidyr', quietly = TRUE))
+    install.packages('tidyr')
+if (!require('vsn', quietly = TRUE))
+    install.packages('vsn')
 
 show_cv_table <- function(df) {
     DT::datatable(df, rownames = FALSE, 
-              options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
-    DT::formatStyle(columns = 'mean_KO', 
-                    background = DT::styleInterval(c(-20, 20), c('white','lightgreen', 'white'))) %>%
-    DT::formatStyle(columns = 'mean_WT', 
-                    background = DT::styleInterval(c(-20,20), c('white','lightgreen', 'white'))) %>%
-    DT::formatStyle(columns = 'median_KO', 
-                    background = DT::styleInterval(c(-20,20), c('white','lightgreen', 'white'))) %>%
-    DT::formatStyle(columns = 'median_WT', 
-                    background = DT::styleInterval(c(-20, 20), c('white','lightgreen', 'white')))
+              options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
+    DT::formatStyle(columns = c('mean_KO', 'mean_WT', 'median_KO', 'median_WT'), 
+                    background = DT::styleInterval(c(0, 25), c('white','lightgreen', 'white'))) |>
+    DT::formatStyle(columns = 'method', fontWeight = 'bold')
 }
 
 assign_missing <- function(protein.ids, condition, lfq_intensity) {
@@ -117,16 +108,6 @@ ttest <- function(df, grp1, grp2){
 p.cutoff = 0.05 #set p value cutoff
 FC.cutoff = 1 # set fold change cutoff
 
-transform_M <- function(i, df) {
-    if (df[i,2] == 22) {
-        return(median(df[df[,2] == 22,1]))
-    } else if (df[i,2] == 23) {
-        return(median(df[df[,2] == 23,1]))
-    } else {
-        return(median(df[df[,2] == 24,1]))
-    }
-}
-
 plothist <- function(df, title='', plot.title.and.legend=TRUE) {
     if (!is.data.frame(df)) { df <- as.data.frame(df)}
     
@@ -150,46 +131,14 @@ plothist <- function(df, title='', plot.title.and.legend=TRUE) {
     return(ret_plot)
 }
 
-ordernorm <- function(df) {
-    LFQ.22 <- bestNormalize::orderNorm(df[,1])$x.t
-    LFQ.23 <- bestNormalize::orderNorm(df[,2])$x.t
-    LFQ.24 <- bestNormalize::orderNorm(df[,3])$x.t
-    
-    if (startsWith(x = colnames(df)[1], 'KO')) {
-        return(data.frame(KO_TOTALS_22 = LFQ.22,
-                          KO_TOTALS_23 = LFQ.23,
-                          KO_TOTALS_24 = LFQ.24))
-    } else {
-        return(data.frame(WT_TOTALS_22 = LFQ.22,
-                          WT_TOTALS_23 = LFQ.23,
-                          WT_TOTALS_24 = LFQ.24))
-    }
-}
-
-plotviolin <- function(df, xlab='', ylab='LFQValue') {
-    if (!is.data.frame(df)) { df <- as.data.frame(df)}
-    
-    df <- df %>%
-        pivot_longer(1:ncol(df),names_to = 'Exp', values_to = 'LFQValue') %>%
-        mutate(Sample = gsub("_TOTALS_", ".", Exp))
-    
-    violin <- ggplot(data=df, aes(x=Sample, y=LFQValue, fill=Sample))+
-        geom_boxplot(width=0.3) +
-        geom_violin(alpha=0.4)+
-        theme(legend.position = 'none') +
-        labs(x=xlab, y=ylab)
-    
-    return(violin)
-}
-
-plotoneviolin <- function(object, xlab) {
+plotoneviolin <- function(object, title='') {
     object <- as.data.frame(object) %>%
         pivot_longer(everything(), names_to = 'Sample', values_to = 'LFQ_CV')
     
     ggplot(data=object, aes(x=Sample, y=LFQ_CV, fill=Sample))+
         geom_boxplot(width=0.2)+
         geom_violin(alpha=0.4)+
-        labs(title=NULL,x=xlab,y='LFQ CV[%]')+
+        labs(title=title,x=NULL,y='LFQ CV[%]')+
         theme(legend.position = 'none',
               panel.background = element_rect(fill='white', colour = 'grey'),
               panel.grid = element_line(colour = 'grey'))
@@ -202,6 +151,24 @@ library(tidyr)
 library(vsn)
 library(protti)
 source('EigenMS/EigenMS/EigenMS.R')
+
+writeLines('table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th, td {
+  width: 14.28%; /* Distribute width equally (100% / 7 columns) */
+  border: 1px #f2f2f2;
+  text-align: center; /* Center the text */
+  padding: 8px;
+}
+th {
+  background-color: #f2f2f2;
+  border: 0px;
+}
+body {
+    text-align: justify
+}', con = 'document_style.css')
 ```
 
 # Introduction
@@ -261,6 +228,37 @@ it is random forest model with the following hyperparameters:
 * replace = FALSE
 * sample.fraction = 0.80
 
+We train Linear Regression Model which, after the stepwise selection, has the following formula:
+
+$$LFQvalue = 8631815 \cdot no.proteins -18172773 \cdot peptides + 1794237 \cdot
+seq.coverage +\\ + 807933 \cdot mol.weight.kDa + 430143 \cdot score + 1490175 \cdot ms.count$$
+
+Where:
+
+* `no.proteins` - Number of proteins contained within the group.
+* `peptides` - The total number of peptide sequences associated with the protein 
+group (i.e. for all the proteins in the group).
+* `seq.coverage` - Percentage of the sequence that is covered by the identified
+peptides of the first protein sequence contained in the group.
+* `mol.wieght.kDa` - Molecular weight of the leading protein sequence contained 
+in the protein group.
+* `score` - Andromeda score for the best associated MS/MS spectrum.
+* `ms.count` - The number of MS/MS spectra recorded in this raw file.
+
+We train and compare 4 machine learning models and based on the performance (table 
+below), we decided to use 2 of them:
+
+1. Random Forest
+2. kNN
+
+|     Model     | NRMSE |  MSE  | RMSE  |  MAE  |   R2   |
+|:-------------:|:-----:|:-----:|:-----:|:-----:|:------:|
+| **RF**        | 0.5724 | 0.8044 | 0.8969 | 0.6663 | 0.7615 |
+| **kNN**       | 0.6070 | 1.0182 | 1.0091 | 0.7590 | 0.6701 |
+| **LM**        | 0.8737 | 3.8825 | 1.9704 | 1.6091 | 0.2623 |
+| **PCA**       | 1      | 6.8863 | 2.6242 | 2.2380 | 0      |
+
+
 For the Ludovic method first we had to assign the missing values using the
 [`protti::assign_missingness()`](https://jpquast.github.io/protti/reference/assign_missingness.html) 
 fxn, which added the **`comparison`** column containing the comparison name for the specific 
@@ -284,7 +282,7 @@ using the following instructions:
 is three lower (log2) than the lowest intensity value recorded for the 
 precursor/peptide and that has a spread of the mean standard deviation for the precursor/peptide.
 * **`"MAR"`** data is imputed using the mean and variance of the condition with the missing data.
-* **`"NA"`** data is not imputed.
+* **`NA`** data is not imputed.
 
 ```{r load data}
 # load raw data
@@ -578,11 +576,11 @@ LFQ_WT_kNN.standard <- as.data.frame(scale(LFQ_WT_kNN)) # Imputed kNN
 LFQ_WT_ludovic.standard <- as.data.frame(scale(LFQ_WT_ludovic)) # Imputed ludovic
 ```
 
----
+**Summary** <br>
+The Z-SCORE method brought the distribution closer together, but we lost
+the original scale of the data and the differences are harder to see after normalization.
 
-<center><b style='font-size:26px'>DISTRIBUTIONS</b></center>
-
----
+<center><b style='font-size:20px'>DISTRIBUTIONS</b></center>
 
 ```{r dist standardization, fig.height=4}
 annotate_figure(ggarrange(
@@ -626,10 +624,6 @@ ggarrange(
 )
 ```
 
-**Summary** <br>
-The Z-SCORE method brought the distribution closer together, but we lost
-the original scale of the data and the differences are harder to see after normalization.
-
 ## Min-Max
 
 Min-max normalization scales data to a specified range (usually [0, 1]) by 
@@ -656,11 +650,11 @@ LFQ_WT_kNN.minmax <- as.data.frame(lapply(LFQ_WT_kNN, function(col) min_max_norm
 LFQ_WT_ludovic.minmax <- as.data.frame(lapply(LFQ_WT_ludovic, function(col) min_max_norm(col)))  # Imputed ludovic
 ```
 
----
+**Summary** <br>
+The MIN-MAX method didn't succeed in bringing the distribution closer together. 
+In conclusion, we probably shouldn't use this method.
 
-<center><b style='font-size:26px'>DISTRIBUTIONS</b></center>
-
----
+<center><b style='font-size:20px'>DISTRIBUTIONS</b></center>
 
 ```{r dist minmax, fig.height=4}
 annotate_figure(ggarrange(
@@ -705,11 +699,13 @@ ggarrange(
 )
 ```
 
-**Summary** <br>
-The MIN-MAX method didn't succeed in bringing the distribution closer together. 
-In conclusion, we probably shouldn't use this method.
-
 ## Median Scaling
+
+Median Scaling, also called the Robust Scalar, transforms x to x’ by subtracting each 
+value of features by the median and dividing it by the interquartile range between 
+the 1st quartile (25th quantile) and the 3rd quartile (75th quantile). The formula:
+
+$$x' = \frac{x-median(x)}{(Q3-Q1)}$$
 
 ```{r median scaling}
 LFQ_KO.med <- as.data.frame(DescTools::RobScale(LFQ_KO, scale=FALSE)) # Non-Imputed
@@ -725,11 +721,11 @@ LFQ_WT_kNN.med <- as.data.frame(DescTools::RobScale(LFQ_WT_kNN, scale=FALSE)) # 
 LFQ_WT_ludovic.med <- as.data.frame(DescTools::RobScale(LFQ_WT_ludovic, scale=FALSE)) # Imputed
 ```
 
----
+**Summary**<br>
+The MEDIAN scaling method brought the distributions closer together, but again we lost
+the original scale of the data and the differences are harder to see after normalization.
 
-<center><b style='font-size:26px'>DISTRIBUTIONS</b></center>
-
----
+<center><b style='font-size:20px'>DISTRIBUTIONS</b></center>
 
 ```{r dist median, fig.height=4}
 annotate_figure(ggarrange(
@@ -774,11 +770,17 @@ ggarrange(
 )
 ```
 
-**Summary**<br>
-The MEDIAN scaling method brought the distributions closer together, but again we lost
-the original scale of the data and the differences are harder to see after normalization.
-
 ## MAD Scaling
+
+MAD (**M**edian **A**bsoulte **D**eviation) Scaling transforms $x$ to $x'$ in 
+similar way like Median Scaling, but it substractingthe MAD value from the $x$. 
+The formula of MAD:
+
+$$\tilde{X} = median(X) \\ MAD = median\Big(|X_i - \tilde{X}|\Big)$$
+
+and the formula of scaling is:
+
+$$x' = \frac{x - MAD}{(Q3-Q1)}$$
 
 ```{r mad scaling}
 LFQ_KO.mad <- as.data.frame(DescTools::RobScale(LFQ_KO)) # Non-Imputed
@@ -794,11 +796,11 @@ LFQ_WT_kNN.mad <- as.data.frame(DescTools::RobScale(LFQ_WT_kNN)) # Imputed kNN
 LFQ_WT_ludovic.mad <- as.data.frame(DescTools::RobScale(LFQ_WT_ludovic)) # Imputed ludovic
 ```
 
----
+**Summary**<br>
+The MAD scaling method brought the distributions closer together, but again we lost
+the original scale of the data and the differences are harder to see after normalization.
 
-<center><b style='font-size:26px'>DISTRIBUTIONS</b></center>
-
----
+<center><b style='font-size:20px'>DISTRIBUTIONS</b></center>
 
 ```{r dist mad, fig.height=4}
 annotate_figure(ggarrange(
@@ -843,11 +845,11 @@ ggarrange(
 )
 ```
 
-**Summary**<br>
-The MAD scaling method brought the distributions closer together, but again we lost
-the original scale of the data and the differences are harder to see after normalization.
-
 ## Linear Regression
+
+Normalization ny linear regression using a residual of the linear model $y = ax + b$
+to normalize the data. In our project we have two variables: independent and dependent.
+The independent is **Batch** and the dependent is **LFQ**.
 
 ```{r KO lm}
 # Non-Imputed
@@ -975,11 +977,11 @@ LFQ_WT_ludovic.lm <- LFQ_WT_long %>%
     select(-row)
 ```
 
----
+**Summary**<br>
+The linear regression method brought the distributions closer together, but again we lost
+the original scale of the data and the differences are harder to see after normalization.
 
-<center><b style='font-size:26px'>DISTRIBUTIONS</b></center>
-
----
+<center><b style='font-size:20px'>DISTRIBUTIONS</b></center>
 
 ```{r dist lm, fig.height=4}
 annotate_figure(ggarrange(
@@ -1024,32 +1026,44 @@ ggarrange(
 )
 ```
 
-**Summary**<br>
-The linear regression method brought the distributions closer together, but again we lost
-the original scale of the data and the differences are harder to see after normalization.
-
 ## VSN
+
+VSN - **V**ariance **S**tabilization **N**ormalization
+
+The data are returned on a $glog$ scale to base 2. More precisely, the transformed 
+data are subject to the transformation $glog_2(f(b)*x+a)+c$, where the function
+$glog_2(u)=log_2(u+\sqrt{u*u+1}) = asinh(u)/log(2)$ is called the generalised logarithm, 
+the offset $a$ and the scaling parameter $b$ are the fitted model parameters (see references), 
+and $f(x)=exp(x)$ is a&nbsp;parameter transformation that allows ensuring positivity of 
+the factor in front of x while using an unconstrained optimization over $b$&nbsp;[[source](https://www.bioconductor.org/packages/devel/bioc/vignettes/vsn/inst/doc/C-likelihoodcomputations.pdf)]. 
+The overall offset $c$ is computed from the $b$'s such that for large $x$ the 
+transformation approximately corresponds to the $log_2$ function. This is done 
+separately for each stratum, but with the same value across arrays. More precisely, 
+if the element $b[s,i]$ of the array $b$ is the scaling parameter for the $s$-th stratum
+and the $i$-th array, then $c[s]$ is computed as $log2(2*f(mean(b[,i])))$. The&nbsp;offset
+$c$ is  inconsequential for all differential expression calculations, but 
+many users like to see the data in a range that they are familiar with.
 
 ```{r vsn}
 lfq_rglist<- new('RGList', list(
-    R = as.matrix(LFQ_KO),
-    G = as.matrix(LFQ_WT)))
+    R = as.matrix(2^LFQ_KO),
+    G = as.matrix(2^LFQ_WT)))
 
 lfq_rglist_imp<- new('RGList', list(
-    R = as.matrix(LFQ_KO_imp),
-    G = as.matrix(LFQ_WT_imp)))
+    R = as.matrix(2^LFQ_KO_imp),
+    G = as.matrix(2^LFQ_WT_imp)))
 
 lfq_rglist_RF<- new('RGList', list(
-    R = as.matrix(LFQ_KO_RF),
-    G = as.matrix(LFQ_WT_RF)))
+    R = as.matrix(2^LFQ_KO_RF),
+    G = as.matrix(2^LFQ_WT_RF)))
 
 lfq_rglist_kNN<- new('RGList', list(
-    R = as.matrix(LFQ_KO_kNN),
-    G = as.matrix(LFQ_WT_kNN)))
+    R = as.matrix(2^LFQ_KO_kNN),
+    G = as.matrix(2^LFQ_WT_kNN)))
 
 lfq_rglist_ludovic <- new('RGList', list(
-    R = as.matrix(LFQ_KO_ludovic),
-    G = as.matrix(LFQ_WT_ludovic)))
+    R = as.matrix(2^LFQ_KO_ludovic),
+    G = as.matrix(2^LFQ_WT_ludovic)))
 
 LFQ_KO.vsn <- justvsn(lfq_rglist)@assayData$R  # Non-Imputed
 LFQ_KO_imp.vsn <- justvsn(lfq_rglist_imp)@assayData$R # Imputed
@@ -1064,11 +1078,13 @@ LFQ_WT_kNN.vsn <- justvsn(lfq_rglist_kNN)@assayData$G # Imputed kNN
 LFQ_WT_ludovic.vsn <- justvsn(lfq_rglist_ludovic)@assayData$G # Imputed ludovic
 ```
 
----
+**Summary**<br>
+The VSN method brought the distributions closer together and we didn't lose the 
+original scale of the data. The method didn't lose the differences between 
+KO and WT cells at first glance. In addition, the 24th replicate of KO cell doesn't
+stand out only in distribution of imputed data with kNN.
 
-<center><b style='font-size:26px'>DISTRIBUTIONS</b></center>
-
----
+<center><b style='font-size:20px'>DISTRIBUTIONS</b></center>
 
 ```{r dist vsn, fig.height=4}
 annotate_figure(ggarrange(
@@ -1113,13 +1129,27 @@ ggarrange(
 )
 ```
 
-**Summary**<br>
-The VSN method brought the distributions closer together except data imputed 
-with ludovic method, but again we lost the original scale of the data and the 
-differences are harder to see after normalization. In addition, in all plots the 
-24th replicate stands out from the other replicates.
-
 ## EigenMS
+
+EigenMS is a normalization method developed for high-throughput mass spectrometry 
+(MS) proteomics data. It uses eigenvector-based adjustments to remove unwanted 
+variation, such as batch effects, from the data. The method works by identifying 
+systematic biases in the dataset and applying a correction while preserving 
+biologically relevant signals.
+
+In the EigenMS method, eigentrends are calculated by decomposing the systematic 
+variation in the proteomics data matrix using Singular Value Decomposition (SVD). 
+This is typically expressed as:
+
+$$X = U \Sigma V'$$
+Where:
+
+* $X$ represents the original data matrix.
+* $U$ and $v'$ are orthogonal matrices.
+* $\Sigma$ is a diagonal matrix of singular values.
+
+The decomposition isolates systematic trends (eigentrends) as columns in $U$, 
+which can then be removed to adjust for unwanted variation.
 
 ```{r EigenMS, fig.keep='none', results='hide'}
 treatment = as.factor(c('KO', 'KO', 'KO', 'WT', 'WT', 'WT'))
@@ -1178,11 +1208,12 @@ LFQ_WT_kNN.eigen <- LFQ_kNN.eig_norm$norm_m[,4:6] # Imputed kNN
 LFQ_WT_ludovic.eigen <- LFQ_ludovic.eig_norm$norm_m[,4:6] # Imputed ludovic
 ```
 
----
+**Summary**<br>
+The EigenMS method was the one which kept the differences between the replicates 
+and cell types (KO and WT). The distribution are close together and we solve the 
+problem of 24th replicate. In my opinion the EigenMS method gives the best results.
 
-<center><b style='font-size:26px'>DISTRIBUTIONS</b></center>
-
----
+<center><b style='font-size:20px'>DISTRIBUTIONS</b></center>
 
 ```{r dist eigen, fig.height=4}
 annotate_figure(ggarrange(
@@ -1227,11 +1258,6 @@ ggarrange(
 )
 ```
 
-**Summary**<br>
-The EigenMS method was the only one which kept the differences between the replicates 
-and cell types (KO and WT). The distribution are close together and we solve the 
-problem of 24th replicate. In my opinion the EigenMS method gives the best results.
-
 # Statistics Metrics {.tabset}
 
 ## CV {.tabset}
@@ -1251,6 +1277,25 @@ where:
 ```{r CV}
 cv <- function (x) sd(x) / mean(x) * 100
 ```
+
+**Summary**
+For the biological data the cut-off level of CV is around 20 (+/-5). After close 
+looking at the tables in the `**Summary**` section, we can safely say that the **EigenMS** 
+method had the CV around 20 in all imputation methods. In fact, from this point of view 
+we can distinguish four such methods that had good coefficient of variation.
+
+1. EigenMS
+2. MAD Scaling
+3. Min-Max Normalization
+4. Z-Score Normalization
+
+When we take a closer look at the violin plots, we can see the strange pattern
+in the results for the **kNN** imputation method. Namely, many values have a CV
+close to the 0, which can mean that the standard deviation of the values is also close
+to the 0, which means that the values are very similar, which shouldn't be the case.
+
+The violin plots for the other methods look better and show the distribution/density
+of the CV correctly.
 
 ### Non-Imputed
 
@@ -1601,10 +1646,16 @@ replicates cluster together.
 
 A guidelines for interpretation by [Koo and Li (2016)](https://doi.org/10.1016%2Fj.jcm.2016.02.012):
 
-* below 0.50: poor <span style="color:#D3D3D3;font-size:16px">■</span>
-* between 0.50 and 0.75: moderate <span style="color:#aefda1;font-size:16px">■</span>
-* between 0.75 and 0.90: good <span style="color:#6dff54;font-size:16px">■</span>
-* above 0.90: excellent <span style="color:#1bb400;font-size:16px">■</span>
+* below 0.50: poor <span style="color:#D3D3D3;font-size:26px">■</span>
+* between 0.50 and 0.75: moderate <span style="color:#aefda1;font-size:26px">■</span>
+* between 0.75 and 0.90: good <span style="color:#6dff54;font-size:26px">■</span>
+* above 0.90: excellent <span style="color:#1bb400;font-size:26px">■</span>
+
+**Summary**
+We can clearly see that the replicates are the most tight after the normalization 
+using the **EigenMS** method. Almost all methods group replicates more tightly, 
+except the **Min-Max** and **Median** methods, where the ICCs were moderate or good.
+
 
 ### Non-Imputed
 
@@ -1638,10 +1689,8 @@ rownames(icc.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linea
                        'VSN', 'EigenMS')
 
 DT::datatable(cbind(icc.KO.all, icc.WT.all), 
-              options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
-    DT::formatStyle(columns = 'ICC.KO', 
-                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400'))) %>%
-    DT::formatStyle(columns = 'ICC.WT', 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
+    DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
                     background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
 ```
 
@@ -1681,10 +1730,8 @@ rownames(icc_imp.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'L
                        'VSN', 'EigenMS')
 
 DT::datatable(cbind(icc_imp.KO.all, icc_imp.WT.all), 
-              options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
-    DT::formatStyle(columns = 'ICC.KO', 
-                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400'))) %>%
-    DT::formatStyle(columns = 'ICC.WT', 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
+    DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
                     background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
 ```
 
@@ -1724,10 +1771,8 @@ rownames(icc_RF.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Li
                        'VSN', 'EigenMS')
 
 DT::datatable(cbind(icc_RF.KO.all, icc_RF.WT.all), 
-              options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
-    DT::formatStyle(columns = 'ICC.KO', 
-                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400'))) %>%
-    DT::formatStyle(columns = 'ICC.WT', 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
+    DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
                     background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
 ```
 
@@ -1767,10 +1812,8 @@ rownames(icc_kNN.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'L
                        'VSN', 'EigenMS')
 
 DT::datatable(cbind(icc_kNN.KO.all, icc_kNN.WT.all), 
-              options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
-    DT::formatStyle(columns = 'ICC.KO', 
-                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400'))) %>%
-    DT::formatStyle(columns = 'ICC.WT', 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
+    DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
                     background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
 ```
 
@@ -1810,14 +1853,109 @@ rownames(icc_ludovic.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD'
                        'VSN', 'EigenMS')
 
 DT::datatable(cbind(icc_ludovic.KO.all, icc_ludovic.WT.all), 
-              options=list(searching=FALSE, paging=FALSE, info=FALSE)) %>%
-    DT::formatStyle(columns = 'ICC.KO', 
-                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400'))) %>%
-    DT::formatStyle(columns = 'ICC.WT', 
+              options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
+    DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
                     background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
 ```
 
 ## t-test {.tabset}
+
+### Raw Data
+
+**Summary** <br>
+The p-value plots show us that we had to normalize the data, because the output
+below doesn't show strong differences between KO and WT cells.
+
+```{r p-value raw data}
+df <- lfq
+df[is.na(df)] <- 0
+
+pvalue <- df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(df, 1, ttest, 
+                  grp1=grep("KO", colnames(df)), 
+                  grp2=grep("WT", colnames(df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue$p_OCIAD1_TOTALS, na.rm=TRUE)
+
+hist_p <- ggplot(data = pvalue, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value imp data}
+pvalue_imp <- lfq_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lfq_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(lfq_imp)), 
+                  grp2=grep("WT", colnames(lfq_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
+
+hist_p_imp <- ggplot(data = pvalue_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value RF data}
+pvalue_RF <- imputed_RF |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_RF, 1, ttest, 
+                  grp1=grep("KO", colnames(imputed_RF)), 
+                  grp2=grep("WT", colnames(imputed_RF)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
+
+hist_p_RF <- ggplot(data = pvalue_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value kNN data}
+# handling with duplicates
+duplicates <- which(lapply(1:nrow(imputed_kNN), function(i) length(unique(as.numeric(imputed_kNN[i,])))) != 6)
+df_kNN <- imputed_kNN[-duplicates,]
+
+pvalue_kNN <- df_kNN |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(df_kNN, 1, ttest, 
+                  grp1=grep("KO", colnames(df_kNN)), 
+                  grp2=grep("WT", colnames(df_kNN)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
+
+hist_p_kNN <- ggplot(data = pvalue_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value ludovic data}
+pvalue_ludovic <- imputed_ludovic |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_ludovic, 1, ttest, 
+                  grp1=grep("KO", colnames(imputed_ludovic)), 
+                  grp2=grep("WT", colnames(imputed_ludovic)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
+
+hist_p_ludovic <- ggplot(data = pvalue_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p
+```
+
+```{r}
+ggarrange(
+    hist_p_imp,
+    hist_p_RF,
+    hist_p_kNN,
+    hist_p_ludovic,
+    nrow=2,ncol=2
+)
+```
 
 ### Z-Score
 
@@ -1834,9 +1972,12 @@ pvalue_standard <- standard_df |>
                   grp1=grep("KO", colnames(standard_df)), 
                   grp2=grep("WT", colnames(standard_df)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_standard$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_standard <- ggplot(data = pvalue_standard, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value')
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data standardization}
@@ -1847,9 +1988,12 @@ pvalue_standard_imp <- standard_df_imp |>
                   grp1=grep("KO", colnames(standard_df_imp)), 
                   grp2=grep("WT", colnames(standard_df_imp)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_standard_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_standard_imp <- ggplot(data = pvalue_standard_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data standardization}
@@ -1860,9 +2004,12 @@ pvalue_standard_RF <- standard_df_RF |>
                   grp1=grep("KO", colnames(standard_df_RF)), 
                   grp2=grep("WT", colnames(standard_df_RF)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_standard_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_standard_RF <- ggplot(data = pvalue_standard_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data standardization}
@@ -1873,9 +2020,12 @@ pvalue_standard_kNN <- standard_df_kNN |>
                   grp1=grep("KO", colnames(standard_df_kNN)), 
                   grp2=grep("WT", colnames(standard_df_kNN)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_standard_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_standard_kNN <- ggplot(data = pvalue_standard_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data standardization}
@@ -1886,9 +2036,12 @@ pvalue_standard_ludovic <- standard_df_ludovic |>
                   grp1=grep("KO", colnames(standard_df_ludovic)), 
                   grp2=grep("WT", colnames(standard_df_ludovic)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_standard_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_standard_ludovic <- ggplot(data = pvalue_standard_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r fig.height=3, fig.width=5}
@@ -1920,9 +2073,12 @@ pvalue_minmax <- minmax_df |>
                   grp1=grep("KO", colnames(minmax_df)), 
                   grp2=grep("WT", colnames(minmax_df)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_minmax$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_minmax <- ggplot(data = pvalue_minmax, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value')
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data minmax}
@@ -1933,9 +2089,12 @@ pvalue_minmax_imp <- minmax_df_imp |>
                   grp1=grep("KO", colnames(minmax_df_imp)), 
                   grp2=grep("WT", colnames(minmax_df_imp)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_minmax_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_minmax_imp <- ggplot(data = pvalue_minmax_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data minmax}
@@ -1946,9 +2105,12 @@ pvalue_minmax_RF <- minmax_df_RF |>
                   grp1=grep("KO", colnames(minmax_df_RF)), 
                   grp2=grep("WT", colnames(minmax_df_RF)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_minmax_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_minmax_RF <- ggplot(data = pvalue_minmax_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data minmax}
@@ -1959,9 +2121,12 @@ pvalue_minmax_kNN <- minmax_df_kNN |>
                   grp1=grep("KO", colnames(minmax_df_kNN)), 
                   grp2=grep("WT", colnames(minmax_df_kNN)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_minmax_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_minmax_kNN <- ggplot(data = pvalue_minmax_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data minmax}
@@ -1972,9 +2137,12 @@ pvalue_minmax_ludovic <- minmax_df_ludovic |>
                   grp1=grep("KO", colnames(minmax_df_ludovic)), 
                   grp2=grep("WT", colnames(minmax_df_ludovic)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_minmax_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_minmax_ludovic <- ggplot(data = pvalue_minmax_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r fig.height=3, fig.width=5}
@@ -2006,9 +2174,12 @@ pvalue_med <- med_df |>
                   grp1=grep("KO", colnames(med_df)), 
                   grp2=grep("WT", colnames(med_df)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_med$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_med <- ggplot(data = pvalue_med, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value')
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data median}
@@ -2019,9 +2190,12 @@ pvalue_med_imp <- med_df_imp |>
                   grp1=grep("KO", colnames(med_df_imp)), 
                   grp2=grep("WT", colnames(med_df_imp)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_med_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_med_imp <- ggplot(data = pvalue_med_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data median}
@@ -2032,9 +2206,12 @@ pvalue_med_RF <- med_df_RF |>
                   grp1=grep("KO", colnames(med_df_RF)), 
                   grp2=grep("WT", colnames(med_df_RF)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_med_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_med_RF <- ggplot(data = pvalue_med_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data median}
@@ -2045,9 +2222,12 @@ pvalue_med_kNN <- med_df_kNN |>
                   grp1=grep("KO", colnames(med_df_kNN)), 
                   grp2=grep("WT", colnames(med_df_kNN)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_med_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_med_kNN <- ggplot(data = pvalue_med_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data median}
@@ -2058,9 +2238,12 @@ pvalue_med_ludovic <- med_df_ludovic |>
                   grp1=grep("KO", colnames(med_df_ludovic)), 
                   grp2=grep("WT", colnames(med_df_ludovic)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_med_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_med_ludovic <- ggplot(data = pvalue_med_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r fig.height=3, fig.width=5}
@@ -2092,9 +2275,12 @@ pvalue_mad <- mad_df |>
                   grp1=grep("KO", colnames(mad_df)), 
                   grp2=grep("WT", colnames(mad_df)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_mad$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_mad <- ggplot(data = pvalue_mad, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value')
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data mad}
@@ -2105,9 +2291,12 @@ pvalue_mad_imp <- mad_df_imp |>
                   grp1=grep("KO", colnames(mad_df_imp)), 
                   grp2=grep("WT", colnames(mad_df_imp)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_mad_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_mad_imp <- ggplot(data = pvalue_mad_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data mad}
@@ -2118,9 +2307,12 @@ pvalue_mad_RF <- mad_df_RF |>
                   grp1=grep("KO", colnames(mad_df_RF)), 
                   grp2=grep("WT", colnames(mad_df_RF)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_mad_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_mad_RF <- ggplot(data = pvalue_mad_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data mad}
@@ -2131,9 +2323,12 @@ pvalue_mad_kNN <- mad_df_kNN |>
                   grp1=grep("KO", colnames(mad_df_kNN)), 
                   grp2=grep("WT", colnames(mad_df_kNN)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_mad_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_mad_kNN <- ggplot(data = pvalue_mad_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data mad}
@@ -2144,9 +2339,12 @@ pvalue_mad_ludovic <- mad_df_ludovic |>
                   grp1=grep("KO", colnames(mad_df_ludovic)), 
                   grp2=grep("WT", colnames(mad_df_ludovic)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_mad_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_mad_ludovic <- ggplot(data = pvalue_mad_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r fig.height=3, fig.width=5}
@@ -2178,9 +2376,12 @@ pvalue_lm <- lm_df |>
                   grp1=grep("KO", colnames(lm_df)), 
                   grp2=grep("WT", colnames(lm_df)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_lm$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_lm <- ggplot(data = pvalue_lm, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value')
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data lm}
@@ -2191,9 +2392,12 @@ pvalue_lm_imp <- lm_df_imp |>
                   grp1=grep("KO", colnames(lm_df_imp)), 
                   grp2=grep("WT", colnames(lm_df_imp)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_lm_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_lm_imp <- ggplot(data = pvalue_lm_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data lm}
@@ -2204,9 +2408,12 @@ pvalue_lm_RF <- lm_df_RF |>
                   grp1=grep("KO", colnames(lm_df_RF)), 
                   grp2=grep("WT", colnames(lm_df_RF)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_lm_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_lm_RF <- ggplot(data = pvalue_lm_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data lm}
@@ -2217,9 +2424,12 @@ pvalue_lm_kNN <- lm_df_kNN |>
                   grp1=grep("KO", colnames(lm_df_kNN)), 
                   grp2=grep("WT", colnames(lm_df_kNN)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_lm_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_lm_kNN <- ggplot(data = pvalue_lm_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data lm}
@@ -2230,9 +2440,12 @@ pvalue_lm_ludovic <- lm_df_ludovic |>
                   grp1=grep("KO", colnames(lm_df_ludovic)), 
                   grp2=grep("WT", colnames(lm_df_ludovic)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_lm_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_lm_ludovic <- ggplot(data = pvalue_lm_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r fig.height=3, fig.width=5}
@@ -2249,7 +2462,7 @@ ggarrange(
 )
 ```
 
-### VNS
+### VSN
 
 **Summary**<br>
 Again the p-value plots look very bad, which means that we have again lost whole 
@@ -2264,9 +2477,12 @@ pvalue_vsn <- vsn_df |>
                   grp1=grep("KO", colnames(vsn_df)), 
                   grp2=grep("WT", colnames(vsn_df)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_vsn$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_vsn <- ggplot(data = pvalue_vsn, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value')
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data vsn}
@@ -2277,9 +2493,12 @@ pvalue_vsn_imp <- vsn_df_imp |>
                   grp1=grep("KO", colnames(vsn_df_imp)), 
                   grp2=grep("WT", colnames(vsn_df_imp)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_vsn_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_vsn_imp <- ggplot(data = pvalue_vsn_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data vsn}
@@ -2290,9 +2509,12 @@ pvalue_vsn_RF <- vsn_df_RF |>
                   grp1=grep("KO", colnames(vsn_df_RF)), 
                   grp2=grep("WT", colnames(vsn_df_RF)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_vsn_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_vsn_RF <- ggplot(data = pvalue_vsn_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data vsn}
@@ -2303,9 +2525,12 @@ pvalue_vsn_kNN <- vsn_df_kNN |>
                   grp1=grep("KO", colnames(vsn_df_kNN)), 
                   grp2=grep("WT", colnames(vsn_df_kNN)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_vsn_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_vsn_kNN <- ggplot(data = pvalue_vsn_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data vsn}
@@ -2316,9 +2541,12 @@ pvalue_vsn_ludovic <- vsn_df_ludovic |>
                   grp1=grep("KO", colnames(vsn_df_ludovic)), 
                   grp2=grep("WT", colnames(vsn_df_ludovic)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_vsn_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_vsn_ludovic <- ggplot(data = pvalue_vsn_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r fig.height=3, fig.width=5}
@@ -2350,9 +2578,12 @@ pvalue_eigen <- eigen_df |>
                   grp1=grep("KO", colnames(eigen_df)), 
                   grp2=grep("WT", colnames(eigen_df)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_eigen <- ggplot(data = pvalue_eigen, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value')
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data eigen}
@@ -2363,9 +2594,12 @@ pvalue_eigen_imp <- eigen_df_imp |>
                   grp1=grep("KO", colnames(eigen_df_imp)), 
                   grp2=grep("WT", colnames(eigen_df_imp)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_eigen_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_eigen_imp <- ggplot(data = pvalue_eigen_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data eigen}
@@ -2376,9 +2610,13 @@ pvalue_eigen_RF <- eigen_df_RF |>
                   grp1=grep("KO", colnames(eigen_df_RF)), 
                   grp2=grep("WT", colnames(eigen_df_RF)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE)
+m <- mean(pvalue_eigen_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_eigen_RF <- ggplot(data = pvalue_eigen_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data eigen}
@@ -2398,9 +2636,12 @@ pvalue_eigen_kNN <- eigen_df_kNN |>
                   grp1=grep("KO", colnames(eigen_df_kNN)), 
                   grp2=grep("WT", colnames(eigen_df_kNN)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_eigen_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_eigen_kNN <- ggplot(data = pvalue_eigen_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data eigen}
@@ -2411,9 +2652,12 @@ pvalue_eigen_ludovic <- eigen_df_ludovic |>
                   grp1=grep("KO", colnames(eigen_df_ludovic)), 
                   grp2=grep("WT", colnames(eigen_df_ludovic)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
+m <- mean(pvalue_eigen_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
 
 hist_p_eigen_ludovic <- ggplot(data = pvalue_eigen_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none')
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r fig.height=3, fig.width=5}
@@ -2430,9 +2674,46 @@ ggarrange(
 )
 ```
 
+# Conclusion
 
+Summarizing everything above, we can safely say that the **EigenMS** method gives 
+the best results. The distributions of the two normalization methods (VSN and EigenMS) 
+were the best until the very end, but in the statistical metrics the EigenMS method 
+won. It&nbsp;is worth noting that the correct shape of the *p-value* plot was only obtained 
+for the data normalized with the **EigenMS** method.
 
+About the imputation method. 
 
+1. We can safely say that the **Random Forest** algorithm and the **Ludovic** method 
+had the best performance. 
+2. The **kNN** method corrects the shift in the distribution of the KO 24 replicates, 
+but in the next calculations we discover a strange value in the imputed data. In fact, 
+in some rows the values were the same, making it difficult to calculate the t-test 
+and introducing an error in the CV calculations. 
+3. The method that samples values from the distribution calculated on the raw data 
+creates the additional peak of columns that doesn't appear in the raw non-imputed data.
+
+---
+
+# References
+
+1. [A systematic evaluation of normalization methods in quantitative label-free proteomics](https://academic.oup.com/bib/article/19/1/1/2562889)
+2. [How to Normalize Data in R for my Data: Methods and Examples](https://rpubs.com/zubairishaq9/how-to-normalize-data-r-my-data)
+3. [EigenMS](https://sourceforge.net/projects/eigenms/)
+4. [Normalization of peak intensities in bottom-up MS-based proteomics using singular value decomposition](https://pubmed.ncbi.nlm.nih.gov/19602524/)
+5. [Metabolomics Data Normalization with EigenMS](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0116221)
+
+```{r test ICC, include=FALSE}
+# Maybe we should calculate the ICC like that? Don't know 🤔
+# irr::icc(cbind(2^LFQ_KO,2^LFQ_WT))$value
+# irr::icc(cbind(2^LFQ_KO.standard,2^LFQ_WT.standard))$value
+# irr::icc(cbind(2^LFQ_KO.minmax,2^LFQ_WT.minmax))$value
+# irr::icc(cbind(2^LFQ_KO.med,2^LFQ_WT.med))$value
+# irr::icc(cbind(2^LFQ_KO.mad,2^LFQ_WT.mad))$value
+# irr::icc(cbind(2^LFQ_KO.lm,2^LFQ_WT.lm))$value
+# irr::icc(cbind(2^LFQ_KO.vsn,2^LFQ_WT.vsn))$value
+# irr::icc(cbind(2^LFQ_KO.eigen,2^LFQ_WT.eigen))$value
+```
 
 
 
