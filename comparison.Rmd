@@ -63,19 +63,20 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
 
     df <- data.frame('prot.IDs'=protein.ids, 'condition'=condition, 'lfq'=lfq_intensity)
 
+    # Calculating number of missing values for each protein
     number_missing <- df |>
-        dplyr::group_by(prot.IDs, condition) |>
+        dplyr::group_by(prot.IDs) |>
         dplyr::summarise(no_NAs = sum(is.na(lfq)))
 
     missingness <- purrr::map(number_missing$no_NAs, function(no) {
-            if (no == occur_per_cond) {
-              rep('all_NA', occur_per_cond)
-            } else if (no == occur_per_cond-1) {
-              rep('MNAR', occur_per_cond)
-            } else if (no < occur_per_cond-1 & no != 0) {
-              rep('MAR', occur_per_cond)
+            if (no == occur) {
+              rep('all_NA', occur)
+            } else if (no == occur-1) {
+              rep('MNAR', occur)
+            } else if (no < occur-1 & no != 0) {
+              rep('MAR', occur)
             } else {
-              rep('complete', occur_per_cond)
+              rep('complete', occur)
             }
         })
     missingness <- data.frame(do.call(c,missingness))
@@ -113,7 +114,7 @@ plothist <- function(df, title='', plot.title.and.legend=TRUE) {
     
     # Assuming LFQ_KO is our data frame with at least 3 columns
     # Reshape the data to a long format
-    df <- df %>%
+    df <- df |>
         pivot_longer(cols = 1:ncol(df), names_to = "Rep", values_to = "LFQValue")
     
     # Plot all histograms on the same plot using ggplot
@@ -132,7 +133,7 @@ plothist <- function(df, title='', plot.title.and.legend=TRUE) {
 }
 
 plotoneviolin <- function(object, title='') {
-    object <- as.data.frame(object) %>%
+    object <- as.data.frame(object) |>
         pivot_longer(everything(), names_to = 'Sample', values_to = 'LFQ_CV')
     
     ggplot(data=object, aes(x=Sample, y=LFQ_CV, fill=Sample))+
@@ -190,6 +191,23 @@ and 8 normalization methods:
 5. Linear Regression Normalization
 6. VSN (Variance Stabilization Normalization)
 7. EigenMS
+
+We selected the following features to train the machine learning models:
+
+* **Sequence coverage** - percentage of the sequence that is covered by the identified
+peptides of the first protein sequence contained in the group;
+* **Sequence length** - the length of the leading protein sequence contained in the group;
+* **Mol weigth kDa** - molecular weight of the leading protein sequence contained 
+in the protein group;
+* **Qvalue** - the ratio of reverse to forward protein groups;
+* **Score** - Protein score which is derived from peptide posterior error probabilities
+* **MS/MS Count** - the number of tandem MS scans that were made based on this full 
+scan (e.g. a top 10 method selects the top 10 most intense ions in the scan and 
+fragments those).
+* LFQ values for TOTALS (KO 22/23/24 and WT 22/23/24) - target
+* Based on the column names of tje LFQ values, we created 2 more features: 
+    1. **celltype** - Knockout (KO) or Wild Type (WT) - for kNN encoded as (1:KO, 2:WT)
+    2. **rep** - replicates (22, 23 or 24) - for kNN encoded as (1:22, 2:23, 3:24)
 
 We used the following parameters for the K-Nearest Neighbors algorithm (bold row):
 
@@ -288,7 +306,7 @@ precursor/peptide and that has a spread of the mean standard deviation for the p
 # load raw data
 protein.groups <- readr::read_tsv('./data/proteinGroups.txt',show_col_types = FALSE)
 
-protein.groups <- protein.groups %>% filter(is.na(`Only identified by site`),
+protein.groups <- protein.groups |> filter(is.na(`Only identified by site`),
                          is.na(Reverse),
                          is.na(`Potential contaminant`))
 
@@ -302,18 +320,18 @@ colnames(lfq_imp) <- gsub('_TOTALS_', '.I.', colnames(lfq_imp))
 
 ```{r nonimp TOTALS data}
 # Extracting only TOTALS data for knockout
-LFQ_KO <- lfq %>% select(contains('KO'))
+LFQ_KO <- lfq |> select(contains('KO'))
 
 # Extracting only TOTALS data for wild type
-LFQ_WT <- lfq %>% select(contains('WT'))
+LFQ_WT <- lfq |> select(contains('WT'))
 ```
 
 ```{r imp TOTALS data}
 # Extracting only TOTALS data for knockout
-LFQ_KO_imp <- lfq_imp %>% select(contains('KO'))
+LFQ_KO_imp <- lfq_imp |> select(contains('KO'))
 
 # Extracting only TOTALS data for wild type
-LFQ_WT_imp <- lfq_imp %>% select(contains('WT'))
+LFQ_WT_imp <- lfq_imp |> select(contains('WT'))
 ```
 
 ```{r data to RF and kNN}
@@ -356,17 +374,17 @@ df_ml <- df_ml |>
 ```
 
 ```{r data to protti}
-df_to_protti <- protein.groups %>%
-    select(`Protein IDs`, `Peptide sequences`, 
-           contains('LFQ intensity') & contains('TOTALS') & (ends_with('22') | ends_with('23') | ends_with('24'))) %>%
-    mutate(`Protein IDs`= paste('prot_', 1:nrow(protein.groups), sep='')) %>%
-    pivot_longer(3:8, names_to = 'Sample', values_to = 'Intensity')%>%
-    mutate(Sample = gsub('LFQ intensity ', '', Sample)) %>%
-    mutate(Sample = gsub('_TOTALS_', '_', Sample)) %>%
-    separate(col =  Sample, into = c("celltype","rep"), sep = "_", remove = F) %>%
-    mutate(Condition = ifelse(celltype == 'KO', 'treated', 'control'),
-           Intensity = ifelse(Intensity == 0, NA, log2(Intensity))) %>% 
-    select(Sample, `Protein IDs`, `Peptide sequences`, Condition, Intensity) 
+df_to_protti <- protein.groups |>
+    dplyr::select(`Protein IDs`, `Peptide sequences`, 
+           contains('LFQ intensity') & contains('TOTALS') & (ends_with('22') | ends_with('23') | ends_with('24'))) |>
+    dplyr::mutate(`Protein IDs`= paste('prot_', 1:nrow(protein.groups), sep='')) |>
+    tidyr::pivot_longer(3:8, names_to = 'Sample', values_to = 'Intensity')|>
+    dplyr::mutate(Sample = gsub('LFQ intensity ', '', Sample)) |>
+    dplyr::mutate(Sample = gsub('_TOTALS_', '_', Sample)) |>
+    tidyr::separate(col =  Sample, into = c("celltype","rep"), sep = "_", remove = F) |>
+    dplyr::mutate(Condition = ifelse(celltype == 'KO', 'treated', 'control'),
+           Intensity = ifelse(Intensity == 0, NA, log2(Intensity))) |> 
+    dplyr::select(Sample, `Protein IDs`, `Peptide sequences`, Condition, Intensity) 
 ```
 
 ```{r train/test split}
@@ -406,8 +424,8 @@ imputed_RF <- imputed_RF |>
     dplyr::mutate('Batch' = paste(celltype, rep, sep='.'),
                   LFQvalue = log2(LFQvalue)) |>
     dplyr::select(Batch, LFQvalue) |>
-    tidyr::pivot_wider(everything(), names_from = Batch, values_from = LFQvalue) |>
-    unnest()
+    tidyr::pivot_wider(id_cols=everything(), names_from = Batch, values_from = LFQvalue, values_fn = list) |>
+    unnest(cols = c(KO.22, KO.23, KO.24, WT.22, WT.23, WT.24))
 
 # extracting KO and WT
 LFQ_KO_RF <- imputed_RF |> dplyr::select(contains('KO'))
@@ -429,8 +447,8 @@ imputed_kNN <- imputed_kNN |>
     dplyr::mutate('Batch' = paste(celltype, rep, sep='.'),
                   LFQvalue = log2(LFQvalue)) |>
     dplyr::select(Batch, LFQvalue) |>
-    tidyr::pivot_wider(everything(), names_from = Batch, values_from = LFQvalue) |>
-    unnest()
+    tidyr::pivot_wider(id_cols=everything(), names_from = Batch, values_from = LFQvalue, values_fn = list) |>
+    unnest(cols = c(KO.22, KO.23, KO.24, WT.22, WT.23, WT.24))
 
 # extracting KO and WT
 LFQ_KO_kNN <- imputed_kNN |> dplyr::select(contains('KO'))
@@ -438,6 +456,7 @@ LFQ_WT_kNN <- imputed_kNN |> dplyr::select(contains('WT'))
 ```
 
 ```{r ludovic imputation}
+# assign missingness with protti fxn
 data_missing <- df_to_protti |>
     assign_missingness(sample=Sample,
                        condition = Condition,
@@ -445,6 +464,7 @@ data_missing <- df_to_protti |>
                        intensity = Intensity,
                        ref_condition = 'all')
 
+# impute data with protti fxn using ludovic method
 imputed_ludovic <- impute(
     data_missing,
     sample = Sample,
@@ -458,14 +478,13 @@ imputed_ludovic <- impute(
 )
 rm(data_missing)
 
-# droping the NA values 
+# remove the NA values 
 imputed_ludovic <- imputed_ludovic[which(!is.na(imputed_ludovic$missingness)),]
 
 # extracting KO and WT
 imputed_ludovic <- imputed_ludovic |>
-    dplyr::select(Sample, imputed_intensity, `Protein IDs`) |>
-    tidyr::pivot_wider(everything(), names_from = Sample, values_from = imputed_intensity) |>
-    unnest()
+    dplyr::select(Sample, imputed_intensity, `Protein IDs`, missingness) |>
+    tidyr::pivot_wider(id_cols = everything(), names_from = Sample, values_from = imputed_intensity)
 
 LFQ_KO_ludovic <- imputed_ludovic |> dplyr::select(contains('KO'))
 LFQ_WT_ludovic <- imputed_ludovic |> dplyr::select(contains('WT'))
@@ -550,7 +569,7 @@ normalization methods to achieve this goal. We used the following methods:
 
 ## Z-Score
 
-Z-score normalization standardizes data by subtracting the mean and dividing 
+**Z-score** normalization standardizes data by subtracting the mean and dividing 
 by the standard deviation. This technique transforms data into a distribution 
 with a mean of 0 and a standard deviation of 1.
 
@@ -626,7 +645,7 @@ ggarrange(
 
 ## Min-Max
 
-Min-max normalization scales data to a specified range (usually [0, 1]) by 
+**Min-max** normalization scales data to a specified range (usually [0, 1]) by 
 subtracting the minimum value and dividing by the range of values.
 
 ```{r minmax}
@@ -701,7 +720,7 @@ ggarrange(
 
 ## Median Scaling
 
-Median Scaling, also called the Robust Scalar, transforms x to x’ by subtracting each 
+**Median Scaling**, also called the Robust Scalar, transforms x to x’ by subtracting each 
 value of features by the median and dividing it by the interquartile range between 
 the 1st quartile (25th quantile) and the 3rd quartile (75th quantile). The formula:
 
@@ -772,7 +791,7 @@ ggarrange(
 
 ## MAD Scaling
 
-MAD (**M**edian **A**bsoulte **D**eviation) Scaling transforms $x$ to $x'$ in 
+**MAD** (**M**edian **A**bsoulte **D**eviation) **Scaling** transforms $x$ to $x'$ in 
 similar way like Median Scaling, but it substractingthe MAD value from the $x$. 
 The formula of MAD:
 
@@ -847,133 +866,144 @@ ggarrange(
 
 ## Linear Regression
 
-Normalization ny linear regression using a residual of the linear model $y = ax + b$
+Normalization by linear regression using a residual of the linear model $y = ax + b$
 to normalize the data. In our project we have two variables: independent and dependent.
-The independent is **Batch** and the dependent is **LFQ**.
+The independent variable is **Batch** and the dependent variable is **LFQ**.
 
 ```{r KO lm}
 # Non-Imputed
-LFQ_KO_long <- LFQ_KO %>%
+LFQ_KO_long <- LFQ_KO |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
-model <- lm(LFQValue ~ Batch, data=LFQ_KO_long)
-LFQ_KO_long$normalized <- NA
+model <- lm(LFQValue ~ Batch, data=LFQ_KO_long) # calculate linear model
+LFQ_KO_long$normalized <- NA # preparing column for normalized data
 LFQ_KO_long[which(!is.na(LFQ_KO_long$LFQValue)), 'normalized'] <- residuals(model)
 
-LFQ_KO.lm <- LFQ_KO_long %>% 
-    mutate(row = rep(1:nrow(LFQ_KO), each=3)) %>%
-    reshape2::dcast(row ~ Batch, value.var='normalized') %>%
+# reshape data to the wide format
+LFQ_KO.lm <- LFQ_KO_long |> 
+    mutate(row = rep(1:nrow(LFQ_KO), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
 
 # Imputed Mati Code
-LFQ_KO_long <- LFQ_KO_imp %>%
+LFQ_KO_long <- LFQ_KO_imp |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
-model <- lm(LFQValue ~ Batch, data=LFQ_KO_long)
-LFQ_KO_long$normalized <- residuals(model)
+model <- lm(LFQValue ~ Batch, data=LFQ_KO_long) # calculate linear model
+LFQ_KO_long$normalized <- residuals(model) # normalized data
 
-LFQ_KO_imp.lm <- LFQ_KO_long %>% 
-    mutate(row = rep(1:nrow(LFQ_KO_imp), each=3)) %>%
-    reshape2::dcast(row ~ Batch, value.var='normalized') %>%
+# reshape data to the wide format
+LFQ_KO_imp.lm <- LFQ_KO_long |> 
+    mutate(row = rep(1:nrow(LFQ_KO_imp), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
 
 # Imputed RF
-LFQ_KO_long <- LFQ_KO_RF %>%
+LFQ_KO_long <- LFQ_KO_RF |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
-model <- lm(LFQValue ~ Batch, data=LFQ_KO_long)
-LFQ_KO_long$normalized <- residuals(model)
+model <- lm(LFQValue ~ Batch, data=LFQ_KO_long) # calculate linear model
+LFQ_KO_long$normalized <- residuals(model) # normalized data
 
-LFQ_KO_RF.lm <- LFQ_KO_long %>% 
-    mutate(row = rep(1:nrow(LFQ_KO_RF), each=3)) %>%
-    reshape2::dcast(row ~ Batch, value.var='normalized') %>%
+# reshape data to the wide format
+LFQ_KO_RF.lm <- LFQ_KO_long |> 
+    mutate(row = rep(1:nrow(LFQ_KO_RF), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
 
 # Imputed kNN
-LFQ_KO_long <- LFQ_KO_kNN %>%
+LFQ_KO_long <- LFQ_KO_kNN |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
-model <- lm(LFQValue ~ Batch, data=LFQ_KO_long)
-LFQ_KO_long$normalized <- residuals(model)
+model <- lm(LFQValue ~ Batch, data=LFQ_KO_long) # calculate linear model
+LFQ_KO_long$normalized <- residuals(model) # normalized data
 
-LFQ_KO_kNN.lm <- LFQ_KO_long %>% 
-    mutate(row = rep(1:nrow(LFQ_KO_kNN), each=3)) %>%
-    reshape2::dcast(row ~ Batch, value.var='normalized') %>%
+# reshape data to the wide format
+LFQ_KO_kNN.lm <- LFQ_KO_long |> 
+    mutate(row = rep(1:nrow(LFQ_KO_kNN), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
 
 # Imputed ludovic
-LFQ_KO_long <- LFQ_KO_ludovic %>%
+LFQ_KO_long <- LFQ_KO_ludovic |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
-model <- lm(LFQValue ~ Batch, data=LFQ_KO_long)
-LFQ_KO_long$normalized <- residuals(model)
+model <- lm(LFQValue ~ Batch, data=LFQ_KO_long) # calculate linear model
+LFQ_KO_long$normalized <- residuals(model) # normalized data
 
-LFQ_KO_ludovic.lm <- LFQ_KO_long %>% 
-    mutate(row = rep(1:nrow(LFQ_KO_ludovic), each=3)) %>%
-    reshape2::dcast(row ~ Batch, value.var='normalized') %>%
+# reshape data to the wide format
+LFQ_KO_ludovic.lm <- LFQ_KO_long |> 
+    mutate(row = rep(1:nrow(LFQ_KO_ludovic), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
 ```
 
 ```{r WT lm}
 # Non-Imputed
-LFQ_WT_long <- LFQ_WT %>%
+LFQ_WT_long <- LFQ_WT |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
-model <- lm(LFQValue ~ Batch, data=LFQ_WT_long)
-LFQ_WT_long$normalized <- NA
+model <- lm(LFQValue ~ Batch, data=LFQ_WT_long) # calculate linear model
+LFQ_WT_long$normalized <- NA # preparing column for normalized data
+# normalized data
 LFQ_WT_long[which(!is.na(LFQ_WT_long$LFQValue)), 'normalized'] <- residuals(model)
 
-LFQ_WT.lm <- LFQ_WT_long %>% 
-    mutate(row = rep(1:nrow(LFQ_WT), each=3)) %>%
-    reshape2::dcast(row ~ Batch, value.var='normalized') %>%
+# reshape data to the wide format
+LFQ_WT.lm <- LFQ_WT_long |> 
+    mutate(row = rep(1:nrow(LFQ_WT), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
 
 # Imputed Mati Code
-LFQ_WT_long <- LFQ_WT_imp %>%
+LFQ_WT_long <- LFQ_WT_imp |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
-model <- lm(LFQValue ~ Batch, data=LFQ_WT_long)
-LFQ_WT_long$normalized <- residuals(model)
+model <- lm(LFQValue ~ Batch, data=LFQ_WT_long) # calculate linear model
+LFQ_WT_long$normalized <- residuals(model) # normalized data
 
-LFQ_WT_imp.lm <- LFQ_WT_long %>% 
-    mutate(row = rep(1:nrow(LFQ_WT_imp), each=3)) %>%
-    reshape2::dcast(row ~ Batch, value.var='normalized') %>%
+# reshape data to the wide format
+LFQ_WT_imp.lm <- LFQ_WT_long |> 
+    mutate(row = rep(1:nrow(LFQ_WT_imp), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
 
 # Imputed RF
-LFQ_WT_long <- LFQ_WT_RF %>%
+LFQ_WT_long <- LFQ_WT_RF |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
-model <- lm(LFQValue ~ Batch, data=LFQ_WT_long)
-LFQ_WT_long$normalized <- residuals(model)
+model <- lm(LFQValue ~ Batch, data=LFQ_WT_long) # calculate linear model
+LFQ_WT_long$normalized <- residuals(model) # normalized data
 
-LFQ_WT_RF.lm <- LFQ_WT_long %>% 
-    mutate(row = rep(1:nrow(LFQ_WT_RF), each=3)) %>%
-    reshape2::dcast(row ~ Batch, value.var='normalized') %>%
+# reshape data to the wide format
+LFQ_WT_RF.lm <- LFQ_WT_long |> 
+    mutate(row = rep(1:nrow(LFQ_WT_RF), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
 
 # Imputed kNN
-LFQ_WT_long <- LFQ_WT_kNN %>%
+LFQ_WT_long <- LFQ_WT_kNN |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
-model <- lm(LFQValue ~ Batch, data=LFQ_WT_long)
-LFQ_WT_long$normalized <- residuals(model)
+model <- lm(LFQValue ~ Batch, data=LFQ_WT_long) # calculate linear model
+LFQ_WT_long$normalized <- residuals(model) # normalized data
 
-LFQ_WT_kNN.lm <- LFQ_WT_long %>% 
-    mutate(row = rep(1:nrow(LFQ_WT_kNN), each=3)) %>%
-    reshape2::dcast(row ~ Batch, value.var='normalized') %>%
+# reshape data to the wide format
+LFQ_WT_kNN.lm <- LFQ_WT_long |> 
+    mutate(row = rep(1:nrow(LFQ_WT_kNN), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
 
 # Imputed ludovic
-LFQ_WT_long <- LFQ_WT_ludovic %>%
+LFQ_WT_long <- LFQ_WT_ludovic |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
-model <- lm(LFQValue ~ Batch, data=LFQ_WT_long)
-LFQ_WT_long$normalized <- residuals(model)
+model <- lm(LFQValue ~ Batch, data=LFQ_WT_long) # calculate linear model
+LFQ_WT_long$normalized <- residuals(model) # normalized data
 
-LFQ_WT_ludovic.lm <- LFQ_WT_long %>% 
-    mutate(row = rep(1:nrow(LFQ_WT_ludovic), each=3)) %>%
-    reshape2::dcast(row ~ Batch, value.var='normalized') %>%
+# reshape data to the wide format
+LFQ_WT_ludovic.lm <- LFQ_WT_long |> 
+    mutate(row = rep(1:nrow(LFQ_WT_ludovic), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
 ```
 
@@ -1028,7 +1058,7 @@ ggarrange(
 
 ## VSN
 
-VSN - **V**ariance **S**tabilization **N**ormalization
+**VSN** - **V**ariance **S**tabilization **N**ormalization
 
 The data are returned on a $glog$ scale to base 2. More precisely, the transformed 
 data are subject to the transformation $glog_2(f(b)*x+a)+c$, where the function
@@ -1045,25 +1075,30 @@ $c$ is  inconsequential for all differential expression calculations, but
 many users like to see the data in a range that they are familiar with.
 
 ```{r vsn}
+# Preparing input into VSN fxn
 lfq_rglist<- new('RGList', list(
-    R = as.matrix(2^LFQ_KO),
-    G = as.matrix(2^LFQ_WT)))
+    R = as.matrix(2^LFQ_KO),   # condition
+    G = as.matrix(2^LFQ_WT)))  # control
 
+# Preparing input into VSN fxn
 lfq_rglist_imp<- new('RGList', list(
-    R = as.matrix(2^LFQ_KO_imp),
-    G = as.matrix(2^LFQ_WT_imp)))
+    R = as.matrix(2^LFQ_KO_imp),   # condition
+    G = as.matrix(2^LFQ_WT_imp)))  # control
 
+# Preparing input into VSN fxn
 lfq_rglist_RF<- new('RGList', list(
-    R = as.matrix(2^LFQ_KO_RF),
-    G = as.matrix(2^LFQ_WT_RF)))
+    R = as.matrix(2^LFQ_KO_RF),   # condition
+    G = as.matrix(2^LFQ_WT_RF)))  # control
 
+# Preparing input into VSN fxn
 lfq_rglist_kNN<- new('RGList', list(
-    R = as.matrix(2^LFQ_KO_kNN),
-    G = as.matrix(2^LFQ_WT_kNN)))
+    R = as.matrix(2^LFQ_KO_kNN),   # condition
+    G = as.matrix(2^LFQ_WT_kNN)))  # control
 
+# Preparing input into VSN fxn
 lfq_rglist_ludovic <- new('RGList', list(
-    R = as.matrix(2^LFQ_KO_ludovic),
-    G = as.matrix(2^LFQ_WT_ludovic)))
+    R = as.matrix(2^LFQ_KO_ludovic),   # condition
+    G = as.matrix(2^LFQ_WT_ludovic)))  # control
 
 LFQ_KO.vsn <- justvsn(lfq_rglist)@assayData$R  # Non-Imputed
 LFQ_KO_imp.vsn <- justvsn(lfq_rglist_imp)@assayData$R # Imputed
@@ -1131,7 +1166,7 @@ ggarrange(
 
 ## EigenMS
 
-EigenMS is a normalization method developed for high-throughput mass spectrometry 
+**EigenMS** is a normalization method developed for high-throughput mass spectrometry 
 (MS) proteomics data. It uses eigenvector-based adjustments to remove unwanted 
 variation, such as batch effects, from the data. The method works by identifying 
 systematic biases in the dataset and applying a correction while preserving 
@@ -1152,9 +1187,11 @@ The decomposition isolates systematic trends (eigentrends) as columns in $U$,
 which can then be removed to adjust for unwanted variation.
 
 ```{r EigenMS, fig.keep='none', results='hide'}
+# a vector of treatments in the order corresponding to the columns in the data frame
 treatment = as.factor(c('KO', 'KO', 'KO', 'WT', 'WT', 'WT'))
+
 # Non-Imputed
-prot.info <- data.frame(prot_ID = paste('prot_', 1:nrow(lfq), sep = ''))
+prot.info <- data.frame(prot_ID = paste('prot_', 1:nrow(lfq), sep = '')) # add info about LFQ value
 LFQ.eig1 <- eig_norm1(lfq, 
                       treatment = treatment, 
                       prot.info = prot.info)
@@ -1162,7 +1199,7 @@ LFQ.eig1 <- eig_norm1(lfq,
 LFQ.eig_norm <- eig_norm2(LFQ.eig1)
 
 # Imputed
-prot.info <- data.frame(prot_ID = paste('prot_', 1:nrow(lfq_imp), sep = ''))
+prot.info <- data.frame(prot_ID = paste('prot_', 1:nrow(lfq_imp), sep = '')) # add info about LFQ value
 LFQ_imp.eig1 <- eig_norm1(lfq_imp, 
                           treatment = treatment, 
                           prot.info = prot.info)
@@ -1170,7 +1207,7 @@ LFQ_imp.eig1 <- eig_norm1(lfq_imp,
 LFQ_imp.eig_norm <- eig_norm2(LFQ_imp.eig1)
 
 # Imputed RF
-prot.info <- data.frame(prot_ID = paste('prot_', 1:nrow(imputed_RF), sep = ''))
+prot.info <- data.frame(prot_ID = paste('prot_', 1:nrow(imputed_RF), sep = '')) # add info about LFQ value
 LFQ_RF.eig1 <- eig_norm1(imputed_RF, 
                          treatment = treatment, 
                          prot.info = prot.info)
@@ -1178,7 +1215,7 @@ LFQ_RF.eig1 <- eig_norm1(imputed_RF,
 LFQ_RF.eig_norm <- eig_norm2(LFQ_RF.eig1)
 
 # Imputed kNN
-prot.info <- data.frame(prot_ID = paste('prot_', 1:nrow(imputed_kNN), sep = ''))
+prot.info <- data.frame(prot_ID = paste('prot_', 1:nrow(imputed_kNN), sep = '')) # add info about LFQ value
 LFQ_kNN.eig1 <- eig_norm1(imputed_kNN, 
                           treatment = treatment, 
                           prot.info = prot.info)
@@ -1186,8 +1223,8 @@ LFQ_kNN.eig1 <- eig_norm1(imputed_kNN,
 LFQ_kNN.eig_norm <- eig_norm2(LFQ_kNN.eig1)
 
 # Imputed ludovic
-prot.info <- data.frame(imputed_ludovic$`Protein IDs`)
-LFQ_ludovic.eig1 <- eig_norm1(imputed_ludovic[,-1],
+prot.info <- data.frame(imputed_ludovic$`Protein IDs`) # add info about LFQ value
+LFQ_ludovic.eig1 <- eig_norm1(imputed_ludovic[,-c(1,2)],
                               treatment = treatment,
                               prot.info = prot.info)
 # Performing eig normalization
@@ -1275,6 +1312,7 @@ where:
 * $\mu$: The mean of dataset
 
 ```{r CV}
+# fxn to calculate the CV coefficient
 cv <- function (x) sd(x) / mean(x) * 100
 ```
 
@@ -1300,6 +1338,7 @@ of the CV correctly.
 ### Non-Imputed
 
 ```{r CV1}
+# CV calculation for all normalization methods using non-imputed data
 cv.before <- data.frame(KO=apply(2^LFQ_KO, 1, cv), WT=apply(2^LFQ_WT,1,cv))
 cv.standard <- data.frame(KO=apply(2^LFQ_KO.standard, 1, cv), WT=apply(2^LFQ_WT.standard, 1, cv))
 cv.minmax <- data.frame(KO=apply(2^LFQ_KO.minmax, 1, cv), WT= apply(2^LFQ_WT.minmax, 1, cv))
@@ -1329,6 +1368,7 @@ ggarrange(
 ### Mati Code
 
 ```{r CV2}
+# CV calculation for all normalization methods using imputed data
 cv_imp.before <- data.frame(KO=apply(2^LFQ_KO_imp, 1, cv), WT=apply(2^LFQ_WT_imp,1,cv))
 cv_imp.standard <- data.frame(KO=apply(2^LFQ_KO_imp.standard, 1, cv), WT=apply(2^LFQ_WT_imp.standard, 1, cv))
 cv_imp.minmax <- data.frame(KO=apply(2^LFQ_KO_imp.minmax, 1, cv), WT= apply(2^LFQ_WT_imp.minmax, 1, cv))
@@ -1358,6 +1398,7 @@ ggarrange(
 ### Random Forest
 
 ```{r CV3}
+# CV calculation for all normalization methods with imputed data using random forest
 cv_RF.before <- data.frame(KO=apply(2^LFQ_KO_RF, 1, cv), WT=apply(2^LFQ_WT_RF,1,cv))
 cv_RF.standard <- data.frame(KO=apply(2^LFQ_KO_RF.standard, 1, cv), WT=apply(2^LFQ_WT_RF.standard, 1, cv))
 cv_RF.minmax <- data.frame(KO=apply(2^LFQ_KO_RF.minmax, 1, cv), WT= apply(2^LFQ_WT_RF.minmax, 1, cv))
@@ -1387,6 +1428,7 @@ ggarrange(
 ### K-Nearest Neighbors
 
 ```{r CV4}
+# CV calculation for all normalization methods with imputed data using kNN
 cv_kNN.before <- data.frame(KO=apply(2^LFQ_KO_kNN, 1, cv), WT=apply(2^LFQ_WT_kNN,1,cv))
 cv_kNN.standard <- data.frame(KO=apply(2^LFQ_KO_kNN.standard, 1, cv), WT=apply(2^LFQ_WT_kNN.standard, 1, cv))
 cv_kNN.minmax <- data.frame(KO=apply(2^LFQ_KO_kNN.minmax, 1, cv), WT= apply(2^LFQ_WT_kNN.minmax, 1, cv))
@@ -1416,6 +1458,7 @@ ggarrange(
 ### Ludovic
 
 ```{r CV5}
+# CV calculation for all normalization methods with imputed data using ludovic
 cv_ludovic.before <- data.frame(KO=apply(2^LFQ_KO_ludovic, 1, cv), WT=apply(2^LFQ_WT_ludovic,1,cv))
 cv_ludovic.standard <- data.frame(KO=apply(2^LFQ_KO_ludovic.standard, 1, cv), WT=apply(2^LFQ_WT_ludovic.standard, 1, cv))
 cv_ludovic.minmax <- data.frame(KO=apply(2^LFQ_KO_ludovic.minmax, 1, cv), WT= apply(2^LFQ_WT_ludovic.minmax, 1, cv))
@@ -1445,14 +1488,18 @@ ggarrange(
 ### Summary
 
 ```{r}
+# bind all calculated CV values into one data frame - Non-Imputed
 cv_all <- data.frame(cv.before, cv.standard, cv.minmax, cv.med,
                      cv.mad, cv.lm, cv.vsn)
 colnames(cv_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
                           'MinMax_KO', 'MinMax_WT', 'Median_KO', 'Median_WT', 
                           'MAD_KO', 'MAD_WT', 'Linear_KO', 'Linear_WT', 
                           'VSN_KO', 'VSN_WT')
+
+# this one is separated because of the different number of rows
 colnames(cv.eig) <- c('EigenMS_KO', 'EigenMS_WT')
 
+# bind all calculated CV values into one data frame - Imputed
 cv_imp_all <- data.frame(cv_imp.before, cv_imp.standard, cv_imp.minmax, cv_imp.med,
                          cv_imp.mad, cv_imp.lm, cv_imp.vsn, cv_imp.eig)
 colnames(cv_imp_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
@@ -1460,6 +1507,7 @@ colnames(cv_imp_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
                           'MAD_KO', 'MAD_WT', 'Linear_KO', 'Linear_WT', 
                           'VSN_KO', 'VSN_WT', 'EigenMS_KO', 'EigenMS_WT')
 
+# bind all calculated CV values into one data frame - Random Forest
 cv_RF_all <- data.frame(cv_RF.before, cv_RF.standard, cv_RF.minmax, cv_RF.med,
                          cv_RF.mad, cv_RF.lm, cv_RF.vsn, cv_RF.eig)
 colnames(cv_RF_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
@@ -1467,6 +1515,7 @@ colnames(cv_RF_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
                           'MAD_KO', 'MAD_WT', 'Linear_KO', 'Linear_WT', 
                           'VSN_KO', 'VSN_WT', 'EigenMS_KO', 'EigenMS_WT')
 
+# bind all calculated CV values into one data frame - kNN
 cv_kNN_all <- data.frame(cv_kNN.before, cv_kNN.standard, cv_kNN.minmax, cv_kNN.med,
                          cv_kNN.mad, cv_kNN.lm, cv_kNN.vsn, cv_kNN.eig)
 colnames(cv_kNN_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
@@ -1474,6 +1523,7 @@ colnames(cv_kNN_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
                           'MAD_KO', 'MAD_WT', 'Linear_KO', 'Linear_WT', 
                           'VSN_KO', 'VSN_WT', 'EigenMS_KO', 'EigenMS_WT')
 
+# bind all calculated CV values into one data frame - Ludovic
 cv_ludovic_all <- data.frame(cv_ludovic.before, cv_ludovic.standard, cv_ludovic.minmax, cv_ludovic.med,
                          cv_ludovic.mad, cv_ludovic.lm, cv_ludovic.vsn, cv_ludovic.eig)
 colnames(cv_ludovic_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
@@ -1484,125 +1534,130 @@ colnames(cv_ludovic_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_W
 
 ```{r}
 #### NON-IMPUTED ####
-cv_summary_KO <- cv_all %>%
-    select(contains('KO')) %>%
-    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') %>%
-    group_by(`method KO`) %>%
+cv_summary_KO <- cv_all |>   # calculating basic statistics for KO
+    select(contains('KO')) |>
+    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') |>
+    group_by(`method KO`) |>
     summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-cv_summary_eigen_KO <- tibble(cv.eig) %>%
-    select(contains('KO')) %>%
-    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') %>%
-    group_by(`method KO`) %>%
-    summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
-              'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
-              'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
-
-cv_summary_WT <- cv_all %>%
-    select(contains('WT')) %>%
-    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') %>%
-    group_by(`method WT`) %>%
+cv_summary_WT <- cv_all |>   # calculating basic statistics for WT 
+    select(contains('WT')) |>
+    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') |>
+    group_by(`method WT`) |>
     summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-cv_summary_eigen_WT <- tibble(cv.eig) %>%
-    select(contains('WT')) %>%
-    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') %>%
-    group_by(`method WT`) %>%
+cv_summary_eigen_KO <- tibble(cv.eig) |>   # calculating basic statistics for eigen KO
+    select(contains('KO')) |>
+    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') |>
+    group_by(`method KO`) |>
+    summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
+              'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
+
+cv_summary_eigen_WT <- tibble(cv.eig) |>   # calculating basic statistics for eigen WT
+    select(contains('WT')) |>
+    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') |>
+    group_by(`method WT`) |>
     summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
 #### MATI CODE ####
-cv_imp_summary_KO <- cv_imp_all %>%
-    select(contains('KO')) %>%
-    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') %>%
-    group_by(`method KO`) %>%
+cv_imp_summary_KO <- cv_imp_all |>   # calculating basic statistics for KO
+    select(contains('KO')) |>
+    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') |>
+    group_by(`method KO`) |>
     summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-cv_imp_summary_WT <- cv_imp_all %>%
-    select(contains('WT')) %>%
-    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') %>%
-    group_by(`method WT`) %>%
+cv_imp_summary_WT <- cv_imp_all |>   # calculating basic statistics for WT
+    select(contains('WT')) |>
+    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') |>
+    group_by(`method WT`) |>
     summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
 #### RANDOM FOREST ####
-cv_RF_summary_KO <- cv_RF_all %>%
-    select(contains('KO')) %>%
-    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') %>%
-    group_by(`method KO`) %>%
+cv_RF_summary_KO <- cv_RF_all |>   # calculating basic statistics for KO
+    select(contains('KO')) |>
+    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') |>
+    group_by(`method KO`) |>
     summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-cv_RF_summary_WT <- cv_RF_all %>%
-    select(contains('WT')) %>%
-    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') %>%
-    group_by(`method WT`) %>%
+cv_RF_summary_WT <- cv_RF_all |>   # calculating basic statistics for WT
+    select(contains('WT')) |>
+    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') |>
+    group_by(`method WT`) |>
     summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
 #### K-NEAREST NEIGHBORS ####
-cv_kNN_summary_KO <- cv_kNN_all %>%
-    select(contains('KO')) %>%
-    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') %>%
-    group_by(`method KO`) %>%
+cv_kNN_summary_KO <- cv_kNN_all |>   # calculating basic statistics for KO
+    select(contains('KO')) |>
+    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') |>
+    group_by(`method KO`) |>
     summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-cv_kNN_summary_WT <- cv_kNN_all %>%
-    select(contains('WT')) %>%
-    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') %>%
-    group_by(`method WT`) %>%
+cv_kNN_summary_WT <- cv_kNN_all |>   # calculating basic statistics for WT
+    select(contains('WT')) |>
+    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') |>
+    group_by(`method WT`) |>
     summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
 #### LUDOVIC ####
-cv_ludovic_summary_KO <- cv_ludovic_all %>%
-    select(contains('KO')) %>%
-    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') %>%
-    group_by(`method KO`) %>%
+cv_ludovic_summary_KO <- cv_ludovic_all |>   # calculating basic statistics for KO
+    select(contains('KO')) |>
+    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') |>
+    group_by(`method KO`) |>
     summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-cv_ludovic_summary_WT <- cv_ludovic_all %>%
-    select(contains('WT')) %>%
-    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') %>%
-    group_by(`method WT`) %>%
+cv_ludovic_summary_WT <- cv_ludovic_all |>   # calculating basic statistics for WT
+    select(contains('WT')) |>
+    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') |>
+    group_by(`method WT`) |>
     summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
               'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
               'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
 
-#### SUMMARY ####
+#### SUMMARY #### 
+# prepare more readable output - Non-Ipmuted
 cv_summary <- as.data.frame(cbind(rbind(cv_summary_KO, cv_summary_eigen_KO),
-                                  rbind(cv_summary_WT[-1], cv_summary_eigen_WT[-1])))
+                                  rbind(cv_summary_WT[-1], cv_summary_eigen_WT[-1]))) |>
+    dplyr::arrange(`method KO`)
 colnames(cv_summary)[1] <- 'method'
 cv_summary$method <- gsub('_KO', '', cv_summary$method)
-cv_summary <- cv_summary |> arrange(method)
 
+# prepare more readable output - Imputed
 cv_imp_summary <- as.data.frame(cbind(cv_imp_summary_KO, cv_imp_summary_WT[-1]))
 colnames(cv_imp_summary)[1] <- 'method'
 cv_imp_summary$method <- gsub('_KO', '', cv_imp_summary$method)
 
+# prepare more readable output - Random Forest
 cv_RF_summary <- as.data.frame(cbind(cv_RF_summary_KO, cv_RF_summary_WT[-1]))
 colnames(cv_RF_summary)[1] <- 'method'
 cv_RF_summary$method <- gsub('_KO', '', cv_RF_summary$method)
 
+# prepare more readable output - kNN
 cv_kNN_summary <- as.data.frame(cbind(cv_kNN_summary_KO, cv_kNN_summary_WT[-1]))
 colnames(cv_kNN_summary)[1] <- 'method'
 cv_kNN_summary$method <- gsub('_KO', '', cv_kNN_summary$method)
 
+# prepare more readable output - Ludovic
 cv_ludovic_summary <- as.data.frame(cbind(cv_ludovic_summary_KO, cv_ludovic_summary_WT[-1]))
 colnames(cv_ludovic_summary)[1] <- 'method'
 cv_ludovic_summary$method <- gsub('_KO', '', cv_ludovic_summary$method)
@@ -1640,16 +1695,29 @@ show_cv_table(cv_ludovic_summary)
 
 ## ICC {.tabset}
 
-After normalization, biological replicates should group more tightly. You can 
-assess this by measuring the intraclass correlation coefficient (ICC) to see if 
+After normalization, biological replicates should group more tightly. We can 
+assess this by measuring the **Intraclass Correlation Coefficient (ICC)** to see if 
 replicates cluster together.
 
 A guidelines for interpretation by [Koo and Li (2016)](https://doi.org/10.1016%2Fj.jcm.2016.02.012):
 
-* below 0.50: poor <span style="color:#D3D3D3;font-size:26px">■</span>
-* between 0.50 and 0.75: moderate <span style="color:#aefda1;font-size:26px">■</span>
-* between 0.75 and 0.90: good <span style="color:#6dff54;font-size:26px">■</span>
-* above 0.90: excellent <span style="color:#1bb400;font-size:26px">■</span>
+<div style="display: flex;">
+
+<div style="flex: 50%;">
+<ul>
+<li>below 0.50: poor <span style="color:#D3D3D3;font-size:26px">■</span></li>
+<li>between 0.50 and 0.75: moderate <span style="color:#aefda1;font-size:26px">■</span></li>
+</ul>
+</div>
+
+<div style="flex: 50%;">
+<ul>
+<li>between 0.75 and 0.90: good <span style="color:#6dff54;font-size:26px">■</span></li>
+<li>above 0.90: excellent <span style="color:#1bb400;font-size:26px">■</span></li>
+</ul>
+</div>
+
+</div>
 
 **Summary**
 We can clearly see that the replicates are the most tight after the normalization 
@@ -1660,6 +1728,7 @@ except the **Min-Max** and **Median** methods, where the ICCs were moderate or g
 ### Non-Imputed
 
 ```{r ICC1}
+# Calculate ICC for Non-Imputed KO data
 icc.KO.before <- irr::icc(2^LFQ_KO)$value
 icc.KO.standard <- irr::icc(2^LFQ_KO.standard)$value
 icc.KO.minmax <- irr::icc(2^LFQ_KO.minmax)$value
@@ -1669,11 +1738,13 @@ icc.KO.lm <- irr::icc(2^LFQ_KO.lm)$value
 icc.KO.vsn <- irr::icc(2^LFQ_KO.vsn)$value
 icc.KO.eig <- irr::icc(2^LFQ_KO.eigen)$value
 
+# Bind all calculated ICCs to a data frame
 icc.KO.all <- data.frame(`ICC KO`=c(icc.KO.before, icc.KO.standard, icc.KO.minmax, icc.KO.med,
                                     icc.KO.mad, icc.KO.lm, icc.KO.vsn, icc.KO.eig))
 rownames(icc.KO.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'EigenMS')
 
+# Calculate ICC for Non-Imputed WT data
 icc.WT.before <- irr::icc(2^LFQ_WT)$value
 icc.WT.standard <- irr::icc(2^LFQ_WT.standard)$value
 icc.WT.minmax <- irr::icc(2^LFQ_WT.minmax)$value
@@ -1683,11 +1754,13 @@ icc.WT.lm <- irr::icc(2^LFQ_WT.lm)$value
 icc.WT.vsn <- irr::icc(2^LFQ_WT.vsn)$value
 icc.WT.eig <- irr::icc(2^LFQ_WT.eigen)$value
 
+# Bind all calculated ICCs to a data frame
 icc.WT.all <- data.frame(`ICC WT`=c(icc.WT.before, icc.WT.standard, icc.WT.minmax, icc.WT.med,
                                     icc.WT.mad, icc.WT.lm, icc.WT.vsn, icc.WT.eig))
 rownames(icc.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'EigenMS')
 
+# Show the table in a nice format
 DT::datatable(cbind(icc.KO.all, icc.WT.all), 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
     DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
@@ -1697,6 +1770,7 @@ DT::datatable(cbind(icc.KO.all, icc.WT.all),
 ### Mati Code
 
 ```{r ICC2}
+# Calculate ICC for Imputed KO data
 icc_imp.KO.before <- irr::icc(2^LFQ_KO_imp)$value
 icc_imp.KO.standard <- irr::icc(2^LFQ_KO_imp.standard)$value
 icc_imp.KO.minmax <- irr::icc(2^LFQ_KO_imp.minmax)$value
@@ -1706,6 +1780,7 @@ icc_imp.KO.lm <- irr::icc(2^LFQ_KO_imp.lm)$value
 icc_imp.KO.vsn <- irr::icc(2^LFQ_KO_imp.vsn)$value
 icc_imp.KO.eig <- irr::icc(2^LFQ_KO_imp.eigen)$value
 
+# Bind all calculated ICCs to a data frame
 icc_imp.KO.all <- data.frame(`ICC KO`=c(icc_imp.KO.before, icc_imp.KO.standard, 
                                         icc_imp.KO.minmax, icc_imp.KO.med, 
                                         icc_imp.KO.mad, icc_imp.KO.lm, 
@@ -1713,6 +1788,7 @@ icc_imp.KO.all <- data.frame(`ICC KO`=c(icc_imp.KO.before, icc_imp.KO.standard,
 rownames(icc_imp.KO.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'EigenMS')
 
+# Calculate ICC for Imputed WT data
 icc_imp.WT.before <- irr::icc(2^LFQ_WT_imp)$value
 icc_imp.WT.standard <- irr::icc(2^LFQ_WT_imp.standard)$value
 icc_imp.WT.minmax <- irr::icc(2^LFQ_WT_imp.minmax)$value
@@ -1722,6 +1798,7 @@ icc_imp.WT.lm <- irr::icc(2^LFQ_WT_imp.lm)$value
 icc_imp.WT.vsn <- irr::icc(2^LFQ_WT_imp.vsn)$value
 icc_imp.WT.eig <- irr::icc(2^LFQ_WT_imp.eigen)$value
 
+# Bind all calculated ICCs to a data frame
 icc_imp.WT.all <- data.frame(`ICC WT`=c(icc_imp.WT.before, icc_imp.WT.standard, 
                                         icc_imp.WT.minmax, icc_imp.WT.med, 
                                         icc_imp.WT.mad, icc_imp.WT.lm, 
@@ -1729,6 +1806,7 @@ icc_imp.WT.all <- data.frame(`ICC WT`=c(icc_imp.WT.before, icc_imp.WT.standard,
 rownames(icc_imp.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'EigenMS')
 
+# Show the table in a nice format
 DT::datatable(cbind(icc_imp.KO.all, icc_imp.WT.all), 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
     DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
@@ -1738,6 +1816,7 @@ DT::datatable(cbind(icc_imp.KO.all, icc_imp.WT.all),
 ### Random Forest
 
 ```{r ICC3}
+# Calculate ICC for Imputed KO data using Random Forest
 icc_RF.KO.before <- irr::icc(2^LFQ_KO_RF)$value
 icc_RF.KO.standard <- irr::icc(2^LFQ_KO_RF.standard)$value
 icc_RF.KO.minmax <- irr::icc(2^LFQ_KO_RF.minmax)$value
@@ -1747,6 +1826,7 @@ icc_RF.KO.lm <- irr::icc(2^LFQ_KO_RF.lm)$value
 icc_RF.KO.vsn <- irr::icc(2^LFQ_KO_RF.vsn)$value
 icc_RF.KO.eig <- irr::icc(2^LFQ_KO_RF.eigen)$value
 
+# Bind all calculated ICCs to a data frame
 icc_RF.KO.all <- data.frame(`ICC KO`=c(icc_RF.KO.before, icc_RF.KO.standard, 
                                        icc_RF.KO.minmax, icc_RF.KO.med, 
                                        icc_RF.KO.mad, icc_RF.KO.lm, 
@@ -1754,6 +1834,7 @@ icc_RF.KO.all <- data.frame(`ICC KO`=c(icc_RF.KO.before, icc_RF.KO.standard,
 rownames(icc_RF.KO.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'EigenMS')
 
+# Calculate ICC for Imputed WT data using Random Forest
 icc_RF.WT.before <- irr::icc(2^LFQ_WT_RF)$value
 icc_RF.WT.standard <- irr::icc(2^LFQ_WT_RF.standard)$value
 icc_RF.WT.minmax <- irr::icc(2^LFQ_WT_RF.minmax)$value
@@ -1763,6 +1844,7 @@ icc_RF.WT.lm <- irr::icc(2^LFQ_WT_RF.lm)$value
 icc_RF.WT.vsn <- irr::icc(2^LFQ_WT_RF.vsn)$value
 icc_RF.WT.eig <- irr::icc(2^LFQ_WT_RF.eigen)$value
 
+# Bind all calculated ICCs to a data frame
 icc_RF.WT.all <- data.frame(`ICC WT`=c(icc_RF.WT.before, icc_RF.WT.standard, 
                                        icc_RF.WT.minmax, icc_RF.WT.med,
                                        icc_RF.WT.mad, icc_RF.WT.lm, 
@@ -1770,6 +1852,7 @@ icc_RF.WT.all <- data.frame(`ICC WT`=c(icc_RF.WT.before, icc_RF.WT.standard,
 rownames(icc_RF.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'EigenMS')
 
+# Show the table in a nice format
 DT::datatable(cbind(icc_RF.KO.all, icc_RF.WT.all), 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
     DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
@@ -1779,6 +1862,7 @@ DT::datatable(cbind(icc_RF.KO.all, icc_RF.WT.all),
 ### K-Nearest Neighbors
 
 ```{r ICC4}
+# Calculate ICC for Imputed KO data using kNN
 icc_kNN.KO.before <- irr::icc(2^LFQ_KO_kNN)$value
 icc_kNN.KO.standard <- irr::icc(2^LFQ_KO_kNN.standard)$value
 icc_kNN.KO.minmax <- irr::icc(2^LFQ_KO_kNN.minmax)$value
@@ -1788,6 +1872,7 @@ icc_kNN.KO.lm <- irr::icc(2^LFQ_KO_kNN.lm)$value
 icc_kNN.KO.vsn <- irr::icc(2^LFQ_KO_kNN.vsn)$value
 icc_kNN.KO.eig <- irr::icc(2^LFQ_KO_kNN.eigen)$value
 
+# Bind all calculated ICCs to a data frame
 icc_kNN.KO.all <- data.frame(`ICC KO`=c(icc_kNN.KO.before, icc_kNN.KO.standard, 
                                         icc_kNN.KO.minmax, icc_kNN.KO.med,
                                         icc_kNN.KO.mad, icc_kNN.KO.lm, 
@@ -1795,6 +1880,7 @@ icc_kNN.KO.all <- data.frame(`ICC KO`=c(icc_kNN.KO.before, icc_kNN.KO.standard,
 rownames(icc_kNN.KO.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'EigenMS')
 
+# Calculate ICC for Imputed WT data using kNN
 icc_kNN.WT.before <- irr::icc(2^LFQ_WT_kNN)$value
 icc_kNN.WT.standard <- irr::icc(2^LFQ_WT_kNN.standard)$value
 icc_kNN.WT.minmax <- irr::icc(2^LFQ_WT_kNN.minmax)$value
@@ -1804,6 +1890,7 @@ icc_kNN.WT.lm <- irr::icc(2^LFQ_WT_kNN.lm)$value
 icc_kNN.WT.vsn <- irr::icc(2^LFQ_WT_kNN.vsn)$value
 icc_kNN.WT.eig <- irr::icc(2^LFQ_WT_kNN.eigen)$value
 
+# Bind all calculated ICCs to a data frame
 icc_kNN.WT.all <- data.frame(`ICC WT`=c(icc_kNN.WT.before, icc_kNN.WT.standard, 
                                         icc_kNN.WT.minmax, icc_kNN.WT.med, 
                                         icc_kNN.WT.mad, icc_kNN.WT.lm, 
@@ -1811,6 +1898,7 @@ icc_kNN.WT.all <- data.frame(`ICC WT`=c(icc_kNN.WT.before, icc_kNN.WT.standard,
 rownames(icc_kNN.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'EigenMS')
 
+# Show the table in a nice format
 DT::datatable(cbind(icc_kNN.KO.all, icc_kNN.WT.all), 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
     DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
@@ -1820,6 +1908,7 @@ DT::datatable(cbind(icc_kNN.KO.all, icc_kNN.WT.all),
 ### Ludovic
 
 ```{r ICC5}
+# Calculate ICC for Imputed KO data using ludovic
 icc_ludovic.KO.before <- irr::icc(2^LFQ_KO_ludovic)$value
 icc_ludovic.KO.standard <- irr::icc(2^LFQ_KO_ludovic.standard)$value
 icc_ludovic.KO.minmax <- irr::icc(2^LFQ_KO_ludovic.minmax)$value
@@ -1829,6 +1918,7 @@ icc_ludovic.KO.lm <- irr::icc(2^LFQ_KO_ludovic.lm)$value
 icc_ludovic.KO.vsn <- irr::icc(2^LFQ_KO_ludovic.vsn)$value
 icc_ludovic.KO.eig <- irr::icc(2^LFQ_KO_ludovic.eigen)$value
 
+# Bind all calculated ICCs to a data frame
 icc_ludovic.KO.all <- data.frame(`ICC KO`=c(icc_ludovic.KO.before, icc_ludovic.KO.standard,
                                             icc_ludovic.KO.minmax, icc_ludovic.KO.med, 
                                             icc_ludovic.KO.mad, icc_ludovic.KO.lm, 
@@ -1836,6 +1926,7 @@ icc_ludovic.KO.all <- data.frame(`ICC KO`=c(icc_ludovic.KO.before, icc_ludovic.K
 rownames(icc_ludovic.KO.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'EigenMS')
 
+# Calculate ICC for Imputed KO data using ludovic
 icc_ludovic.WT.before <- irr::icc(2^LFQ_WT_ludovic)$value
 icc_ludovic.WT.standard <- irr::icc(2^LFQ_WT_ludovic.standard)$value
 icc_ludovic.WT.minmax <- irr::icc(2^LFQ_WT_ludovic.minmax)$value
@@ -1845,6 +1936,7 @@ icc_ludovic.WT.lm <- irr::icc(2^LFQ_WT_ludovic.lm)$value
 icc_ludovic.WT.vsn <- irr::icc(2^LFQ_WT_ludovic.vsn)$value
 icc_ludovic.WT.eig <- irr::icc(2^LFQ_WT_ludovic.eigen)$value
 
+# Bind all calculated ICCs to a data frame
 icc_ludovic.WT.all <- data.frame(`ICC WT`=c(icc_ludovic.WT.before, icc_ludovic.WT.standard, 
                                             icc_ludovic.WT.minmax, icc_ludovic.WT.med, 
                                             icc_ludovic.WT.mad, icc_ludovic.WT.lm, 
@@ -1852,6 +1944,7 @@ icc_ludovic.WT.all <- data.frame(`ICC WT`=c(icc_ludovic.WT.before, icc_ludovic.W
 rownames(icc_ludovic.WT.all) <- c('Before', 'Z-score', 'MinMax', 'Median', 'MAD', 'Linear', 
                        'VSN', 'EigenMS')
 
+# Show the table in a nice format
 DT::datatable(cbind(icc_ludovic.KO.all, icc_ludovic.WT.all), 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
     DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
@@ -1860,6 +1953,22 @@ DT::datatable(cbind(icc_ludovic.KO.all, icc_ludovic.WT.all),
 
 ## t-test {.tabset}
 
+In our project we used the paired t-test, which is a test based on the differences
+between the values of a single pair, i.e., one deducted from the other. The 
+formula for the paired t-test is given by:
+
+$$t = \frac{\sum{d}}{\sqrt{\frac{n(\sum{d^2})-(\sum{d})^2}{n-1}}}$$
+
+Where:
+
+* $d$ is a difference per paired value;
+* $n$ is number of samples.
+
+In our calculations, we tested the following hypothesis:
+
+$H_0$: There is no significant difference between the means of the two groups. <br>
+$H_1$: There is a significant difference between the two population means.
+
 ### Raw Data
 
 **Summary** <br>
@@ -1867,79 +1976,96 @@ The p-value plots show us that we had to normalize the data, because the output
 below doesn't show strong differences between KO and WT cells.
 
 ```{r p-value raw data}
+# prepare data for t-test
 df <- lfq
 df[is.na(df)] <- 0
 
+# calculate the p-values for our data
 pvalue <- df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(df, 1, ttest, 
                   grp1=grep("KO", colnames(df)), 
                   grp2=grep("WT", colnames(df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p <- ggplot(data = pvalue, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imp data}
+# calculate the p-values for our data
 pvalue_imp <- lfq_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lfq_imp, 1, ttest, 
                   grp1=grep("KO", colnames(lfq_imp)), 
                   grp2=grep("WT", colnames(lfq_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_imp <- ggplot(data = pvalue_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value RF data}
+# calculate the p-values for our data
 pvalue_RF <- imputed_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_RF, 1, ttest, 
                   grp1=grep("KO", colnames(imputed_RF)), 
                   grp2=grep("WT", colnames(imputed_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_RF <- ggplot(data = pvalue_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data}
 # handling with duplicates
 duplicates <- which(lapply(1:nrow(imputed_kNN), function(i) length(unique(as.numeric(imputed_kNN[i,])))) != 6)
+# prepare data for t-test
 df_kNN <- imputed_kNN[-duplicates,]
 
+# calculate the p-values for our data
 pvalue_kNN <- df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(df_kNN)), 
                   grp2=grep("WT", colnames(df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_kNN <- ggplot(data = pvalue_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data}
+# calculate the p-values for our data
 pvalue_ludovic <- imputed_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(imputed_ludovic)), 
                   grp2=grep("WT", colnames(imputed_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_ludovic <- ggplot(data = pvalue_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
@@ -1964,83 +2090,103 @@ The p-value plots look very bad, which means that we have lost whole differences
 between the samples.
 
 ```{r p-value raw data standardization}
+# prepare data for t-test
 standard_df <- data.frame(LFQ_KO.standard, LFQ_WT.standard)
 standard_df[is.na(standard_df)] <- 0
 
+# calculate the p-values for our data
 pvalue_standard <- standard_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df)), 
                   grp2=grep("WT", colnames(standard_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_standard$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_standard <- ggplot(data = pvalue_standard, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data standardization}
+# prepare data for t-test
 standard_df_imp <- data.frame(LFQ_KO_imp.standard, LFQ_WT_imp.standard)
 
+# calculate the p-values for our data
 pvalue_standard_imp <- standard_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df_imp)), 
                   grp2=grep("WT", colnames(standard_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_standard_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_standard_imp <- ggplot(data = pvalue_standard_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data standardization}
+# prepare data for t-test
 standard_df_RF <- data.frame(LFQ_KO_RF.standard, LFQ_WT_RF.standard)
 
+# calculate the p-values for our data
 pvalue_standard_RF <- standard_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df_RF)), 
                   grp2=grep("WT", colnames(standard_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_standard_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_standard_RF <- ggplot(data = pvalue_standard_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data standardization}
+# prepare data for t-test
 standard_df_kNN <- data.frame(LFQ_KO_kNN.standard, LFQ_WT_kNN.standard)
 
+# calculate the p-values for our data
 pvalue_standard_kNN <- standard_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df_kNN)), 
                   grp2=grep("WT", colnames(standard_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_standard_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_standard_kNN <- ggplot(data = pvalue_standard_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data standardization}
+# prepare data for t-test
 standard_df_ludovic <- data.frame(LFQ_KO_ludovic.standard, LFQ_WT_ludovic.standard)
 
+# calculate the p-values for our data
 pvalue_standard_ludovic <- standard_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df_ludovic)), 
                   grp2=grep("WT", colnames(standard_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_standard_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_standard_ludovic <- ggplot(data = pvalue_standard_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
@@ -2065,83 +2211,103 @@ Again the p-value plots look very bad, which means that we have again lost whole
 differences between the samples.
 
 ```{r p-value raw data minmax}
+# prepare data for t-test
 minmax_df <- data.frame(LFQ_KO.minmax, LFQ_WT.minmax)
 minmax_df[is.na(minmax_df)] <- 0
 
+# calculate the p-values for our data
 pvalue_minmax <- minmax_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df)), 
                   grp2=grep("WT", colnames(minmax_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_minmax$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_minmax <- ggplot(data = pvalue_minmax, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data minmax}
+# prepare data for t-test
 minmax_df_imp <- data.frame(LFQ_KO_imp.minmax, LFQ_WT_imp.minmax)
 
+# calculate the p-values for our data
 pvalue_minmax_imp <- minmax_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df_imp)), 
                   grp2=grep("WT", colnames(minmax_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_minmax_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_minmax_imp <- ggplot(data = pvalue_minmax_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data minmax}
+# prepare data for t-test
 minmax_df_RF <- data.frame(LFQ_KO_RF.minmax, LFQ_WT_RF.minmax)
 
+# calculate the p-values for our data
 pvalue_minmax_RF <- minmax_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df_RF)), 
                   grp2=grep("WT", colnames(minmax_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_minmax_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_minmax_RF <- ggplot(data = pvalue_minmax_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data minmax}
+# prepare data for t-test
 minmax_df_kNN <- data.frame(LFQ_KO_kNN.minmax, LFQ_WT_kNN.minmax)
 
+# calculate the p-values for our data
 pvalue_minmax_kNN <- minmax_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df_kNN)), 
                   grp2=grep("WT", colnames(minmax_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_minmax_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_minmax_kNN <- ggplot(data = pvalue_minmax_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data minmax}
+# prepare data for t-test
 minmax_df_ludovic <- data.frame(LFQ_KO_ludovic.minmax, LFQ_WT_ludovic.minmax)
 
+# calculate the p-values for our data
 pvalue_minmax_ludovic <- minmax_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df_ludovic)), 
                   grp2=grep("WT", colnames(minmax_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_minmax_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_minmax_ludovic <- ggplot(data = pvalue_minmax_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
@@ -2166,83 +2332,103 @@ Again the p-value plots look very bad, which means that we have again lost whole
 differences between the samples.
 
 ```{r p-value raw data median}
+# prepare data for t-test
 med_df <- data.frame(LFQ_KO.med, LFQ_WT.med)
 med_df[is.na(med_df)] <- 0
 
+# calculate the p-values for our data
 pvalue_med <- med_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df, 1, ttest, 
                   grp1=grep("KO", colnames(med_df)), 
                   grp2=grep("WT", colnames(med_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_med$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_med <- ggplot(data = pvalue_med, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data median}
+# prepare data for t-test
 med_df_imp <- data.frame(LFQ_KO_imp.med, LFQ_WT_imp.med)
 
+# calculate the p-values for our data
 pvalue_med_imp <- med_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(med_df_imp)), 
                   grp2=grep("WT", colnames(med_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_med_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_med_imp <- ggplot(data = pvalue_med_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data median}
+# prepare data for t-test
 med_df_RF <- data.frame(LFQ_KO_RF.med, LFQ_WT_RF.med)
 
+# calculate the p-values for our data
 pvalue_med_RF <- med_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(med_df_RF)), 
                   grp2=grep("WT", colnames(med_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_med_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_med_RF <- ggplot(data = pvalue_med_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data median}
+# prepare data for t-test
 med_df_kNN <- data.frame(LFQ_KO_kNN.med, LFQ_WT_kNN.med)
 
+# calculate the p-values for our data
 pvalue_med_kNN <- med_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(med_df_kNN)), 
                   grp2=grep("WT", colnames(med_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_med_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_med_kNN <- ggplot(data = pvalue_med_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data median}
+# prepare data for t-test
 med_df_ludovic <- data.frame(LFQ_KO_ludovic.med, LFQ_WT_ludovic.med)
 
+# calculate the p-values for our data
 pvalue_med_ludovic <- med_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(med_df_ludovic)), 
                   grp2=grep("WT", colnames(med_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_med_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_med_ludovic <- ggplot(data = pvalue_med_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
@@ -2267,83 +2453,103 @@ Again the p-value plots look very bad, which means that we have again lost whole
 differences between the samples.
 
 ```{r p-value raw data mad}
+# prepare data for t-test
 mad_df <- data.frame(LFQ_KO.mad, LFQ_WT.mad)
 mad_df[is.na(mad_df)] <- 0
 
+# calculate the p-values for our data
 pvalue_mad <- mad_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df)), 
                   grp2=grep("WT", colnames(mad_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_mad$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_mad$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_mad <- ggplot(data = pvalue_mad, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data mad}
+# prepare data for t-test
 mad_df_imp <- data.frame(LFQ_KO_imp.mad, LFQ_WT_imp.mad)
 
+# calculate the p-values for our data
 pvalue_mad_imp <- mad_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df_imp)), 
                   grp2=grep("WT", colnames(mad_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_mad_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_mad_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_mad_imp <- ggplot(data = pvalue_mad_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data mad}
+# prepare data for t-test
 mad_df_RF <- data.frame(LFQ_KO_RF.mad, LFQ_WT_RF.mad)
 
+# calculate the p-values for our data
 pvalue_mad_RF <- mad_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df_RF)), 
                   grp2=grep("WT", colnames(mad_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_mad_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_mad_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_mad_RF <- ggplot(data = pvalue_mad_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data mad}
+# prepare data for t-test
 mad_df_kNN <- data.frame(LFQ_KO_kNN.mad, LFQ_WT_kNN.mad)
 
+# calculate the p-values for our data
 pvalue_mad_kNN <- mad_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df_kNN)), 
                   grp2=grep("WT", colnames(mad_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_mad_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_mad_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_mad_kNN <- ggplot(data = pvalue_mad_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data mad}
+# prepare data for t-test
 mad_df_ludovic <- data.frame(LFQ_KO_ludovic.mad, LFQ_WT_ludovic.mad)
 
+# calculate the p-values for our data
 pvalue_mad_ludovic <- mad_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df_ludovic)), 
                   grp2=grep("WT", colnames(mad_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_mad_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_mad_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_mad_ludovic <- ggplot(data = pvalue_mad_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
@@ -2368,83 +2574,103 @@ Again the p-value plots look very bad, which means that we have again lost whole
 differences between the samples.
 
 ```{r p-value raw data lm}
+# prepare data for t-test
 lm_df <- data.frame(LFQ_KO.lm, LFQ_WT.lm)
 lm_df[is.na(lm_df)] <- 0
 
+# calculate the p-values for our data
 pvalue_lm <- lm_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df)), 
                   grp2=grep("WT", colnames(lm_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_lm$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_lm <- ggplot(data = pvalue_lm, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data lm}
+# prepare data for t-test
 lm_df_imp <- data.frame(LFQ_KO_imp.lm, LFQ_WT_imp.lm)
 
+# calculate the p-values for our data
 pvalue_lm_imp <- lm_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df_imp)), 
                   grp2=grep("WT", colnames(lm_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_lm_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_lm_imp <- ggplot(data = pvalue_lm_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data lm}
+# prepare data for t-test
 lm_df_RF <- data.frame(LFQ_KO_RF.lm, LFQ_WT_RF.lm)
 
+# calculate the p-values for our data
 pvalue_lm_RF <- lm_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df_RF)), 
                   grp2=grep("WT", colnames(lm_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_lm_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_lm_RF <- ggplot(data = pvalue_lm_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data lm}
+# prepare data for t-test
 lm_df_kNN <- data.frame(LFQ_KO_kNN.lm, LFQ_WT_kNN.lm)
 
+# calculate the p-values for our data
 pvalue_lm_kNN <- lm_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df_kNN)), 
                   grp2=grep("WT", colnames(lm_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_lm_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_lm_kNN <- ggplot(data = pvalue_lm_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data lm}
+# prepare data for t-test
 lm_df_ludovic <- data.frame(LFQ_KO_ludovic.lm, LFQ_WT_ludovic.lm)
 
+# calculate the p-values for our data
 pvalue_lm_ludovic <- lm_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df_ludovic)), 
                   grp2=grep("WT", colnames(lm_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_lm_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_lm_ludovic <- ggplot(data = pvalue_lm_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
@@ -2469,83 +2695,103 @@ Again the p-value plots look very bad, which means that we have again lost whole
 differences between the samples.
 
 ```{r p-value raw data vsn}
+# prepare data for t-test
 vsn_df <- data.frame(LFQ_KO.vsn, LFQ_WT.vsn)
 vsn_df[is.na(vsn_df)] <- 0
 
+# calculate the p-values for our data
 pvalue_vsn <- vsn_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df)), 
                   grp2=grep("WT", colnames(vsn_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_vsn$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_vsn <- ggplot(data = pvalue_vsn, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data vsn}
+# prepare data for t-test
 vsn_df_imp <- data.frame(LFQ_KO_imp.vsn, LFQ_WT_imp.vsn)
 
+# calculate the p-values for our data
 pvalue_vsn_imp <- vsn_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df_imp)), 
                   grp2=grep("WT", colnames(vsn_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_vsn_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_vsn_imp <- ggplot(data = pvalue_vsn_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data vsn}
+# prepare data for t-test
 vsn_df_RF <- data.frame(LFQ_KO_RF.vsn, LFQ_WT_RF.vsn)
 
+# calculate the p-values for our data
 pvalue_vsn_RF <- vsn_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df_RF)), 
                   grp2=grep("WT", colnames(vsn_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_vsn_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_vsn_RF <- ggplot(data = pvalue_vsn_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data vsn}
+# prepare data for t-test
 vsn_df_kNN <- data.frame(LFQ_KO_kNN.vsn, LFQ_WT_kNN.vsn)
 
+# calculate the p-values for our data
 pvalue_vsn_kNN <- vsn_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df_kNN)), 
                   grp2=grep("WT", colnames(vsn_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_vsn_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_vsn_kNN <- ggplot(data = pvalue_vsn_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data vsn}
+# prepare data for t-test
 vsn_df_ludovic <- data.frame(LFQ_KO_ludovic.vsn, LFQ_WT_ludovic.vsn)
 
+# calculate the p-values for our data
 pvalue_vsn_ludovic <- vsn_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df_ludovic)), 
                   grp2=grep("WT", colnames(vsn_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_vsn_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_vsn_ludovic <- ggplot(data = pvalue_vsn_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
@@ -2570,93 +2816,112 @@ Finally, we have the expected p-value plots, which means that the EigenMS method
 again has the best results.
 
 ```{r p-value raw data eigen}
+# prepare data for t-test
 eigen_df <- data.frame(LFQ_KO.eigen, LFQ_WT.eigen)
 eigen_df[is.na(eigen_df)] <- 0
 
+# calculate the p-values for our data
 pvalue_eigen <- eigen_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df)), 
                   grp2=grep("WT", colnames(eigen_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_eigen <- ggplot(data = pvalue_eigen, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r p-value imputed data eigen}
+# prepare data for t-test
 eigen_df_imp <- data.frame(LFQ_KO_imp.eigen, LFQ_WT_imp.eigen)
 
+# calculate the p-values for our data
 pvalue_eigen_imp <- eigen_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df_imp)), 
                   grp2=grep("WT", colnames(eigen_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_eigen_imp$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_eigen_imp <- ggplot(data = pvalue_eigen_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value rf data eigen}
+# prepare data for t-test
 eigen_df_RF <- data.frame(LFQ_KO_RF.eigen, LFQ_WT_RF.eigen)
 
+# calculate the p-values for our data
 pvalue_eigen_RF <- eigen_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df_RF)), 
                   grp2=grep("WT", colnames(eigen_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE)
-m <- mean(pvalue_eigen_RF$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_eigen_RF <- ggplot(data = pvalue_eigen_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value kNN data eigen}
-# The EigenMS function doesn't work well with kNN predicted data. In a few rows 
+# The kNN method doesn't work well with imputation. In a few rows 
 # we didn't have a unique value for each sample. Sometimes there was only one 
 # value for all columns and sometimes there were two values, one for KO and the 
 # other for WT. That's why we had to remove duplicates from data.
 
+# prepare data for t-test
 eigen_df_kNN <- data.frame(LFQ_KO_kNN.eigen, LFQ_WT_kNN.eigen)
 
 # handling with duplicates
 duplicates <- which(lapply(1:nrow(eigen_df_kNN), function(i) length(unique(as.numeric(eigen_df_kNN[i,])))) != 6)
 eigen_df_kNN <- eigen_df_kNN[-duplicates,]
 
+# calculate the p-values for our data
 pvalue_eigen_kNN <- eigen_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df_kNN)), 
                   grp2=grep("WT", colnames(eigen_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_eigen_kNN$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_eigen_kNN <- ggplot(data = pvalue_eigen_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r p-value ludovic data eigen}
+# prepare data for t-test
 eigen_df_ludovic <- data.frame(LFQ_KO_ludovic.eigen, LFQ_WT_ludovic.eigen)
 
+# calculate the p-values for our data
 pvalue_eigen_ludovic <- eigen_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df_ludovic)), 
                   grp2=grep("WT", colnames(eigen_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE))
-m <- mean(pvalue_eigen_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE)
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
+# Plotting the histogram of the p-values filled with a significance info
 hist_p_eigen_ludovic <- ggplot(data = pvalue_eigen_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
     geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("Mean p-value:", round(m, 3)), 
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
@@ -2672,6 +2937,498 @@ ggarrange(
     hist_p_eigen_ludovic,
     nrow=2,ncol=2
 )
+```
+
+# Fold Change
+
+## Raw Data {.tabset}
+
+### Non-Imputed
+
+```{r fc raw data}
+# Preparing data for calculations
+lfq <- cbind.data.frame(lfq, protein.ids=protein.groups$`Protein IDs`)
+lfq_long <- lfq |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+lfq_long$group <- 'TOTALS_OCIAD1_KO'
+lfq_long$group[grep('WT',lfq_long$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- lfq_long |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, lfq)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
+
+to_volcano <- merge(FC,pvalue)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v1}
+# plotting the volcano plot
+v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+    geom_point() +
+    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+    labs(title='Volcano plot for Non-Imputed Data', x='log2(fold change)', color='Significance', y='-log10(p-value)') +
+    theme_bw()
+
+# add interactive labels
+plotly::ggplotly(v, tooltip = c('label'))
+```
+
+### Mati Code
+
+```{r fc imp data}
+# Preparing data for calculations
+lfq_imp <- cbind.data.frame(lfq_imp, protein.ids=protein.groups$`Protein IDs`)
+lfq_long_imp <- lfq_imp |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+lfq_long_imp$group <- 'TOTALS_OCIAD1_KO'
+lfq_long_imp$group[grep('WT',lfq_long_imp$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- lfq_long_imp |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, lfq_imp)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
+
+to_volcano <- merge(FC,pvalue_imp)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v2}
+# plotting the volcano plot
+v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+    geom_point() +
+    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+    labs(title='Volcano plot for Imputed Data - Mati Code', x='log2(fold change)', color='Significance', y='-log10(p-value)') +
+    theme_bw()
+
+# add interactive labels
+plotly::ggplotly(v, tooltip = c('label'))
+```
+
+### Random Forest
+
+```{r fc RF data}
+# Preparing data for calculations
+imputed_RF <- cbind.data.frame(imputed_RF, protein.ids=protein.groups$`Protein IDs`)
+imputed_long_RF <- imputed_RF |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+imputed_long_RF$group <- 'TOTALS_OCIAD1_KO'
+imputed_long_RF$group[grep('WT',imputed_long_RF$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- imputed_long_RF |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Add a type of missing to the data frame with means for groups KO and WT 
+means$missingness <- df_ml$missingness[seq(1, nrow(imputed_long_RF), by=6)]
+
+# Preparing data for volcano plot
+FC <- merge(means, imputed_RF)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
+
+to_volcano <- merge(FC, pvalue_RF)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v3}
+# Plotting the volcano plot
+v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+    geom_point() +
+    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+    theme_bw()
+
+# Add interactive labels
+plotly::ggplotly(v, tooltip = c('label', 'color'))
+```
+
+### k-Nearest Neighbors
+
+```{r fc kNN data}
+# Preparing data for calculations
+imputed_kNN <- cbind.data.frame(imputed_kNN, protein.ids=protein.groups$`Protein IDs`)
+imputed_kNN <- imputed_kNN[-duplicates,]
+imputed_long_kNN <- imputed_kNN |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+imputed_long_kNN$group <- 'TOTALS_OCIAD1_KO'
+imputed_long_kNN$group[grep('WT',imputed_long_kNN$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- imputed_long_kNN |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Extracting a type of missing 
+miss_type_kNN <- df_ml |> 
+    dplyr::mutate(row = rep(1:nrow(imputed_RF), each=6)) |>
+    dplyr::mutate(group = paste(celltype, sampletype, rep, sep='_')) |>
+    reshape2::dcast(row ~ group, value.var='missingness') |>
+    dplyr::select(-row) |>
+    dplyr::mutate(missingness = KO_TOTALS_22) |> dplyr::select(missingness)
+
+# Add a type of missing to the data frame with means for groups KO and WT 
+means$missingness <- miss_type_kNN[-duplicates,]
+
+# Preparing data for volcano plot
+FC <- merge(means, imputed_kNN)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[-duplicates])
+
+to_volcano <- merge(FC, pvalue_kNN)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v4}
+# Plotting the volcano plot
+v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+    geom_point() +
+    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+    theme_bw()
+
+# Add interactive labels
+plotly::ggplotly(v, tooltip = c('label', 'color'))
+```
+
+### Ludovic
+
+```{r fc ludovic data}
+# extract protein ids, to be sure that we get good rows
+imputed_prots <-  as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Preparing data for calculations
+imputed_ludovic <- cbind.data.frame(imputed_ludovic, 
+                                    protein.ids=protein.groups$`Protein IDs`[imputed_prots])
+imputed_long_ludovic <- imputed_ludovic |>
+    tidyr::pivot_longer(3:8, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+imputed_long_ludovic$group <- 'TOTALS_OCIAD1_KO'
+imputed_long_ludovic$group[grep('WT',imputed_long_ludovic$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- imputed_long_ludovic |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, imputed_ludovic)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[imputed_prots])
+
+to_volcano <- merge(FC, pvalue_ludovic, by='Protein IDs')
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v5}
+# Plotting the volcano plot
+v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness.x)) + 
+    geom_point() +
+    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+    theme_bw()
+
+# Add interactive labels
+plotly::ggplotly(v, tooltip = c('label', 'color'))
+```
+
+## EigenMS {.tabset}
+
+### Non-Imputed
+
+```{r fc eigen raw data}
+# extract protein ids, to be sure that we get good rows
+eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df)))
+
+# Preparing data for calculations
+eigen_df <- cbind.data.frame(eigen_df, protein.ids=protein.groups$`Protein IDs`[eig_prots])
+eigen_df_long <- eigen_df |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+eigen_df_long$group <- 'TOTALS_OCIAD1_KO'
+eigen_df_long$group[grep('WT',eigen_df_long$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- eigen_df_long |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, eigen_df)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
+
+to_volcano <- merge(FC,pvalue_eigen)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v1 eigen}
+# plotting the volcano plot
+v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+    geom_point() +
+    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+    labs(title='Volcano plot for Non-Imputed Data', 
+         x='log2(fold change)', color='Significance', y='-log10(p-value)') +
+    theme_bw()
+
+# add interactive labels
+plotly::ggplotly(v, tooltip = c('label'))
+```
+
+### Mati Code
+
+```{r fc eigen imp data}
+# extract protein ids, to be sure that we get good rows
+eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_imp)))
+
+# Preparing data for calculations
+eigen_df_imp <- cbind.data.frame(eigen_df_imp, protein.ids=protein.groups$`Protein IDs`[eig_prots])
+eigen_df_long_imp <- eigen_df_imp |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+eigen_df_long_imp$group <- 'TOTALS_OCIAD1_KO'
+eigen_df_long_imp$group[grep('WT',eigen_df_long_imp$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- eigen_df_long_imp |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, eigen_df_imp)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
+
+to_volcano <- merge(FC, pvalue_eigen_imp)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v2 eigen}
+# plotting the volcano plot
+v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+    geom_point() +
+    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+    labs(title='Volcano plot for Imputed Data - Mati Code', 
+         x='log2(fold change)', color='Significance', y='-log10(p-value)') +
+    theme_bw()
+
+# add interactive labels
+plotly::ggplotly(v, tooltip = c('label'))
+```
+
+### Random Forest
+
+```{r fc eigen RF data}
+# extract protein ids, to be sure that we get good rows
+eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_RF)))
+
+# Preparing data for calculations
+eigen_df_RF <- cbind.data.frame(eigen_df_RF, protein.ids=protein.groups$`Protein IDs`[eig_prots])
+eigen_df_long_RF <- eigen_df_RF |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+eigen_df_long_RF$group <- 'TOTALS_OCIAD1_KO'
+eigen_df_long_RF$group[grep('WT',eigen_df_long_RF$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- eigen_df_long_RF |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Add a type of missing to the data frame with means for groups KO and WT 
+means$missingness <- df_ml$missingness[seq(1, nrow(eigen_df_long_RF), by=6)]
+
+# Preparing data for volcano plot
+FC <- merge(means, eigen_df_RF)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
+
+to_volcano <- merge(FC, pvalue_eigen_RF)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v3 eigen}
+# Plotting the volcano plot
+v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+    geom_point() +
+    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+    theme_bw()
+
+# Add interactive labels
+plotly::ggplotly(v, tooltip = c('label', 'color'))
+```
+
+### k-Nearest Neighbors
+
+```{r fc eigen kNN data}
+# extract protein ids, to be sure that we get good rows
+eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_kNN)))
+
+# Preparing data for calculations
+eigen_df_kNN <- cbind.data.frame(eigen_df_kNN, protein.ids=protein.groups$`Protein IDs`[eig_prots])
+eigen_df_long_kNN <- eigen_df_kNN |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+eigen_df_long_kNN$group <- 'TOTALS_OCIAD1_KO'
+eigen_df_long_kNN$group[grep('WT',eigen_df_long_kNN$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- eigen_df_long_kNN |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Add a type of missing to the data frame with means for groups KO and WT 
+means$missingness <- miss_type_kNN[-duplicates,]
+
+# Preparing data for volcano plot
+FC <- merge(means, eigen_df_kNN)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
+
+to_volcano <- merge(FC, pvalue_eigen_kNN)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v4 eigen}
+# Plotting the volcano plot
+v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+    geom_point() +
+    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+    theme_bw()
+
+# Add interactive labels
+plotly::ggplotly(v, tooltip = c('label', 'color'))
+```
+
+### Ludovic
+
+```{r fc eigen ludovic data}
+# extract protein ids, to be sure that we get good rows
+eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_ludovic)))
+
+# Preparing data for calculations
+eigen_df_ludovic <- cbind.data.frame(eigen_df_ludovic, 
+                                     protein.ids=protein.groups$`Protein IDs`[eig_prots], 
+                                     missingness=imputed_ludovic$missingness)
+eigen_df_long_ludovic <- eigen_df_ludovic |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+eigen_df_long_ludovic$group <- 'TOTALS_OCIAD1_KO'
+eigen_df_long_ludovic$group[grep('WT',eigen_df_long_ludovic$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- eigen_df_long_ludovic |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, eigen_df_ludovic)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
+
+to_volcano <- merge(FC, pvalue_eigen_ludovic)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v5 eigen}
+# Plotting the volcano plot
+v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+    geom_point() +
+    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+    theme_bw()
+
+# Add interactive labels
+plotly::ggplotly(v, tooltip = c('label', 'color'))
 ```
 
 # Conclusion
@@ -2705,6 +3462,7 @@ creates the additional peak of columns that doesn't appear in the raw non-impute
 
 ```{r test ICC, include=FALSE}
 # Maybe we should calculate the ICC like that? Don't know 🤔
+
 # irr::icc(cbind(2^LFQ_KO,2^LFQ_WT))$value
 # irr::icc(cbind(2^LFQ_KO.standard,2^LFQ_WT.standard))$value
 # irr::icc(cbind(2^LFQ_KO.minmax,2^LFQ_WT.minmax))$value
@@ -2713,13 +3471,8 @@ creates the additional peak of columns that doesn't appear in the raw non-impute
 # irr::icc(cbind(2^LFQ_KO.lm,2^LFQ_WT.lm))$value
 # irr::icc(cbind(2^LFQ_KO.vsn,2^LFQ_WT.vsn))$value
 # irr::icc(cbind(2^LFQ_KO.eigen,2^LFQ_WT.eigen))$value
+
+# On second thought, we shouldn't because the LFQ values between KO and WT are 
+# slightly different and we used the normalization method to group replicates more
+# tight. So, we calculate it correctly.
 ```
-
-
-
-
-
-
-
-
-
