@@ -553,6 +553,85 @@ ggarrange(
 )
 ```
 
+# Transformations {.tabset}
+
+The first methods which we should use to bring the 24th distribution closer to other 
+replicates are transformations. The basic transformations are based on the skewness/asymmetry 
+coefficient and the figure below shows which transformation we should use based on 
+the value of the skewness.
+
+<center>
+<img src='./drabinka_eng.png'>
+</center>
+
+Below we can find the results for our raw non-imputed data, imputed data, imputed with 
+Random Forest, imputed with kNN and imputed with the Ludovic method. We calculated
+the coefficient of skewness on unlogged data.
+
+**Summary**<br>
+As we can see below, none of the transformations solved the problem of the 24th 
+replicate distribution (highlighted column) and therefore we have to use normalization methods.
+
+## Raw Data
+
+```{r skew raw}
+skew <- data.frame(raw_data = moments::skewness(2^lfq,na.rm=T),
+                   sqrt = moments::skewness(sqrt(2^lfq),na.rm=T),
+                   log = moments::skewness(log(2^lfq),na.rm=T),
+                   log10 = moments::skewness(log10(2^lfq),na.rm=T),
+                   `frac` = moments::skewness(1/(2^lfq),na.rm=T))
+DT::datatable(t(round(skew,4)), options=list(paging=F, info=F, searching=F)) |>
+    DT::formatStyle(3, backgroundColor ='lightgreen')
+```
+
+## Imputed
+
+```{r skew imp}
+skew_imp <- data.frame(raw_data = moments::skewness(2^lfq_imp,na.rm=T),
+                   sqrt = moments::skewness(sqrt(2^lfq_imp)),
+                   log = moments::skewness(log(2^lfq_imp)),
+                   log10 = moments::skewness(log10(2^lfq_imp)),
+                   `frac` = moments::skewness(1/(2^lfq_imp)))
+DT::datatable(t(round(skew_imp,4)), options=list(paging=F, info=F, searching=F)) |>
+    DT::formatStyle(3, backgroundColor ='lightgreen')
+```
+
+## Random Forest
+
+```{r skew rf}
+skew_rf <- data.frame(raw_data = moments::skewness(2^imputed_RF,na.rm=T),
+                   sqrt = moments::skewness(sqrt(2^imputed_RF)),
+                   log = moments::skewness(log(2^imputed_RF)),
+                   log10 = moments::skewness(log10(2^imputed_RF)),
+                   `frac` = moments::skewness(1/(2^imputed_RF)))
+DT::datatable(t(round(skew_rf,4)), options=list(paging=F, info=F, searching=F)) |>
+    DT::formatStyle(3, backgroundColor ='lightgreen')
+```
+
+## k-Nearest Neighbors
+
+```{r skew kNN}
+skew_kNN <- data.frame(raw_data = moments::skewness(2^imputed_kNN,na.rm=T),
+                   sqrt = moments::skewness(sqrt(2^imputed_kNN)),
+                   log = moments::skewness(log(2^imputed_kNN)),
+                   log10 = moments::skewness(log10(2^imputed_kNN)),
+                   `frac` = moments::skewness(1/(2^imputed_kNN)))
+DT::datatable(t(round(skew_kNN,4)), options=list(paging=F, info=F, searching=F)) |>
+    DT::formatStyle(3, backgroundColor ='lightgreen')
+```
+
+## Ludovic
+
+```{r skew ludovic}
+skew_ludovic <- data.frame(raw_data = moments::skewness(2^imputed_ludovic[,3:8],na.rm=T),
+                   sqrt = moments::skewness(sqrt(2^imputed_ludovic[,3:8])),
+                   log = moments::skewness(log(2^imputed_ludovic[,3:8])),
+                   log10 = moments::skewness(log10(2^imputed_ludovic[,3:8])),
+                   `frac` = moments::skewness(1/(2^imputed_ludovic[,3:8])))
+DT::datatable(t(round(skew_ludovic,4)), options=list(paging=F, info=F, searching=F)) |>
+    DT::formatStyle(3, backgroundColor ='lightgreen')
+```
+
 # Normalization {.tabset}
 
 The 24th replicate of the KO cell type has the distribution shifted to the right and 
