@@ -10,6 +10,7 @@ output:
         code_download: true
 fontsize: 14pt
 css: document_style.css
+runtime: shiny
 ---
 
 ```{r setup, include=FALSE}
@@ -2057,7 +2058,7 @@ below doesn't show strong differences between KO and WT cells.
 ```{r p-value raw data}
 # prepare data for t-test
 df <- lfq
-df[is.na(df)] <- 0
+df <- na.omit(df)
 
 # calculate the p-values for our data
 pvalue <- df |>
@@ -2171,7 +2172,7 @@ between the samples.
 ```{r p-value raw data standardization}
 # prepare data for t-test
 standard_df <- data.frame(LFQ_KO.standard, LFQ_WT.standard)
-standard_df[is.na(standard_df)] <- 0
+standard_df <- na.omit(standard_df)
 
 # calculate the p-values for our data
 pvalue_standard <- standard_df |>
@@ -2292,7 +2293,7 @@ differences between the samples.
 ```{r p-value raw data minmax}
 # prepare data for t-test
 minmax_df <- data.frame(LFQ_KO.minmax, LFQ_WT.minmax)
-minmax_df[is.na(minmax_df)] <- 0
+minmax_df <- na.omit(minmax_df)
 
 # calculate the p-values for our data
 pvalue_minmax <- minmax_df |>
@@ -2413,7 +2414,7 @@ differences between the samples.
 ```{r p-value raw data median}
 # prepare data for t-test
 med_df <- data.frame(LFQ_KO.med, LFQ_WT.med)
-med_df[is.na(med_df)] <- 0
+med_df <- na.omit(med_df)
 
 # calculate the p-values for our data
 pvalue_med <- med_df |>
@@ -2534,7 +2535,7 @@ differences between the samples.
 ```{r p-value raw data mad}
 # prepare data for t-test
 mad_df <- data.frame(LFQ_KO.mad, LFQ_WT.mad)
-mad_df[is.na(mad_df)] <- 0
+mad_df <- na.omit(mad_df)
 
 # calculate the p-values for our data
 pvalue_mad <- mad_df |>
@@ -2655,7 +2656,7 @@ differences between the samples.
 ```{r p-value raw data lm}
 # prepare data for t-test
 lm_df <- data.frame(LFQ_KO.lm, LFQ_WT.lm)
-lm_df[is.na(lm_df)] <- 0
+lm_df <- na.omit(lm_df)
 
 # calculate the p-values for our data
 pvalue_lm <- lm_df |>
@@ -2776,7 +2777,7 @@ differences between the samples.
 ```{r p-value raw data vsn}
 # prepare data for t-test
 vsn_df <- data.frame(LFQ_KO.vsn, LFQ_WT.vsn)
-vsn_df[is.na(vsn_df)] <- 0
+vsn_df <- na.omit(vsn_df)
 
 # calculate the p-values for our data
 pvalue_vsn <- vsn_df |>
@@ -2897,7 +2898,7 @@ again has the best results.
 ```{r p-value raw data eigen}
 # prepare data for t-test
 eigen_df <- data.frame(LFQ_KO.eigen, LFQ_WT.eigen)
-eigen_df[is.na(eigen_df)] <- 0
+eigen_df <- na.omit(eigen_df)
 
 # calculate the p-values for our data
 pvalue_eigen <- eigen_df |>
@@ -3510,6 +3511,67 @@ v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS),
 plotly::ggplotly(v, tooltip = c('label', 'color'))
 ```
 
+# Raw VS Normalized
+
+```{r}
+miss <- apply(lfq[,1:6], 1, function(row) all(!is.na(row)))
+eig_prots_raw <- as.numeric(gsub('prot_', '',rownames(eigen_df)))
+test <- which(rownames(eigen_df_ludovic) %in% rownames(eigen_df))
+
+data <- data.frame(
+    Gene_Name = protein.groups$`Gene names`[miss],
+    Raw_data = lfq[miss,1:6],
+    Eigen_raw = eigen_df,
+    Raw_RF = imputed_RF[miss,1:6],
+    Eigen_RF = LFQ_RF.eig_norm$norm_m[miss,],
+    Raw_ludovic = imputed_ludovic[test,3:8],
+    Eigen_ludovic = LFQ_ludovic.eig_norm$norm_m[test,]
+)
+```
+
+```{r scatter-plot}
+library(plotly)
+shiny::selectInput("gene", "Select Gene:", choices = unique(data$Gene_Name))
+
+output$genePlot <- renderPlotly({
+  selected_gene <- input$gene
+
+  # Filter data for selected gene
+  filtered_data <- data |>
+      dplyr::filter(Gene_Name == selected_gene)
+
+  # Create the plot
+  plot_ly(data = filtered_data, type = "scatter", mode = "markers") %>%
+      add_bars(x = 1, y = ~Raw_data.KO.22, name = 'Raw Value') |>
+      add_bars(x = 1, y = ~Eigen_raw.KO.22, name = 'Normalized Raw Value') |>
+      add_bars(x = 1, y = ~Raw_RF.KO.22, 'Imputed Value (Method 1)') |>
+      add_bars(x = 1, y = ~Eigen_RF.KO.22, name = 'Normalized Imputed Value (Method 1)') |>
+      add_bars(x = 1, y = ~Raw_ludovic.KO_22, name = 'Imputed Value (Method 2)') |>
+      add_bars(x = 1, y = ~Eigen_ludovic.KO_22, name = 'Normalized Imputed Value (Method 2)') |>
+      add_bars(x = 2, y = ~Raw_data.KO.23, name = 'Raw Value') |>
+      add_bars(x = 2, y = ~Eigen_raw.KO.23, name = 'Normalized Raw Value') |>
+      add_bars(x = 2, y = ~Raw_RF.KO.23, 'Imputed Value (Method 1)') |>
+      add_bars(x = 2, y = ~Eigen_RF.KO.23, name = 'Normalized Imputed Value (Method 1)') |>
+      add_bars(x = 2, y = ~Raw_ludovic.KO_23, name = 'Imputed Value (Method 2)') |>
+      add_bars(x = 2, y = ~Eigen_ludovic.KO_23, name = 'Normalized Imputed Value (Method 2)') |>
+      add_bars(x = 3, y = ~Raw_data.KO.24, name = 'Raw Value') |>
+      add_bars(x = 3, y = ~Eigen_raw.KO.24, name = 'Normalized Raw Value') |>
+      add_bars(x = 3, y = ~Raw_RF.KO.24, 'Imputed Value (Method 1)') |>
+      add_bars(x = 3, y = ~Eigen_RF.KO.24, name = 'Normalized Imputed Value (Method 1)') |>
+      add_bars(x = 3, y = ~Raw_ludovic.KO_24, name = 'Imputed Value (Method 2)') |>
+      add_bars(x = 3, y = ~Eigen_ludovic.KO_24, name = 'Normalized Imputed Value (Method 2)') |>
+      layout(
+      title = paste("Scatter Plot for Gene:", selected_gene),
+      xaxis = list(title = "Raw / Imputed Values"),
+      yaxis = list(title = "Normalized Values")
+      )
+})
+```
+
+```{r show scatter}
+plotlyOutput("genePlot")
+```
+
 # Conclusion
 
 Summarizing everything above, we can safely say that the **EigenMS** method gives 
@@ -3538,6 +3600,7 @@ creates the additional peak of columns that doesn't appear in the raw non-impute
 3. [EigenMS](https://sourceforge.net/projects/eigenms/)
 4. [Normalization of peak intensities in bottom-up MS-based proteomics using singular value decomposition](https://pubmed.ncbi.nlm.nih.gov/19602524/)
 5. [Metabolomics Data Normalization with EigenMS](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0116221)
+6. [A comparative study of evaluating missing value imputation methods in label-free proteomics](https://www.nature.com/articles/s41598-021-81279-4)
 
 ```{r test ICC, include=FALSE}
 # Maybe we should calculate the ICC like that? Don't know 🤔
