@@ -2,6 +2,7 @@
 title: "Comparison"
 author: "Kacper Kaszuba"
 date: "`r Sys.Date()`"
+runtime: shiny
 output: 
     html_document:
         toc: true
@@ -10,7 +11,6 @@ output:
         code_download: true
 fontsize: 14pt
 css: document_style.css
-runtime: shiny
 ---
 
 ```{r setup, include=FALSE}
@@ -34,6 +34,8 @@ if (!require('tidyr', quietly = TRUE))
     install.packages('tidyr')
 if (!require('vsn', quietly = TRUE))
     install.packages('vsn')
+if (!require('plotly', quietly = TRUE))
+    install.packages('plotly')
 
 show_cv_table <- function(df) {
     DT::datatable(df, rownames = FALSE, 
@@ -1373,6 +1375,770 @@ ggarrange(
     ),
     nrow=2,ncol=1
 )
+```
+
+# Additional Plots {.tabset}
+
+In this section we have interactive plots with additional information about the 
+distribution of samples. Below you can see the tabs corresponding to the cell 
+type (KO or WT) and the number of replicates.
+
+## LFQ KO rep. 22
+
+```{r prepare data ko 22}
+# extract the IDs of protein imputed by ludovic method
+ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Z-Score
+to_plot_KO22.1 <- data.frame(
+    method = 'Z-Score',
+    original = LFQ_KO.standard$KO.22,
+    shift_dist = LFQ_KO_imp.standard$KO.I.22,
+    rf = LFQ_KO_RF.standard$KO.22,
+    knn = LFQ_KO_kNN.standard$KO.22,
+    ludovic = NA
+)
+to_plot_KO22.1$ludovic[ludovic_ids] <- LFQ_KO_ludovic.standard$KO_22
+
+# Prepare the data frame to plotting - Min-Max
+to_plot_KO22.2 <- data.frame(
+    method = 'Min-Max',
+    original = LFQ_KO.minmax$KO.22,
+    shift_dist = LFQ_KO_imp.minmax$KO.I.22,
+    rf = LFQ_KO_RF.minmax$KO.22,
+    knn = LFQ_KO_kNN.minmax$KO.22,
+    ludovic = NA
+)
+to_plot_KO22.2$ludovic[ludovic_ids] <- LFQ_KO_ludovic.minmax$KO_22
+
+# Prepare the data frame to plotting - Median Scaling
+to_plot_KO22.3 <- data.frame(
+    method = 'Median',
+    original = LFQ_KO.med$KO.22,
+    shift_dist = LFQ_KO_imp.med$KO.I.22,
+    rf = LFQ_KO_RF.med$KO.22,
+    knn = LFQ_KO_kNN.med$KO.22,
+    ludovic = NA
+)
+to_plot_KO22.3$ludovic[ludovic_ids] <- LFQ_KO_ludovic.med$KO_22
+
+# Prepare the data frame to plotting - MAD Scaling
+to_plot_KO22.4 <- data.frame(
+    method = 'MAD',
+    original = LFQ_KO.mad$KO.22,
+    shift_dist = LFQ_KO_imp.mad$KO.I.22,
+    rf = LFQ_KO_RF.mad$KO.22,
+    knn = LFQ_KO_kNN.mad$KO.22,
+    ludovic = NA
+)
+to_plot_KO22.4$ludovic[ludovic_ids] <- LFQ_KO_ludovic.mad$KO_22
+
+# Prepare the data frame to plotting - Linear Regression
+to_plot_KO22.5 <- data.frame(
+    method = 'Linear Regression',
+    original = LFQ_KO.lm$KO.22,
+    shift_dist = LFQ_KO_imp.lm$KO.I.22,
+    rf = LFQ_KO_RF.lm$KO.22,
+    knn = LFQ_KO_kNN.lm$KO.22,
+    ludovic = NA
+)
+to_plot_KO22.5$ludovic[ludovic_ids] <- LFQ_KO_ludovic.lm$KO_22
+
+# Prepare the data frame to plotting - VSN
+to_plot_KO22.6 <- data.frame(
+    method = 'VSN',
+    original = LFQ_KO.vsn[,1],
+    shift_dist = LFQ_KO_imp.vsn[,1],
+    rf = LFQ_KO_RF.vsn[,1],
+    knn = LFQ_KO_kNN.vsn[,1],
+    ludovic = NA
+)
+to_plot_KO22.6$ludovic[ludovic_ids] <- LFQ_KO_ludovic.vsn[,1]
+
+raw_ids <- as.numeric(gsub('prot_', '', rownames(LFQ_KO.eigen)))
+# Prepare the data frame to plotting - EigenMS
+to_plot_KO22.7 <- data.frame(
+    method = 'EigenMS',
+    original = NA,
+    shift_dist = LFQ_KO_imp.eigen[,1],
+    rf = LFQ_KO_RF.eigen[,1],
+    knn = LFQ_KO_kNN.eigen[,1],
+    ludovic = NA
+)
+to_plot_KO22.7$original[raw_ids] <- LFQ_KO.eigen[,1]
+to_plot_KO22.7$ludovic[ludovic_ids] <- LFQ_KO_ludovic.eigen[,1]
+
+to_plot_KO22 <- rbind.data.frame(to_plot_KO22.1, to_plot_KO22.2, to_plot_KO22.3,
+                                 to_plot_KO22.4, to_plot_KO22.5, to_plot_KO22.6,
+                                 to_plot_KO22.7)
+rm(to_plot_KO22.1, to_plot_KO22.2, to_plot_KO22.3, to_plot_KO22.4, to_plot_KO22.5,
+   to_plot_KO22.6, to_plot_KO22.7, ludovic_ids, raw_ids)
+```
+
+```{r plotting ko 22}
+# Define user input from a list of normalization methods
+shiny::selectInput('method1', 'Select the Normalization Method:', unique(to_plot_KO22$method))
+
+# Creating output with interactive histogram
+output$lfq.ko.22.Plot <- renderPlotly({
+    selected_method1 <- input$method1
+
+    # Filter data for selected gene
+    filtered_data <- to_plot_KO22 |>
+        dplyr::filter(method == selected_method1) |>
+        tidyr::pivot_longer(2:6, names_to='Type', values_to = 'LFQ_KO_22')
+    
+    plotly::plot_ly(data = filtered_data, x = ~LFQ_KO_22, split = ~Type,
+                    type = 'histogram', opacity = 0.5, histfunc = 'count', xbins = 20) |>
+        plotly::layout(
+            title = paste('Distributions of the Normalized Data using', selected_method1),
+            xaxis = list(title='LFQ KO rep. 22'),
+            yaxis = list(title='Frequency'),
+            barmode = 'overlay'
+        )
+})
+```
+
+```{r}
+plotlyOutput("lfq.ko.22.Plot")
+```
+
+## LFQ KO rep. 23
+
+```{r prepare data ko 23}
+# extract the IDs of protein imputed by ludovic method
+ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Z-Score
+to_plot_KO23.1 <- data.frame(
+    method = 'Z-Score',
+    original = LFQ_KO.standard$KO.23,
+    shift_dist = LFQ_KO_imp.standard$KO.I.23,
+    rf = LFQ_KO_RF.standard$KO.23,
+    knn = LFQ_KO_kNN.standard$KO.23,
+    ludovic = NA
+)
+to_plot_KO23.1$ludovic[ludovic_ids] <- LFQ_KO_ludovic.standard$KO_23
+
+# Prepare the data frame to plotting - Min-Max
+to_plot_KO23.2 <- data.frame(
+    method = 'Min-Max',
+    original = LFQ_KO.minmax$KO.23,
+    shift_dist = LFQ_KO_imp.minmax$KO.I.23,
+    rf = LFQ_KO_RF.minmax$KO.23,
+    knn = LFQ_KO_kNN.minmax$KO.23,
+    ludovic = NA
+)
+to_plot_KO23.2$ludovic[ludovic_ids] <- LFQ_KO_ludovic.minmax$KO_23
+
+# Prepare the data frame to plotting - Median Scaling
+to_plot_KO23.3 <- data.frame(
+    method = 'Median',
+    original = LFQ_KO.med$KO.23,
+    shift_dist = LFQ_KO_imp.med$KO.I.23,
+    rf = LFQ_KO_RF.med$KO.23,
+    knn = LFQ_KO_kNN.med$KO.23,
+    ludovic = NA
+)
+to_plot_KO23.3$ludovic[ludovic_ids] <- LFQ_KO_ludovic.med$KO_23
+
+# Prepare the data frame to plotting - MAD Scaling
+to_plot_KO23.4 <- data.frame(
+    method = 'MAD',
+    original = LFQ_KO.mad$KO.23,
+    shift_dist = LFQ_KO_imp.mad$KO.I.23,
+    rf = LFQ_KO_RF.mad$KO.23,
+    knn = LFQ_KO_kNN.mad$KO.23,
+    ludovic = NA
+)
+to_plot_KO23.4$ludovic[ludovic_ids] <- LFQ_KO_ludovic.mad$KO_23
+
+# Prepare the data frame to plotting - Linear Regression
+to_plot_KO23.5 <- data.frame(
+    method = 'Linear Regression',
+    original = LFQ_KO.lm$KO.23,
+    shift_dist = LFQ_KO_imp.lm$KO.I.23,
+    rf = LFQ_KO_RF.lm$KO.23,
+    knn = LFQ_KO_kNN.lm$KO.23,
+    ludovic = NA
+)
+to_plot_KO23.5$ludovic[ludovic_ids] <- LFQ_KO_ludovic.lm$KO_23
+
+# Prepare the data frame to plotting - VSN
+to_plot_KO23.6 <- data.frame(
+    method = 'VSN',
+    original = LFQ_KO.vsn[,2],
+    shift_dist = LFQ_KO_imp.vsn[,2],
+    rf = LFQ_KO_RF.vsn[,2],
+    knn = LFQ_KO_kNN.vsn[,2],
+    ludovic = NA
+)
+to_plot_KO23.6$ludovic[ludovic_ids] <- LFQ_KO_ludovic.vsn[,2]
+
+raw_ids <- as.numeric(gsub('prot_', '', rownames(LFQ_KO.eigen)))
+# Prepare the data frame to plotting - EigenMS
+to_plot_KO23.7 <- data.frame(
+    method = 'EigenMS',
+    original = NA,
+    shift_dist = LFQ_KO_imp.eigen[,2],
+    rf = LFQ_KO_RF.eigen[,2],
+    knn = LFQ_KO_kNN.eigen[,2],
+    ludovic = NA
+)
+to_plot_KO23.7$original[raw_ids] <- LFQ_KO.eigen[,2]
+to_plot_KO23.7$ludovic[ludovic_ids] <- LFQ_KO_ludovic.eigen[,2]
+
+to_plot_KO23 <- rbind.data.frame(to_plot_KO23.1, to_plot_KO23.2, to_plot_KO23.3,
+                                 to_plot_KO23.4, to_plot_KO23.5, to_plot_KO23.6,
+                                 to_plot_KO23.7)
+rm(to_plot_KO23.1, to_plot_KO23.2, to_plot_KO23.3, to_plot_KO23.4, to_plot_KO23.5,
+   to_plot_KO23.6, to_plot_KO23.7, ludovic_ids, raw_ids)
+```
+
+```{r plotting ko 23}
+# Define user input from a list of normalization methods
+shiny::selectInput('method2', 'Select the Normalization Method:', unique(to_plot_KO23$method))
+
+# Creating output with interactive histogram
+output$lfq.ko.23.Plot <- renderPlotly({
+    selected_method2 <- input$method2
+    
+    # Filter data for selected gene
+    filtered_data <- to_plot_KO23 |>
+        dplyr::filter(method == selected_method2) |>
+        tidyr::pivot_longer(2:6, names_to='Type', values_to = 'LFQ_KO_23')
+    
+    plotly::plot_ly(data = filtered_data, x = ~LFQ_KO_23, split = ~Type,
+                    type = 'histogram', opacity = 0.5, histfunc = 'count', xbins = 20) |>
+        plotly::layout(
+            title = paste('Distributions of the Normalized Data using', selected_method2),
+            xaxis = list(title='LFQ KO rep. 23'),
+            yaxis = list(title='Frequency'),
+            barmode = 'overlay'
+        )
+})
+```
+
+```{r}
+plotlyOutput("lfq.ko.23.Plot")
+```
+
+## LFQ KO rep. 24
+
+```{r prepare data ko 24}
+# extract the IDs of protein imputed by ludovic method
+ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Z-Score
+to_plot_KO24.1 <- data.frame(
+    method = 'Z-Score',
+    original = LFQ_KO.standard$KO.24,
+    shift_dist = LFQ_KO_imp.standard$KO.I.24,
+    rf = LFQ_KO_RF.standard$KO.24,
+    knn = LFQ_KO_kNN.standard$KO.24,
+    ludovic = NA
+)
+to_plot_KO24.1$ludovic[ludovic_ids] <- LFQ_KO_ludovic.standard$KO_24
+
+# Prepare the data frame to plotting - Min-Max
+to_plot_KO24.2 <- data.frame(
+    method = 'Min-Max',
+    original = LFQ_KO.minmax$KO.24,
+    shift_dist = LFQ_KO_imp.minmax$KO.I.24,
+    rf = LFQ_KO_RF.minmax$KO.24,
+    knn = LFQ_KO_kNN.minmax$KO.24,
+    ludovic = NA
+)
+to_plot_KO24.2$ludovic[ludovic_ids] <- LFQ_KO_ludovic.minmax$KO_24
+
+# Prepare the data frame to plotting - Median Scaling
+to_plot_KO24.3 <- data.frame(
+    method = 'Median',
+    original = LFQ_KO.med$KO.24,
+    shift_dist = LFQ_KO_imp.med$KO.I.24,
+    rf = LFQ_KO_RF.med$KO.24,
+    knn = LFQ_KO_kNN.med$KO.24,
+    ludovic = NA
+)
+to_plot_KO24.3$ludovic[ludovic_ids] <- LFQ_KO_ludovic.med$KO_24
+
+# Prepare the data frame to plotting - MAD Scaling
+to_plot_KO24.4 <- data.frame(
+    method = 'MAD',
+    original = LFQ_KO.mad$KO.24,
+    shift_dist = LFQ_KO_imp.mad$KO.I.24,
+    rf = LFQ_KO_RF.mad$KO.24,
+    knn = LFQ_KO_kNN.mad$KO.24,
+    ludovic = NA
+)
+to_plot_KO24.4$ludovic[ludovic_ids] <- LFQ_KO_ludovic.mad$KO_24
+
+# Prepare the data frame to plotting - Linear Regression
+to_plot_KO24.5 <- data.frame(
+    method = 'Linear Regression',
+    original = LFQ_KO.lm$KO.24,
+    shift_dist = LFQ_KO_imp.lm$KO.I.24,
+    rf = LFQ_KO_RF.lm$KO.24,
+    knn = LFQ_KO_kNN.lm$KO.24,
+    ludovic = NA
+)
+to_plot_KO24.5$ludovic[ludovic_ids] <- LFQ_KO_ludovic.lm$KO_24
+
+# Prepare the data frame to plotting - VSN
+to_plot_KO24.6 <- data.frame(
+    method = 'VSN',
+    original = LFQ_KO.vsn[,3],
+    shift_dist = LFQ_KO_imp.vsn[,3],
+    rf = LFQ_KO_RF.vsn[,3],
+    knn = LFQ_KO_kNN.vsn[,3],
+    ludovic = NA
+)
+to_plot_KO24.6$ludovic[ludovic_ids] <- LFQ_KO_ludovic.vsn[,3]
+
+raw_ids <- as.numeric(gsub('prot_', '', rownames(LFQ_KO.eigen)))
+# Prepare the data frame to plotting - EigenMS
+to_plot_KO24.7 <- data.frame(
+    method = 'EigenMS',
+    original = NA,
+    shift_dist = LFQ_KO_imp.eigen[,3],
+    rf = LFQ_KO_RF.eigen[,3],
+    knn = LFQ_KO_kNN.eigen[,3],
+    ludovic = NA
+)
+to_plot_KO24.7$original[raw_ids] <- LFQ_KO.eigen[,3]
+to_plot_KO24.7$ludovic[ludovic_ids] <- LFQ_KO_ludovic.eigen[,3]
+
+to_plot_KO24 <- rbind.data.frame(to_plot_KO24.1, to_plot_KO24.2, to_plot_KO24.3,
+                                 to_plot_KO24.4, to_plot_KO24.5, to_plot_KO24.6,
+                                 to_plot_KO24.7)
+rm(to_plot_KO24.1, to_plot_KO24.2, to_plot_KO24.3, to_plot_KO24.4, to_plot_KO24.5,
+   to_plot_KO24.6, to_plot_KO24.7, ludovic_ids, raw_ids)
+```
+
+```{r plotting ko 24}
+# Define user input from a list of normalization methods
+shiny::selectInput('method3', 'Select the Normalization Method:', unique(to_plot_KO24$method))
+
+# Creating output with interactive histogram
+output$lfq.ko.24.Plot <- renderPlotly({
+    selected_method3 <- input$method3
+    
+    # Filter data for selected gene
+    filtered_data <- to_plot_KO24 |>
+        dplyr::filter(method == selected_method3) |>
+        tidyr::pivot_longer(2:6, names_to='Type', values_to = 'LFQ_KO_24')
+    
+    plotly::plot_ly(data = filtered_data, x = ~LFQ_KO_24, split = ~Type,
+                    type = 'histogram', opacity = 0.5, histfunc = 'count', xbins = 20) |>
+        plotly::layout(
+            title = paste('Distributions of the Normalized Data using', selected_method3),
+            xaxis = list(title='LFQ KO rep. 24'),
+            yaxis = list(title='Frequency'),
+            barmode = 'overlay'
+        )
+})
+```
+
+```{r}
+plotlyOutput("lfq.ko.24.Plot")
+```
+
+## LFQ WT rep. 22
+
+```{r prepare data WT 22}
+# extract the IDs of protein imputed by ludovic method
+ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Z-Score
+to_plot_WT22.1 <- data.frame(
+    method = 'Z-Score',
+    original = LFQ_WT.standard$WT.22,
+    shift_dist = LFQ_WT_imp.standard$WT.I.22,
+    rf = LFQ_WT_RF.standard$WT.22,
+    knn = LFQ_WT_kNN.standard$WT.22,
+    ludovic = NA
+)
+to_plot_WT22.1$ludovic[ludovic_ids] <- LFQ_WT_ludovic.standard$WT_22
+
+# Prepare the data frame to plotting - Min-Max
+to_plot_WT22.2 <- data.frame(
+    method = 'Min-Max',
+    original = LFQ_WT.minmax$WT.22,
+    shift_dist = LFQ_WT_imp.minmax$WT.I.22,
+    rf = LFQ_WT_RF.minmax$WT.22,
+    knn = LFQ_WT_kNN.minmax$WT.22,
+    ludovic = NA
+)
+to_plot_WT22.2$ludovic[ludovic_ids] <- LFQ_WT_ludovic.minmax$WT_22
+
+# Prepare the data frame to plotting - Median Scaling
+to_plot_WT22.3 <- data.frame(
+    method = 'Median',
+    original = LFQ_WT.med$WT.22,
+    shift_dist = LFQ_WT_imp.med$WT.I.22,
+    rf = LFQ_WT_RF.med$WT.22,
+    knn = LFQ_WT_kNN.med$WT.22,
+    ludovic = NA
+)
+to_plot_WT22.3$ludovic[ludovic_ids] <- LFQ_WT_ludovic.med$WT_22
+
+# Prepare the data frame to plotting - MAD Scaling
+to_plot_WT22.4 <- data.frame(
+    method = 'MAD',
+    original = LFQ_WT.mad$WT.22,
+    shift_dist = LFQ_WT_imp.mad$WT.I.22,
+    rf = LFQ_WT_RF.mad$WT.22,
+    knn = LFQ_WT_kNN.mad$WT.22,
+    ludovic = NA
+)
+to_plot_WT22.4$ludovic[ludovic_ids] <- LFQ_WT_ludovic.mad$WT_22
+
+# Prepare the data frame to plotting - Linear Regression
+to_plot_WT22.5 <- data.frame(
+    method = 'Linear Regression',
+    original = LFQ_WT.lm$WT.22,
+    shift_dist = LFQ_WT_imp.lm$WT.I.22,
+    rf = LFQ_WT_RF.lm$WT.22,
+    knn = LFQ_WT_kNN.lm$WT.22,
+    ludovic = NA
+)
+to_plot_WT22.5$ludovic[ludovic_ids] <- LFQ_WT_ludovic.lm$WT_22
+
+# Prepare the data frame to plotting - VSN
+to_plot_WT22.6 <- data.frame(
+    method = 'VSN',
+    original = LFQ_WT.vsn[,1],
+    shift_dist = LFQ_WT_imp.vsn[,1],
+    rf = LFQ_WT_RF.vsn[,1],
+    knn = LFQ_WT_kNN.vsn[,1],
+    ludovic = NA
+)
+to_plot_WT22.6$ludovic[ludovic_ids] <- LFQ_WT_ludovic.vsn[,1]
+
+raw_ids <- as.numeric(gsub('prot_', '', rownames(LFQ_WT.eigen)))
+# Prepare the data frame to plotting - EigenMS
+to_plot_WT22.7 <- data.frame(
+    method = 'EigenMS',
+    original = NA,
+    shift_dist = LFQ_WT_imp.eigen[,1],
+    rf = LFQ_WT_RF.eigen[,1],
+    knn = LFQ_WT_kNN.eigen[,1],
+    ludovic = NA
+)
+to_plot_WT22.7$original[raw_ids] <- LFQ_WT.eigen[,1]
+to_plot_WT22.7$ludovic[ludovic_ids] <- LFQ_WT_ludovic.eigen[,1]
+
+to_plot_WT22 <- rbind.data.frame(to_plot_WT22.1, to_plot_WT22.2, to_plot_WT22.3,
+                                 to_plot_WT22.4, to_plot_WT22.5, to_plot_WT22.6,
+                                 to_plot_WT22.7)
+rm(to_plot_WT22.1, to_plot_WT22.2, to_plot_WT22.3, to_plot_WT22.4, to_plot_WT22.5,
+   to_plot_WT22.6, to_plot_WT22.7, ludovic_ids, raw_ids)
+```
+
+```{r plotting WT 22}
+# Define user input from a list of normalization methods
+shiny::selectInput('method4', 'Select the Normalization Method:', unique(to_plot_WT22$method))
+
+# Creating output with interactive histogram
+output$lfq.WT.22.Plot <- renderPlotly({
+    selected_method4 <- input$method4
+
+    # Filter data for selected gene
+    filtered_data <- to_plot_WT22 |>
+        dplyr::filter(method == selected_method4) |>
+        tidyr::pivot_longer(2:6, names_to='Type', values_to = 'LFQ_WT_22')
+    
+    plotly::plot_ly(data = filtered_data, x = ~LFQ_WT_22, split = ~Type,
+                    type = 'histogram', opacity = 0.5, histfunc = 'count', xbins = 20) |>
+        plotly::layout(
+            title = paste('Distributions of the Normalized Data using', selected_method4),
+            xaxis = list(title='LFQ WT rep. 22'),
+            yaxis = list(title='Frequency'),
+            barmode = 'overlay'
+        )
+})
+```
+
+```{r}
+plotlyOutput("lfq.WT.22.Plot")
+```
+
+## LFQ WT rep. 23
+
+```{r prepare data WT 23}
+# extract the IDs of protein imputed by ludovic method
+ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Z-Score
+to_plot_WT23.1 <- data.frame(
+    method = 'Z-Score',
+    original = LFQ_WT.standard$WT.23,
+    shift_dist = LFQ_WT_imp.standard$WT.I.23,
+    rf = LFQ_WT_RF.standard$WT.23,
+    knn = LFQ_WT_kNN.standard$WT.23,
+    ludovic = NA
+)
+to_plot_WT23.1$ludovic[ludovic_ids] <- LFQ_WT_ludovic.standard$WT_23
+
+# Prepare the data frame to plotting - Min-Max
+to_plot_WT23.2 <- data.frame(
+    method = 'Min-Max',
+    original = LFQ_WT.minmax$WT.23,
+    shift_dist = LFQ_WT_imp.minmax$WT.I.23,
+    rf = LFQ_WT_RF.minmax$WT.23,
+    knn = LFQ_WT_kNN.minmax$WT.23,
+    ludovic = NA
+)
+to_plot_WT23.2$ludovic[ludovic_ids] <- LFQ_WT_ludovic.minmax$WT_23
+
+# Prepare the data frame to plotting - Median Scaling
+to_plot_WT23.3 <- data.frame(
+    method = 'Median',
+    original = LFQ_WT.med$WT.23,
+    shift_dist = LFQ_WT_imp.med$WT.I.23,
+    rf = LFQ_WT_RF.med$WT.23,
+    knn = LFQ_WT_kNN.med$WT.23,
+    ludovic = NA
+)
+to_plot_WT23.3$ludovic[ludovic_ids] <- LFQ_WT_ludovic.med$WT_23
+
+# Prepare the data frame to plotting - MAD Scaling
+to_plot_WT23.4 <- data.frame(
+    method = 'MAD',
+    original = LFQ_WT.mad$WT.23,
+    shift_dist = LFQ_WT_imp.mad$WT.I.23,
+    rf = LFQ_WT_RF.mad$WT.23,
+    knn = LFQ_WT_kNN.mad$WT.23,
+    ludovic = NA
+)
+to_plot_WT23.4$ludovic[ludovic_ids] <- LFQ_WT_ludovic.mad$WT_23
+
+# Prepare the data frame to plotting - Linear Regression
+to_plot_WT23.5 <- data.frame(
+    method = 'Linear Regression',
+    original = LFQ_WT.lm$WT.23,
+    shift_dist = LFQ_WT_imp.lm$WT.I.23,
+    rf = LFQ_WT_RF.lm$WT.23,
+    knn = LFQ_WT_kNN.lm$WT.23,
+    ludovic = NA
+)
+to_plot_WT23.5$ludovic[ludovic_ids] <- LFQ_WT_ludovic.lm$WT_23
+
+# Prepare the data frame to plotting - VSN
+to_plot_WT23.6 <- data.frame(
+    method = 'VSN',
+    original = LFQ_WT.vsn[,2],
+    shift_dist = LFQ_WT_imp.vsn[,2],
+    rf = LFQ_WT_RF.vsn[,2],
+    knn = LFQ_WT_kNN.vsn[,2],
+    ludovic = NA
+)
+to_plot_WT23.6$ludovic[ludovic_ids] <- LFQ_WT_ludovic.vsn[,2]
+
+raw_ids <- as.numeric(gsub('prot_', '', rownames(LFQ_WT.eigen)))
+# Prepare the data frame to plotting - EigenMS
+to_plot_WT23.7 <- data.frame(
+    method = 'EigenMS',
+    original = NA,
+    shift_dist = LFQ_WT_imp.eigen[,2],
+    rf = LFQ_WT_RF.eigen[,2],
+    knn = LFQ_WT_kNN.eigen[,2],
+    ludovic = NA
+)
+to_plot_WT23.7$original[raw_ids] <- LFQ_WT.eigen[,2]
+to_plot_WT23.7$ludovic[ludovic_ids] <- LFQ_WT_ludovic.eigen[,2]
+
+to_plot_WT23 <- rbind.data.frame(to_plot_WT23.1, to_plot_WT23.2, to_plot_WT23.3,
+                                 to_plot_WT23.4, to_plot_WT23.5, to_plot_WT23.6,
+                                 to_plot_WT23.7)
+rm(to_plot_WT23.1, to_plot_WT23.2, to_plot_WT23.3, to_plot_WT23.4, to_plot_WT23.5,
+   to_plot_WT23.6, to_plot_WT23.7, ludovic_ids, raw_ids)
+```
+
+```{r plotting WT 23}
+# Define user input from a list of normalization methods
+shiny::selectInput('method5', 'Select the Normalization Method:', unique(to_plot_WT23$method))
+
+# Creating output with interactive histogram
+output$lfq.WT.23.Plot <- renderPlotly({
+    selected_method5 <- input$method5
+    
+    # Filter data for selected gene
+    filtered_data <- to_plot_WT23 |>
+        dplyr::filter(method == selected_method5) |>
+        tidyr::pivot_longer(2:6, names_to='Type', values_to = 'LFQ_WT_23')
+    
+    plotly::plot_ly(data = filtered_data, x = ~LFQ_WT_23, split = ~Type,
+                    type = 'histogram', opacity = 0.5, histfunc = 'count', xbins = 20) |>
+        plotly::layout(
+            title = paste('Distributions of the Normalized Data using', selected_method5),
+            xaxis = list(title='LFQ WT rep. 23'),
+            yaxis = list(title='Frequency'),
+            barmode = 'overlay'
+        )
+})
+```
+
+```{r}
+plotlyOutput("lfq.WT.23.Plot")
+```
+
+## LFQ WT rep. 24
+
+```{r prepare data WT 24}
+# extract the IDs of protein imputed by ludovic method
+ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Z-Score
+to_plot_WT24.1 <- data.frame(
+    method = 'Z-Score',
+    original = LFQ_WT.standard$WT.24,
+    shift_dist = LFQ_WT_imp.standard$WT.I.24,
+    rf = LFQ_WT_RF.standard$WT.24,
+    knn = LFQ_WT_kNN.standard$WT.24,
+    ludovic = NA
+)
+to_plot_WT24.1$ludovic[ludovic_ids] <- LFQ_WT_ludovic.standard$WT_24
+
+# Prepare the data frame to plotting - Min-Max
+to_plot_WT24.2 <- data.frame(
+    method = 'Min-Max',
+    original = LFQ_WT.minmax$WT.24,
+    shift_dist = LFQ_WT_imp.minmax$WT.I.24,
+    rf = LFQ_WT_RF.minmax$WT.24,
+    knn = LFQ_WT_kNN.minmax$WT.24,
+    ludovic = NA
+)
+to_plot_WT24.2$ludovic[ludovic_ids] <- LFQ_WT_ludovic.minmax$WT_24
+
+# Prepare the data frame to plotting - Median Scaling
+to_plot_WT24.3 <- data.frame(
+    method = 'Median',
+    original = LFQ_WT.med$WT.24,
+    shift_dist = LFQ_WT_imp.med$WT.I.24,
+    rf = LFQ_WT_RF.med$WT.24,
+    knn = LFQ_WT_kNN.med$WT.24,
+    ludovic = NA
+)
+to_plot_WT24.3$ludovic[ludovic_ids] <- LFQ_WT_ludovic.med$WT_24
+
+# Prepare the data frame to plotting - MAD Scaling
+to_plot_WT24.4 <- data.frame(
+    method = 'MAD',
+    original = LFQ_WT.mad$WT.24,
+    shift_dist = LFQ_WT_imp.mad$WT.I.24,
+    rf = LFQ_WT_RF.mad$WT.24,
+    knn = LFQ_WT_kNN.mad$WT.24,
+    ludovic = NA
+)
+to_plot_WT24.4$ludovic[ludovic_ids] <- LFQ_WT_ludovic.mad$WT_24
+
+# Prepare the data frame to plotting - Linear Regression
+to_plot_WT24.5 <- data.frame(
+    method = 'Linear Regression',
+    original = LFQ_WT.lm$WT.24,
+    shift_dist = LFQ_WT_imp.lm$WT.I.24,
+    rf = LFQ_WT_RF.lm$WT.24,
+    knn = LFQ_WT_kNN.lm$WT.24,
+    ludovic = NA
+)
+to_plot_WT24.5$ludovic[ludovic_ids] <- LFQ_WT_ludovic.lm$WT_24
+
+# Prepare the data frame to plotting - VSN
+to_plot_WT24.6 <- data.frame(
+    method = 'VSN',
+    original = LFQ_WT.vsn[,3],
+    shift_dist = LFQ_WT_imp.vsn[,3],
+    rf = LFQ_WT_RF.vsn[,3],
+    knn = LFQ_WT_kNN.vsn[,3],
+    ludovic = NA
+)
+to_plot_WT24.6$ludovic[ludovic_ids] <- LFQ_WT_ludovic.vsn[,3]
+
+raw_ids <- as.numeric(gsub('prot_', '', rownames(LFQ_WT.eigen)))
+# Prepare the data frame to plotting - EigenMS
+to_plot_WT24.7 <- data.frame(
+    method = 'EigenMS',
+    original = NA,
+    shift_dist = LFQ_WT_imp.eigen[,3],
+    rf = LFQ_WT_RF.eigen[,3],
+    knn = LFQ_WT_kNN.eigen[,3],
+    ludovic = NA
+)
+to_plot_WT24.7$original[raw_ids] <- LFQ_WT.eigen[,3]
+to_plot_WT24.7$ludovic[ludovic_ids] <- LFQ_WT_ludovic.eigen[,3]
+
+to_plot_WT24 <- rbind.data.frame(to_plot_WT24.1, to_plot_WT24.2, to_plot_WT24.3,
+                                 to_plot_WT24.4, to_plot_WT24.5, to_plot_WT24.6,
+                                 to_plot_WT24.7)
+rm(to_plot_WT24.1, to_plot_WT24.2, to_plot_WT24.3, to_plot_WT24.4, to_plot_WT24.5,
+   to_plot_WT24.6, to_plot_WT24.7, ludovic_ids, raw_ids)
+```
+
+```{r plotting WT 24}
+# Define user input from a list of normalization methods
+shiny::selectInput('method6', 'Select the Normalization Method:', unique(to_plot_WT24$method))
+
+# Creating output with interactive histogram
+output$lfq.WT.24.Plot <- renderPlotly({
+    selected_method6 <- input$method6
+    
+    # Filter data for selected gene
+    filtered_data <- to_plot_WT24 |>
+        dplyr::filter(method == selected_method6) |>
+        tidyr::pivot_longer(2:6, names_to='Type', values_to = 'LFQ_WT_24')
+    
+    plotly::plot_ly(data = filtered_data, x = ~LFQ_WT_24, split = ~Type,
+                    type = 'histogram', opacity = 0.5, histfunc = 'count', xbins = 20) |>
+        plotly::layout(
+            title = paste('Distributions of the Normalized Data using', selected_method6),
+            xaxis = list(title='LFQ WT rep. 24'),
+            yaxis = list(title='Frequency'),
+            barmode = 'overlay'
+        )
+})
+```
+
+```{r}
+plotlyOutput("lfq.WT.24.Plot")
+```
+
+## All methods
+
+```{r all dist}
+to_plot_all <- rbind(to_plot_KO22,
+                     to_plot_WT22,
+                     to_plot_KO23,
+                     to_plot_WT23,
+                     to_plot_KO24,
+                     to_plot_WT23)
+to_plot_all$celltype <- rep(c('KO 22', 'WT 22', 'KO 23', 'WT 23', 'KO 24', 'WT 24'), each = 41335)
+
+# Define user input from a list of cell type
+shiny::selectInput('cell', 'Select the Cell type:', unique(to_plot_all$celltype))
+
+# Creating output with interactive histogram
+output$lfq.all.Plot <- renderPlotly({
+    selected_cell <- input$cell
+    
+    # Filter data for selected gene
+    filtered_data <- to_plot_all |>
+        dplyr::filter(celltype == selected_cell) |>
+        tidyr::pivot_longer(2:6, names_to='Type', values_to = 'LFQ')
+    
+    plotly::plot_ly(data = filtered_data, x = ~LFQ, split = ~method,
+                    type = 'histogram', opacity = 0.5, histfunc = 'count', xbins = 20) |>
+        plotly::layout(
+            title = paste('Distributions of the Normalized Data for', selected_cell),
+            xaxis = list(title=paste('LFQ', selected_cell)),
+            yaxis = list(title='Frequency'),
+            barmode = 'overlay'
+        )
+})
+```
+
+```{r}
+plotlyOutput("lfq.WT.24.Plot")
 ```
 
 # Statistics Metrics {.tabset}
@@ -3149,7 +3915,7 @@ v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS),
     geom_point() +
     geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
     geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+    labs(title='Volcano plot for Imputed Data - Random Forest', 
          x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
     theme_bw()
 
@@ -3255,7 +4021,7 @@ v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS),
     geom_point() +
     geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
     geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+    labs(title='Volcano plot for Imputed Data - Ludovic', 
          x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
     theme_bw()
 
@@ -3402,7 +4168,7 @@ v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS),
     geom_point() +
     geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
     geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+    labs(title='Volcano plot for Imputed Data - Random Forest', 
          x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
     theme_bw()
 
@@ -3503,7 +4269,7 @@ v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS),
     geom_point() +
     geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
     geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+    labs(title='Volcano plot for Imputed Data - Ludovic', 
          x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
     theme_bw()
 
@@ -3514,25 +4280,38 @@ plotly::ggplotly(v, tooltip = c('label', 'color'))
 # Raw VS Normalized
 
 ```{r}
+# extracting rows with non missing rows
 miss <- apply(lfq[,1:6], 1, function(row) all(!is.na(row)))
+# extracting eigen prots IDs for raw data
 eig_prots_raw <- as.numeric(gsub('prot_', '',rownames(eigen_df)))
-test <- which(rownames(eigen_df_ludovic) %in% rownames(eigen_df))
+# extracting ludovic prots IDs which are in the raw and ludovic eigen data
+lud_prots_to_keep <- which(rownames(eigen_df_ludovic) %in% rownames(eigen_df))
 
+# Create a data frame to make interactive plot
 data <- data.frame(
-    Gene_Name = protein.groups$`Gene names`[miss],
-    Raw_data = lfq[miss,1:6],
-    Eigen_raw = eigen_df,
-    Raw_RF = imputed_RF[miss,1:6],
-    Eigen_RF = LFQ_RF.eig_norm$norm_m[miss,],
-    Raw_ludovic = imputed_ludovic[test,3:8],
-    Eigen_ludovic = LFQ_ludovic.eig_norm$norm_m[test,]
-)
+    Gene_Name = rep(protein.groups$`Gene names`[miss], each=6),
+    lfq[miss,1:6] |> 
+        tidyr::pivot_longer(cols=everything(), names_to = 'Batch', values_to = 'Raw'),
+    eigen_df[,1:6] |> 
+        tidyr::pivot_longer(cols=everything(), names_to = 'Batch2', values_to = 'Eigen.Raw'),
+    imputed_RF[miss,1:6] |> 
+        tidyr::pivot_longer(cols=everything(), names_to = 'Batch3', values_to = 'RF'),
+    as_tibble(LFQ_RF.eig_norm$norm_m[miss,]) |> 
+        tidyr::pivot_longer(cols=everything(), names_to = 'Batch4', values_to = 'Eigen.RF'),
+    imputed_ludovic[lud_prots_to_keep,3:8] |> 
+        tidyr::pivot_longer(cols=everything(), names_to = 'Batch5', values_to = 'Ludovic'),
+    as_tibble(LFQ_ludovic.eig_norm$norm_m[lud_prots_to_keep,]) |> 
+        tidyr::pivot_longer(cols=everything(), names_to = 'Batch6', values_to = 'Eigen.Ludovic')
+) |>
+    dplyr::select(Gene_Name, Batch, Raw, Eigen.Raw, RF, Eigen.RF, Ludovic, Eigen.Ludovic)
 ```
 
-```{r scatter-plot}
+```{r interactive bar-plot}
 library(plotly)
+# Define user input from a list of genes
 shiny::selectInput("gene", "Select Gene:", choices = unique(data$Gene_Name))
 
+# Creating output with interactive bar plot
 output$genePlot <- renderPlotly({
   selected_gene <- input$gene
 
@@ -3541,34 +4320,22 @@ output$genePlot <- renderPlotly({
       dplyr::filter(Gene_Name == selected_gene)
 
   # Create the plot
-  plot_ly(data = filtered_data, type = "scatter", mode = "markers") %>%
-      add_bars(x = 1, y = ~Raw_data.KO.22, name = 'Raw Value') |>
-      add_bars(x = 1, y = ~Eigen_raw.KO.22, name = 'Normalized Raw Value') |>
-      add_bars(x = 1, y = ~Raw_RF.KO.22, 'Imputed Value (Method 1)') |>
-      add_bars(x = 1, y = ~Eigen_RF.KO.22, name = 'Normalized Imputed Value (Method 1)') |>
-      add_bars(x = 1, y = ~Raw_ludovic.KO_22, name = 'Imputed Value (Method 2)') |>
-      add_bars(x = 1, y = ~Eigen_ludovic.KO_22, name = 'Normalized Imputed Value (Method 2)') |>
-      add_bars(x = 2, y = ~Raw_data.KO.23, name = 'Raw Value') |>
-      add_bars(x = 2, y = ~Eigen_raw.KO.23, name = 'Normalized Raw Value') |>
-      add_bars(x = 2, y = ~Raw_RF.KO.23, 'Imputed Value (Method 1)') |>
-      add_bars(x = 2, y = ~Eigen_RF.KO.23, name = 'Normalized Imputed Value (Method 1)') |>
-      add_bars(x = 2, y = ~Raw_ludovic.KO_23, name = 'Imputed Value (Method 2)') |>
-      add_bars(x = 2, y = ~Eigen_ludovic.KO_23, name = 'Normalized Imputed Value (Method 2)') |>
-      add_bars(x = 3, y = ~Raw_data.KO.24, name = 'Raw Value') |>
-      add_bars(x = 3, y = ~Eigen_raw.KO.24, name = 'Normalized Raw Value') |>
-      add_bars(x = 3, y = ~Raw_RF.KO.24, 'Imputed Value (Method 1)') |>
-      add_bars(x = 3, y = ~Eigen_RF.KO.24, name = 'Normalized Imputed Value (Method 1)') |>
-      add_bars(x = 3, y = ~Raw_ludovic.KO_24, name = 'Imputed Value (Method 2)') |>
-      add_bars(x = 3, y = ~Eigen_ludovic.KO_24, name = 'Normalized Imputed Value (Method 2)') |>
+  plot_ly(data = filtered_data, type = "bar") |>
+      add_trace(x = ~Batch, y = ~Raw, name = 'Raw') |>
+      add_trace(x = ~Batch, y = ~Eigen.Raw, name = 'Eigen Raw') |>
+      add_trace(x = ~Batch, y = ~RF, name = 'RF') |>
+      add_trace(x = ~Batch, y = ~Eigen.RF, name = 'Eigen RF') |>
+      add_trace(x = ~Batch, y = ~Ludovic, name = 'Ludovic') |>
+      add_trace(x = ~Batch, y = ~Eigen.Ludovic, name = 'Eigen Ludovic') |>
       layout(
       title = paste("Scatter Plot for Gene:", selected_gene),
-      xaxis = list(title = "Raw / Imputed Values"),
-      yaxis = list(title = "Normalized Values")
+      xaxis = list(title = NULL),
+      yaxis = list(title = "LFQ Values")
       )
 })
 ```
 
-```{r show scatter}
+```{r show bar-plot}
 plotlyOutput("genePlot")
 ```
 
