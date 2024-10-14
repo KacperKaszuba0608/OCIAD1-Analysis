@@ -2138,7 +2138,7 @@ output$lfq.all.Plot <- renderPlotly({
 ```
 
 ```{r}
-plotlyOutput("lfq.WT.24.Plot")
+plotlyOutput("lfq.all.Plot")
 ```
 
 # Statistics Metrics {.tabset}
