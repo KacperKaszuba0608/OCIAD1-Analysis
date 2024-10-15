@@ -41,7 +41,7 @@ show_cv_table <- function(df) {
     DT::datatable(df, rownames = FALSE, 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
     DT::formatStyle(columns = c('mean_KO', 'mean_WT', 'median_KO', 'median_WT'), 
-                    background = DT::styleInterval(c(0, 25), c('white','lightgreen', 'white'))) |>
+                    background = DT::styleInterval(c(15, 25), c('white','lightgreen', 'white'))) |>
     DT::formatStyle(columns = 'method', fontWeight = 'bold')
 }
 
@@ -140,8 +140,8 @@ plotoneviolin <- function(object, title='') {
         pivot_longer(everything(), names_to = 'Sample', values_to = 'LFQ_CV')
     
     ggplot(data=object, aes(x=Sample, y=LFQ_CV, fill=Sample))+
-        geom_boxplot(width=0.2)+
-        geom_violin(alpha=0.4)+
+        geom_boxplot(width=0.2, na.rm = TRUE)+
+        geom_violin(alpha=0.4, na.rm = TRUE)+
         labs(title=title,x=NULL,y='LFQ CV[%]')+
         theme(legend.position = 'none',
               panel.background = element_rect(fill='white', colour = 'grey'),
@@ -2106,34 +2106,74 @@ plotlyOutput("lfq.WT.24.Plot")
 ## All methods
 
 ```{r all dist}
+to_plot_raw <- data.frame(
+    original = lfq
+)
+
 to_plot_all <- rbind(to_plot_KO22,
                      to_plot_WT22,
                      to_plot_KO23,
                      to_plot_WT23,
                      to_plot_KO24,
                      to_plot_WT23)
-to_plot_all$celltype <- rep(c('KO 22', 'WT 22', 'KO 23', 'WT 23', 'KO 24', 'WT 24'), each = 41335)
+to_plot_all$celltype <- rep(c('KO.22', 'WT.22', 'KO.23', 'WT.23', 'KO.24', 'WT.24'), each = 41335)
+```
 
-# Define user input from a list of cell type
+<div style="display: flex;">
+
+<div style="flex: 50%;">
+
+```{r}
 shiny::selectInput('cell', 'Select the Cell type:', unique(to_plot_all$celltype))
+# Define user input from a list of cell type
+```
 
+</div>
+
+<div style="flex: 50%;">
+
+```{r}
+shiny::selectInput('data_type', 'Select the type of data:', colnames(to_plot_all)[2:6])
+```
+
+</div>
+
+</div>
+
+```{r}
 # Creating output with interactive histogram
 output$lfq.all.Plot <- renderPlotly({
     selected_cell <- input$cell
+    selected_data <- input$data_type
     
     # Filter data for selected gene
     filtered_data <- to_plot_all |>
-        dplyr::filter(celltype == selected_cell) |>
-        tidyr::pivot_longer(2:6, names_to='Type', values_to = 'LFQ')
+        tidyr::pivot_longer(2:6, names_to='Type', values_to = 'LFQ') |>
+        dplyr::filter(celltype == selected_cell & Type == selected_data)
     
-    plotly::plot_ly(data = filtered_data, x = ~LFQ, split = ~method,
+    p <- plotly::plot_ly(data = filtered_data, x = ~LFQ, split = ~method,
                     type = 'histogram', opacity = 0.5, histfunc = 'count', xbins = 20) |>
         plotly::layout(
-            title = paste('Distributions of the Normalized Data for', selected_cell),
+            title = paste('Distributions of the', selected_data, 'Normalized Data for', selected_cell),
             xaxis = list(title=paste('LFQ', selected_cell)),
             yaxis = list(title='Frequency'),
             barmode = 'overlay'
         )
+    
+    # add raw histogram based on the user selection
+    if (selected_data == 'original') {
+        p |> add_trace(data = lfq, x = ~.data[[selected_cell]], name='Raw data')
+    } else if (selected_data == 'shift_dist') {
+        selected_cell <- gsub('\\.', '.I.', selected_cell)
+        p |> add_trace(data = lfq_imp, x = ~.data[[selected_cell]], name='Raw imp data')
+    } else if (selected_data == 'ludovic') {
+        selected_cell <- gsub('\\.', '_', selected_cell)
+        p |> add_trace(data = imputed_ludovic, x = ~.data[[selected_cell]], name='Raw ludovic data')
+    } else if (selected_data == 'rf') {
+        p |> add_trace(data = imputed_RF, x = ~.data[[selected_cell]], name='Raw RF data')
+    } else if (selected_data == 'knn') {
+        p |> add_trace(data = imputed_kNN, x = ~.data[[selected_cell]], name='Raw kNN data')
+    }
 })
 ```
 
@@ -2183,7 +2223,7 @@ of the CV correctly.
 
 ### Non-Imputed
 
-```{r CV1}
+```{r CV1, fig.width=10}
 # CV calculation for all normalization methods using non-imputed data
 cv.before <- data.frame(KO=apply(2^LFQ_KO, 1, cv), WT=apply(2^LFQ_WT,1,cv))
 cv.standard <- data.frame(KO=apply(2^LFQ_KO.standard, 1, cv), WT=apply(2^LFQ_WT.standard, 1, cv))
@@ -2192,8 +2232,49 @@ cv.med <- data.frame(KO=apply(2^LFQ_KO.med, 1, cv), WT=apply(2^LFQ_WT.med, 1, cv
 cv.mad <- data.frame(KO=apply(2^LFQ_KO.mad, 1, cv), WT=apply(2^LFQ_WT.mad, 1, cv))
 cv.lm <- data.frame(KO=apply(2^LFQ_KO.lm, 1, cv), WT=apply(2^LFQ_WT.lm, 1, cv))
 cv.vsn <- data.frame(KO=apply(2^LFQ_KO.vsn, 1, cv), WT=apply(2^LFQ_WT.vsn, 1, cv))
-cv.eig <- data.frame(KO=apply(2^LFQ_KO.eigen, 1, cv), WT=apply(2^LFQ_WT.eigen, 1, cv))
+cv.eig <- data.frame(KO=NA, WT=NA)
+cv.eig[as.numeric(gsub('prot_', '', rownames(LFQ_KO.eigen))),] <- data.frame(KO=apply(2^LFQ_KO.eigen, 1, cv), WT=apply(2^LFQ_WT.eigen, 1, cv))
 
+plotoneviolin(data.frame(
+    Original = cv.before$KO,
+    Z.Score = cv.standard$KO,
+    Min.Max = cv.minmax$KO,
+    Median.Scaling = cv.med$KO,
+    MAD.Scaling = cv.mad$KO,
+    Linear.Regression = cv.lm$KO,
+    VSN = cv.vsn$KO,
+    EigenMS = cv.eig$KO
+    ), 'LFQ CV [%] for KO Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv.before$WT,
+    Z.Score = cv.standard$WT,
+    Min.Max = cv.minmax$WT,
+    Median.Scaling = cv.med$WT,
+    MAD.Scaling = cv.mad$WT,
+    Linear.Regression = cv.lm$WT,
+    VSN = cv.vsn$WT,
+    EigenMS = cv.eig$WT
+    ), 'LFQ CV [%] for WT Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv.before,
+    Z.Score = cv.standard,
+    Min.Max = cv.minmax,
+    Median.Scaling = cv.med,
+    MAD.Scaling = cv.mad,
+    Linear.Regression = cv.lm,
+    VSN = cv.vsn,
+    EigenMS = cv.eig
+    ), 'LFQ CV [%] for Samples') +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust=1)) + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+```
+
+```{r show CV1}
 ggarrange(
     plotoneviolin(cv.before, 'Original'),
     plotoneviolin(cv.standard, 'Z-Score'),
@@ -2213,7 +2294,7 @@ ggarrange(
 
 ### Mati Code
 
-```{r CV2}
+```{r CV2, fig.width=10}
 # CV calculation for all normalization methods using imputed data
 cv_imp.before <- data.frame(KO=apply(2^LFQ_KO_imp, 1, cv), WT=apply(2^LFQ_WT_imp,1,cv))
 cv_imp.standard <- data.frame(KO=apply(2^LFQ_KO_imp.standard, 1, cv), WT=apply(2^LFQ_WT_imp.standard, 1, cv))
@@ -2224,6 +2305,45 @@ cv_imp.lm <- data.frame(KO=apply(2^LFQ_KO_imp.lm, 1, cv), WT=apply(2^LFQ_WT_imp.
 cv_imp.vsn <- data.frame(KO=apply(2^LFQ_KO_imp.vsn, 1, cv), WT=apply(2^LFQ_WT_imp.vsn, 1, cv))
 cv_imp.eig <- data.frame(KO=apply(2^LFQ_KO_imp.eigen, 1, cv), WT=apply(2^LFQ_WT_imp.eigen, 1, cv))
 
+plotoneviolin(data.frame(
+    Original = cv_imp.before$KO,
+    Z.Score = cv_imp.standard$KO,
+    Min.Max = cv_imp.minmax$KO,
+    Median.Scaling = cv_imp.med$KO,
+    MAD.Scaling = cv_imp.mad$KO,
+    Linear.Regression = cv_imp.lm$KO,
+    VSN = cv_imp.vsn$KO,
+    EigenMS = cv_imp.eig$KO
+    ), 'LFQ CV [%] for KO Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv_imp.before$WT,
+    Z.Score = cv_imp.standard$WT,
+    Min.Max = cv_imp.minmax$WT,
+    Median.Scaling = cv_imp.med$WT,
+    MAD.Scaling = cv_imp.mad$WT,
+    Linear.Regression = cv_imp.lm$WT,
+    VSN = cv_imp.vsn$WT,
+    EigenMS = cv_imp.eig$WT
+    ), 'LFQ CV [%] for WT Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv_imp.before,
+    Z.Score = cv_imp.standard,
+    Min.Max = cv_imp.minmax,
+    Median.Scaling = cv_imp.med,
+    MAD.Scaling = cv_imp.mad,
+    Linear.Regression = cv_imp.lm,
+    VSN = cv_imp.vsn,
+    EigenMS = cv_imp.eig
+    ), 'LFQ CV [%] for Samples') +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust=1)) + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+```
+
+```{r show CV2}
 ggarrange(
     plotoneviolin(cv_imp.before, 'Original'),
     plotoneviolin(cv_imp.standard, 'Z-Score'),
@@ -2243,7 +2363,7 @@ ggarrange(
 
 ### Random Forest
 
-```{r CV3}
+```{r CV3, fig.width=10}
 # CV calculation for all normalization methods with imputed data using random forest
 cv_RF.before <- data.frame(KO=apply(2^LFQ_KO_RF, 1, cv), WT=apply(2^LFQ_WT_RF,1,cv))
 cv_RF.standard <- data.frame(KO=apply(2^LFQ_KO_RF.standard, 1, cv), WT=apply(2^LFQ_WT_RF.standard, 1, cv))
@@ -2254,6 +2374,46 @@ cv_RF.lm <- data.frame(KO=apply(2^LFQ_KO_RF.lm, 1, cv), WT=apply(2^LFQ_WT_RF.lm,
 cv_RF.vsn <- data.frame(KO=apply(2^LFQ_KO_RF.vsn, 1, cv), WT=apply(2^LFQ_WT_RF.vsn, 1, cv))
 cv_RF.eig <- data.frame(KO=apply(2^LFQ_KO_RF.eigen, 1, cv), WT=apply(2^LFQ_WT_RF.eigen, 1, cv))
 
+plotoneviolin(data.frame(
+    Original = cv_RF.before$KO,
+    Z.Score = cv_RF.standard$KO,
+    Min.Max = cv_RF.minmax$KO,
+    Median.Scaling = cv_RF.med$KO,
+    MAD.Scaling = cv_RF.mad$KO,
+    Linear.Regression = cv_RF.lm$KO,
+    VSN = cv_RF.vsn$KO,
+    EigenMS = cv_RF.eig$KO
+    ), 'LFQ CV [%] for KO Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv_RF.before$WT,
+    Z.Score = cv_RF.standard$WT,
+    Min.Max = cv_RF.minmax$WT,
+    Median.Scaling = cv_RF.med$WT,
+    MAD.Scaling = cv_RF.mad$WT,
+    Linear.Regression = cv_RF.lm$WT,
+    VSN = cv_RF.vsn$WT,
+    EigenMS = cv_RF.eig$WT
+    ), 'LFQ CV [%] for WT Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv_RF.before,
+    Z.Score = cv_RF.standard,
+    Min.Max = cv_RF.minmax,
+    Median.Scaling = cv_RF.med,
+    MAD.Scaling = cv_RF.mad,
+    Linear.Regression = cv_RF.lm,
+    VSN = cv_RF.vsn,
+    EigenMS = cv_RF.eig
+    ), 'LFQ CV [%] for Samples') +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust=1)) + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=2, color='red', alpha=0.7) + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+```
+
+```{r show CV3}
 ggarrange(
     plotoneviolin(cv_RF.before, 'Original'),
     plotoneviolin(cv_RF.standard, 'Z-Score'),
@@ -2273,7 +2433,7 @@ ggarrange(
 
 ### K-Nearest Neighbors
 
-```{r CV4}
+```{r CV4, fig.width=10}
 # CV calculation for all normalization methods with imputed data using kNN
 cv_kNN.before <- data.frame(KO=apply(2^LFQ_KO_kNN, 1, cv), WT=apply(2^LFQ_WT_kNN,1,cv))
 cv_kNN.standard <- data.frame(KO=apply(2^LFQ_KO_kNN.standard, 1, cv), WT=apply(2^LFQ_WT_kNN.standard, 1, cv))
@@ -2284,6 +2444,45 @@ cv_kNN.lm <- data.frame(KO=apply(2^LFQ_KO_kNN.lm, 1, cv), WT=apply(2^LFQ_WT_kNN.
 cv_kNN.vsn <- data.frame(KO=apply(2^LFQ_KO_kNN.vsn, 1, cv), WT=apply(2^LFQ_WT_kNN.vsn, 1, cv))
 cv_kNN.eig <- data.frame(KO=apply(2^LFQ_KO_kNN.eigen, 1, cv), WT=apply(2^LFQ_WT_kNN.eigen, 1, cv))
 
+plotoneviolin(data.frame(
+    Original = cv_kNN.before$KO,
+    Z.Score = cv_kNN.standard$KO,
+    Min.Max = cv_kNN.minmax$KO,
+    Median.Scaling = cv_kNN.med$KO,
+    MAD.Scaling = cv_kNN.mad$KO,
+    Linear.Regression = cv_kNN.lm$KO,
+    VSN = cv_kNN.vsn$KO,
+    EigenMS = cv_kNN.eig$KO
+    ), 'LFQ CV [%] for KO Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv_kNN.before$WT,
+    Z.Score = cv_kNN.standard$WT,
+    Min.Max = cv_kNN.minmax$WT,
+    Median.Scaling = cv_kNN.med$WT,
+    MAD.Scaling = cv_kNN.mad$WT,
+    Linear.Regression = cv_kNN.lm$WT,
+    VSN = cv_kNN.vsn$WT,
+    EigenMS = cv_kNN.eig$WT
+    ), 'LFQ CV [%] for WT Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv_kNN.before,
+    Z.Score = cv_kNN.standard,
+    Min.Max = cv_kNN.minmax,
+    Median.Scaling = cv_kNN.med,
+    MAD.Scaling = cv_kNN.mad,
+    Linear.Regression = cv_kNN.lm,
+    VSN = cv_kNN.vsn,
+    EigenMS = cv_kNN.eig
+    ), 'LFQ CV [%] for Samples') +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust=1)) + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+```
+
+```{r show CV4}
 ggarrange(
     plotoneviolin(cv_kNN.before, 'Original'),
     plotoneviolin(cv_kNN.standard, 'Z-Score'),
@@ -2303,7 +2502,7 @@ ggarrange(
 
 ### Ludovic
 
-```{r CV5}
+```{r CV5, fig.width=10}
 # CV calculation for all normalization methods with imputed data using ludovic
 cv_ludovic.before <- data.frame(KO=apply(2^LFQ_KO_ludovic, 1, cv), WT=apply(2^LFQ_WT_ludovic,1,cv))
 cv_ludovic.standard <- data.frame(KO=apply(2^LFQ_KO_ludovic.standard, 1, cv), WT=apply(2^LFQ_WT_ludovic.standard, 1, cv))
@@ -2314,6 +2513,45 @@ cv_ludovic.lm <- data.frame(KO=apply(2^LFQ_KO_ludovic.lm, 1, cv), WT=apply(2^LFQ
 cv_ludovic.vsn <- data.frame(KO=apply(2^LFQ_KO_ludovic.vsn, 1, cv), WT=apply(2^LFQ_WT_ludovic.vsn, 1, cv))
 cv_ludovic.eig <- data.frame(KO=apply(2^LFQ_KO_ludovic.eigen, 1, cv), WT=apply(2^LFQ_WT_ludovic.eigen, 1, cv))
 
+plotoneviolin(data.frame(
+    Original = cv_ludovic.before$KO,
+    Z.Score = cv_ludovic.standard$KO,
+    Min.Max = cv_ludovic.minmax$KO,
+    Median.Scaling = cv_ludovic.med$KO,
+    MAD.Scaling = cv_ludovic.mad$KO,
+    Linear.Regression = cv_ludovic.lm$KO,
+    VSN = cv_ludovic.vsn$KO,
+    EigenMS = cv_ludovic.eig$KO
+    ), 'LFQ CV [%] for KO Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv_ludovic.before$WT,
+    Z.Score = cv_ludovic.standard$WT,
+    Min.Max = cv_ludovic.minmax$WT,
+    Median.Scaling = cv_ludovic.med$WT,
+    MAD.Scaling = cv_ludovic.mad$WT,
+    Linear.Regression = cv_ludovic.lm$WT,
+    VSN = cv_ludovic.vsn$WT,
+    EigenMS = cv_ludovic.eig$WT
+    ), 'LFQ CV [%] for WT Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv_ludovic.before,
+    Z.Score = cv_ludovic.standard,
+    Min.Max = cv_ludovic.minmax,
+    Median.Scaling = cv_ludovic.med,
+    MAD.Scaling = cv_ludovic.mad,
+    Linear.Regression = cv_ludovic.lm,
+    VSN = cv_ludovic.vsn,
+    EigenMS = cv_ludovic.eig
+    ), 'LFQ CV [%] for Samples') +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust=1)) + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+```
+
+```{r show CV5}
 ggarrange(
     plotoneviolin(cv_ludovic.before, 'Original'),
     plotoneviolin(cv_ludovic.standard, 'Z-Score'),
@@ -2999,6 +3237,8 @@ hist_p_standard_RF <- ggplot(data = pvalue_standard_RF, aes(x = p_OCIAD1_TOTALS,
 ```{r p-value kNN data standardization}
 # prepare data for t-test
 standard_df_kNN <- data.frame(LFQ_KO_kNN.standard, LFQ_WT_kNN.standard)
+duplicates <- which(lapply(1:nrow(standard_df_kNN), function(i) length(unique(as.numeric(standard_df_kNN[i,])))) != 6)
+standard_df_kNN <- standard_df_kNN
 
 # calculate the p-values for our data
 pvalue_standard_kNN <- standard_df_kNN |>
@@ -4285,25 +4525,37 @@ miss <- apply(lfq[,1:6], 1, function(row) all(!is.na(row)))
 # extracting eigen prots IDs for raw data
 eig_prots_raw <- as.numeric(gsub('prot_', '',rownames(eigen_df)))
 # extracting ludovic prots IDs which are in the raw and ludovic eigen data
-lud_prots_to_keep <- which(rownames(eigen_df_ludovic) %in% rownames(eigen_df))
+lud_prots_to_keep <- as.numeric(gsub('prot_', '',rownames(eigen_df_ludovic)))
+
+# Preparing columns
+eigen_df_prep <- data.frame(KO.22=NA, KO.23=NA, KO.24=NA, WT.22=NA, WT.23=NA, WT.24=NA)
+eigen_df_prep[eig_prots_raw,] <- eigen_df 
+
+df_prep_lud <- data.frame(KO.22=NA, KO.23=NA, KO.24=NA, WT.22=NA, WT.23=NA, WT.24=NA)
+df_prep_lud[lud_prots_to_keep,] <- imputed_ludovic[,3:8]
+
+eigen_df_prep_lud <- data.frame(KO.22=NA, KO.23=NA, KO.24=NA, WT.22=NA, WT.23=NA, WT.24=NA)
+eigen_df_prep_lud[lud_prots_to_keep,] <- LFQ_ludovic.eig_norm$norm_m
 
 # Create a data frame to make interactive plot
 data <- data.frame(
-    Gene_Name = rep(protein.groups$`Gene names`[miss], each=6),
-    lfq[miss,1:6] |> 
+    Gene_Name = rep(protein.groups$`Gene names`, each=6),
+    lfq[,1:6] |> 
         tidyr::pivot_longer(cols=everything(), names_to = 'Batch', values_to = 'Raw'),
-    eigen_df[,1:6] |> 
+    eigen_df_prep |> 
         tidyr::pivot_longer(cols=everything(), names_to = 'Batch2', values_to = 'Eigen.Raw'),
-    imputed_RF[miss,1:6] |> 
+    imputed_RF[,1:6] |> 
         tidyr::pivot_longer(cols=everything(), names_to = 'Batch3', values_to = 'RF'),
-    as_tibble(LFQ_RF.eig_norm$norm_m[miss,]) |> 
+    as_tibble(LFQ_RF.eig_norm$norm_m) |> 
         tidyr::pivot_longer(cols=everything(), names_to = 'Batch4', values_to = 'Eigen.RF'),
-    imputed_ludovic[lud_prots_to_keep,3:8] |> 
+    df_prep_lud |> 
         tidyr::pivot_longer(cols=everything(), names_to = 'Batch5', values_to = 'Ludovic'),
-    as_tibble(LFQ_ludovic.eig_norm$norm_m[lud_prots_to_keep,]) |> 
+    eigen_df_prep_lud |> 
         tidyr::pivot_longer(cols=everything(), names_to = 'Batch6', values_to = 'Eigen.Ludovic')
 ) |>
     dplyr::select(Gene_Name, Batch, Raw, Eigen.Raw, RF, Eigen.RF, Ludovic, Eigen.Ludovic)
+
+data[, 3:8][is.na(data[, 3:8])] <- 0
 ```
 
 ```{r interactive bar-plot}
