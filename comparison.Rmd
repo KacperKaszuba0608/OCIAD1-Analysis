@@ -1389,6 +1389,17 @@ type (KO or WT) and the number of replicates.
 # extract the IDs of protein imputed by ludovic method
 ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
 
+# Prepare the data frame to plotting - Raw Data
+to_plot_KO22.0 <- data.frame(
+    method = 'Raw',
+    original = LFQ_KO$KO.22,
+    shift_dist = LFQ_KO_imp$KO.I.22,
+    rf = LFQ_KO_RF$KO.22,
+    knn = LFQ_KO_kNN$KO.22,
+    ludovic = NA
+)
+to_plot_KO22.0$ludovic[ludovic_ids] <- LFQ_KO_ludovic$KO_22
+
 # Prepare the data frame to plotting - Z-Score
 to_plot_KO22.1 <- data.frame(
     method = 'Z-Score',
@@ -1468,11 +1479,11 @@ to_plot_KO22.7 <- data.frame(
 to_plot_KO22.7$original[raw_ids] <- LFQ_KO.eigen[,1]
 to_plot_KO22.7$ludovic[ludovic_ids] <- LFQ_KO_ludovic.eigen[,1]
 
-to_plot_KO22 <- rbind.data.frame(to_plot_KO22.1, to_plot_KO22.2, to_plot_KO22.3,
-                                 to_plot_KO22.4, to_plot_KO22.5, to_plot_KO22.6,
-                                 to_plot_KO22.7)
-rm(to_plot_KO22.1, to_plot_KO22.2, to_plot_KO22.3, to_plot_KO22.4, to_plot_KO22.5,
-   to_plot_KO22.6, to_plot_KO22.7, ludovic_ids, raw_ids)
+to_plot_KO22 <- rbind.data.frame(to_plot_KO22.0, to_plot_KO22.1, to_plot_KO22.2, 
+                                 to_plot_KO22.3, to_plot_KO22.4, to_plot_KO22.5, 
+                                 to_plot_KO22.6, to_plot_KO22.7)
+rm(to_plot_KO22.0, to_plot_KO22.1, to_plot_KO22.2, to_plot_KO22.3, to_plot_KO22.4,
+   to_plot_KO22.5, to_plot_KO22.6, to_plot_KO22.7, ludovic_ids, raw_ids)
 ```
 
 ```{r plotting ko 22}
@@ -1508,6 +1519,17 @@ plotlyOutput("lfq.ko.22.Plot")
 ```{r prepare data ko 23}
 # extract the IDs of protein imputed by ludovic method
 ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Raw Data
+to_plot_KO23.0 <- data.frame(
+    method = 'Raw',
+    original = LFQ_KO$KO.23,
+    shift_dist = LFQ_KO_imp$KO.I.23,
+    rf = LFQ_KO_RF$KO.23,
+    knn = LFQ_KO_kNN$KO.23,
+    ludovic = NA
+)
+to_plot_KO23.0$ludovic[ludovic_ids] <- LFQ_KO_ludovic$KO_23
 
 # Prepare the data frame to plotting - Z-Score
 to_plot_KO23.1 <- data.frame(
@@ -1588,11 +1610,11 @@ to_plot_KO23.7 <- data.frame(
 to_plot_KO23.7$original[raw_ids] <- LFQ_KO.eigen[,2]
 to_plot_KO23.7$ludovic[ludovic_ids] <- LFQ_KO_ludovic.eigen[,2]
 
-to_plot_KO23 <- rbind.data.frame(to_plot_KO23.1, to_plot_KO23.2, to_plot_KO23.3,
-                                 to_plot_KO23.4, to_plot_KO23.5, to_plot_KO23.6,
-                                 to_plot_KO23.7)
-rm(to_plot_KO23.1, to_plot_KO23.2, to_plot_KO23.3, to_plot_KO23.4, to_plot_KO23.5,
-   to_plot_KO23.6, to_plot_KO23.7, ludovic_ids, raw_ids)
+to_plot_KO23 <- rbind.data.frame(to_plot_KO23.0, to_plot_KO23.1, to_plot_KO23.2, 
+                                 to_plot_KO23.3, to_plot_KO23.4, to_plot_KO23.5, 
+                                 to_plot_KO23.6, to_plot_KO23.7)
+rm(to_plot_KO23.0, to_plot_KO23.1, to_plot_KO23.2, to_plot_KO23.3, to_plot_KO23.4,
+   to_plot_KO23.5, to_plot_KO23.6, to_plot_KO23.7, ludovic_ids, raw_ids)
 ```
 
 ```{r plotting ko 23}
@@ -1628,6 +1650,17 @@ plotlyOutput("lfq.ko.23.Plot")
 ```{r prepare data ko 24}
 # extract the IDs of protein imputed by ludovic method
 ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Raw Data
+to_plot_KO24.0 <- data.frame(
+    method = 'Raw',
+    original = LFQ_KO$KO.24,
+    shift_dist = LFQ_KO_imp$KO.I.24,
+    rf = LFQ_KO_RF$KO.24,
+    knn = LFQ_KO_kNN$KO.24,
+    ludovic = NA
+)
+to_plot_KO24.0$ludovic[ludovic_ids] <- LFQ_KO_ludovic$KO_24
 
 # Prepare the data frame to plotting - Z-Score
 to_plot_KO24.1 <- data.frame(
@@ -1708,11 +1741,11 @@ to_plot_KO24.7 <- data.frame(
 to_plot_KO24.7$original[raw_ids] <- LFQ_KO.eigen[,3]
 to_plot_KO24.7$ludovic[ludovic_ids] <- LFQ_KO_ludovic.eigen[,3]
 
-to_plot_KO24 <- rbind.data.frame(to_plot_KO24.1, to_plot_KO24.2, to_plot_KO24.3,
-                                 to_plot_KO24.4, to_plot_KO24.5, to_plot_KO24.6,
-                                 to_plot_KO24.7)
-rm(to_plot_KO24.1, to_plot_KO24.2, to_plot_KO24.3, to_plot_KO24.4, to_plot_KO24.5,
-   to_plot_KO24.6, to_plot_KO24.7, ludovic_ids, raw_ids)
+to_plot_KO24 <- rbind.data.frame(to_plot_KO24.0, to_plot_KO24.1, to_plot_KO24.2, 
+                                 to_plot_KO24.3, to_plot_KO24.4, to_plot_KO24.5, 
+                                 to_plot_KO24.6, to_plot_KO24.7)
+rm(to_plot_KO24.0, to_plot_KO24.1, to_plot_KO24.2, to_plot_KO24.3, to_plot_KO24.4, 
+   to_plot_KO24.5, to_plot_KO24.6, to_plot_KO24.7, ludovic_ids, raw_ids)
 ```
 
 ```{r plotting ko 24}
@@ -1748,6 +1781,17 @@ plotlyOutput("lfq.ko.24.Plot")
 ```{r prepare data WT 22}
 # extract the IDs of protein imputed by ludovic method
 ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Raw Data
+to_plot_WT22.0 <- data.frame(
+    method = 'Raw',
+    original = LFQ_WT$WT.22,
+    shift_dist = LFQ_WT_imp$WT.I.22,
+    rf = LFQ_WT_RF$WT.22,
+    knn = LFQ_WT_kNN$WT.22,
+    ludovic = NA
+)
+to_plot_WT22.0$ludovic[ludovic_ids] <- LFQ_WT_ludovic$WT_22
 
 # Prepare the data frame to plotting - Z-Score
 to_plot_WT22.1 <- data.frame(
@@ -1828,11 +1872,11 @@ to_plot_WT22.7 <- data.frame(
 to_plot_WT22.7$original[raw_ids] <- LFQ_WT.eigen[,1]
 to_plot_WT22.7$ludovic[ludovic_ids] <- LFQ_WT_ludovic.eigen[,1]
 
-to_plot_WT22 <- rbind.data.frame(to_plot_WT22.1, to_plot_WT22.2, to_plot_WT22.3,
-                                 to_plot_WT22.4, to_plot_WT22.5, to_plot_WT22.6,
-                                 to_plot_WT22.7)
-rm(to_plot_WT22.1, to_plot_WT22.2, to_plot_WT22.3, to_plot_WT22.4, to_plot_WT22.5,
-   to_plot_WT22.6, to_plot_WT22.7, ludovic_ids, raw_ids)
+to_plot_WT22 <- rbind.data.frame(to_plot_WT22.0, to_plot_WT22.1, to_plot_WT22.2, 
+                                 to_plot_WT22.3, to_plot_WT22.4, to_plot_WT22.5, 
+                                 to_plot_WT22.6, to_plot_WT22.7)
+rm(to_plot_WT22.0, to_plot_WT22.1, to_plot_WT22.2, to_plot_WT22.3, to_plot_WT22.4, 
+   to_plot_WT22.5, to_plot_WT22.6, to_plot_WT22.7, ludovic_ids, raw_ids)
 ```
 
 ```{r plotting WT 22}
@@ -1868,6 +1912,17 @@ plotlyOutput("lfq.WT.22.Plot")
 ```{r prepare data WT 23}
 # extract the IDs of protein imputed by ludovic method
 ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Raw Data
+to_plot_WT23.0 <- data.frame(
+    method = 'Raw',
+    original = LFQ_WT$WT.23,
+    shift_dist = LFQ_WT_imp$WT.I.23,
+    rf = LFQ_WT_RF$WT.23,
+    knn = LFQ_WT_kNN$WT.23,
+    ludovic = NA
+)
+to_plot_WT23.0$ludovic[ludovic_ids] <- LFQ_WT_ludovic$WT_23
 
 # Prepare the data frame to plotting - Z-Score
 to_plot_WT23.1 <- data.frame(
@@ -1948,11 +2003,11 @@ to_plot_WT23.7 <- data.frame(
 to_plot_WT23.7$original[raw_ids] <- LFQ_WT.eigen[,2]
 to_plot_WT23.7$ludovic[ludovic_ids] <- LFQ_WT_ludovic.eigen[,2]
 
-to_plot_WT23 <- rbind.data.frame(to_plot_WT23.1, to_plot_WT23.2, to_plot_WT23.3,
-                                 to_plot_WT23.4, to_plot_WT23.5, to_plot_WT23.6,
-                                 to_plot_WT23.7)
-rm(to_plot_WT23.1, to_plot_WT23.2, to_plot_WT23.3, to_plot_WT23.4, to_plot_WT23.5,
-   to_plot_WT23.6, to_plot_WT23.7, ludovic_ids, raw_ids)
+to_plot_WT23 <- rbind.data.frame(to_plot_WT23.0, to_plot_WT23.1, to_plot_WT23.2, 
+                                 to_plot_WT23.3, to_plot_WT23.4, to_plot_WT23.5, 
+                                 to_plot_WT23.6, to_plot_WT23.7)
+rm(to_plot_WT23.0, to_plot_WT23.1, to_plot_WT23.2, to_plot_WT23.3, to_plot_WT23.4, 
+   to_plot_WT23.5, to_plot_WT23.6, to_plot_WT23.7, ludovic_ids, raw_ids)
 ```
 
 ```{r plotting WT 23}
@@ -1988,6 +2043,17 @@ plotlyOutput("lfq.WT.23.Plot")
 ```{r prepare data WT 24}
 # extract the IDs of protein imputed by ludovic method
 ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Prepare the data frame to plotting - Raw Data
+to_plot_WT24.0 <- data.frame(
+    method = 'Raw',
+    original = LFQ_WT$WT.24,
+    shift_dist = LFQ_WT_imp$WT.I.24,
+    rf = LFQ_WT_RF$WT.24,
+    knn = LFQ_WT_kNN$WT.24,
+    ludovic = NA
+)
+to_plot_WT24.0$ludovic[ludovic_ids] <- LFQ_WT_ludovic$WT_24
 
 # Prepare the data frame to plotting - Z-Score
 to_plot_WT24.1 <- data.frame(
@@ -2068,11 +2134,11 @@ to_plot_WT24.7 <- data.frame(
 to_plot_WT24.7$original[raw_ids] <- LFQ_WT.eigen[,3]
 to_plot_WT24.7$ludovic[ludovic_ids] <- LFQ_WT_ludovic.eigen[,3]
 
-to_plot_WT24 <- rbind.data.frame(to_plot_WT24.1, to_plot_WT24.2, to_plot_WT24.3,
-                                 to_plot_WT24.4, to_plot_WT24.5, to_plot_WT24.6,
-                                 to_plot_WT24.7)
-rm(to_plot_WT24.1, to_plot_WT24.2, to_plot_WT24.3, to_plot_WT24.4, to_plot_WT24.5,
-   to_plot_WT24.6, to_plot_WT24.7, ludovic_ids, raw_ids)
+to_plot_WT24 <- rbind.data.frame(to_plot_WT24.0, to_plot_WT24.1, to_plot_WT24.2, 
+                                 to_plot_WT24.3, to_plot_WT24.4, to_plot_WT24.5, 
+                                 to_plot_WT24.6, to_plot_WT24.7)
+rm(to_plot_WT24.0, to_plot_WT24.1, to_plot_WT24.2, to_plot_WT24.3, to_plot_WT24.4, 
+   to_plot_WT24.5, to_plot_WT24.6, to_plot_WT24.7, ludovic_ids, raw_ids)
 ```
 
 ```{r plotting WT 24}
@@ -2116,7 +2182,7 @@ to_plot_all <- rbind(to_plot_KO22,
                      to_plot_WT23,
                      to_plot_KO24,
                      to_plot_WT23)
-to_plot_all$celltype <- rep(c('KO.22', 'WT.22', 'KO.23', 'WT.23', 'KO.24', 'WT.24'), each = 41335)
+to_plot_all$celltype <- rep(c('KO.22', 'WT.22', 'KO.23', 'WT.23', 'KO.24', 'WT.24'), each = 47240)
 ```
 
 <div style="display: flex;">
@@ -2159,21 +2225,6 @@ output$lfq.all.Plot <- renderPlotly({
             yaxis = list(title='Frequency'),
             barmode = 'overlay'
         )
-    
-    # add raw histogram based on the user selection
-    if (selected_data == 'original') {
-        p |> add_trace(data = lfq, x = ~.data[[selected_cell]], name='Raw data')
-    } else if (selected_data == 'shift_dist') {
-        selected_cell <- gsub('\\.', '.I.', selected_cell)
-        p |> add_trace(data = lfq_imp, x = ~.data[[selected_cell]], name='Raw imp data')
-    } else if (selected_data == 'ludovic') {
-        selected_cell <- gsub('\\.', '_', selected_cell)
-        p |> add_trace(data = imputed_ludovic, x = ~.data[[selected_cell]], name='Raw ludovic data')
-    } else if (selected_data == 'rf') {
-        p |> add_trace(data = imputed_RF, x = ~.data[[selected_cell]], name='Raw RF data')
-    } else if (selected_data == 'knn') {
-        p |> add_trace(data = imputed_kNN, x = ~.data[[selected_cell]], name='Raw kNN data')
-    }
 })
 ```
 
