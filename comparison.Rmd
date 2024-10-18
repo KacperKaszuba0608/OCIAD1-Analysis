@@ -66,35 +66,88 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
 
     df <- data.frame('prot.IDs'=protein.ids, 'condition'=condition, 'lfq'=lfq_intensity)
 
-    # Calculating number of missing values for each protein
-    number_missing <- df |>
-        dplyr::group_by(prot.IDs) |>
+    # Calculating number of missing values for each protein for each condition
+    number_missing1 <- df |>
+        dplyr::group_by(prot.IDs, condition) |>
         dplyr::summarise(no_NAs = sum(is.na(lfq)))
 
-    missingness <- purrr::map(number_missing$no_NAs, function(no) {
-            if (no == occur) {
-              rep('all_NA', occur)
-            } else if (no == occur-1) {
-              rep('MNAR', occur)
-            } else if (no < occur-1 & no != 0) {
-              rep('MAR', occur)
-            } else {
-              rep('complete', occur)
+    missingness_per_cond <- purrr::map(number_missing1$no_NAs, function(no) {
+            if (no == occur_per_cond) {
+              rep('all_NA', occur_per_cond)
+            } else if (no == occur_per_cond-1) {
+              rep('MAR', occur_per_cond)
+            } else if (no < occur_per_cond-1 & no != 0) {
+              rep('MNAR', occur_per_cond)
+            } else if (no == 0){
+              rep('complete', occur_per_cond)
             }
         })
-    missingness <- data.frame(do.call(c,missingness))
+    missingness_per_cond <- data.frame(do.call(c,missingness_per_cond))
+    
+    # Calculating number of missing values for each protein
+    number_missing2 <- df |>
+        dplyr::group_by(prot.IDs) |>
+        dplyr::summarise(no_NAs = sum(is.na(lfq)))
+    
+    missingness_per_prot <- purrr::map(number_missing2$no_NAs, function(no) {
+            if (no == occur) {
+              rep('all_NA', occur)
+            }else if (no == occur-1) {
+              rep('MAR', occur)
+            } else if (no < occur-1 & no != 0) {
+              rep('MNAR', occur)
+            } else if (no == 0){
+              rep('complete', occur)
+            }
+        }) 
+    missingness_per_prot <- data.frame(do.call(c, missingness_per_prot))
 
-    prot.id.miss <- purrr::map(unique(number_missing$prot.IDs), function(id) rep(id, occur))
+    prot.id.miss <- purrr::map(unique(number_missing2$prot.IDs), function(id) rep(id, occur))
     prot.id.miss <- data.frame(do.call(c,prot.id.miss))
 
-    df_miss <- data.frame(prot.id.miss, missingness)
-    colnames(df_miss) <- c('prot.IDs', 'missingness')
+    df_miss <- data.frame(prot.id.miss, missingness_per_cond, missingness_per_prot)
+    colnames(df_miss) <- c('prot.IDs', 'missingness_per_cond', 'missingness_per_prot')
 
+    missingness_per_cond <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),'missingness_per_cond'])
+    df$missingness_per_cond <- do.call(c,missingness_per_cond)
+    
+    missingness_per_prot <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),'missingness_per_prot'])
+    df$missingness_per_prot <- do.call(c,missingness_per_prot)
+    
+    # Testing new missing assigning
+    test <- df |>
+        dplyr::select(condition, missingness_per_cond) |>
+        tidyr::pivot_wider(id_cols=everything(), names_from = 'condition', 
+                           values_from='missingness_per_cond', values_fn = list) |> 
+        tidyr::unnest(cols = everything())
+    
+    cond_id <- seq(1,nrow(test), by=3)
+    test2 <- test[cond_id,]
+    
+    test3 <- purrr::map(1:nrow(test2), function(i) {
+        if (all(test2[i,] == 'all_NA')) {
+            rep(NA, occur)
+        } else if ((test2[i,1] == 'complete' & test2[i,2] == 'all_NA') | (test2[i,2] == 'complete' & test2[i,1] == 'all_NA')) {
+            rep('MNAR', occur)
+        } else if ((test2[i,1] == 'MAR' & test2[i,2] == 'MNAR') | (test2[i,2] == 'MAR' & test2[i,1] == 'MNAR')) {
+            rep(NA, occur)
+        } else if (all(test2[i,] == 'MAR')) {
+            rep('MAR', occur)
+        } else if (all(test2[i,] == 'MNAR')) {
+            rep('MNAR', occur)
+        } else if (all(test2[i,] == 'complete')) {
+            rep('complete', occur)
+        } else {
+            rep(NA, occur)
+        }
+    })
 
-    missingness <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),'missingness'])
-    df$missingness <- do.call(c,missingness)
-
-    ret_list <- list(df = df, missingness=df$missingness)
+    df$test = do.call(c, test3)
+    
+    # return
+    ret_list <- list(df = df, missingness_per_cond=df$missingness_per_cond,
+                     missingness_per_prot = df$missingness_per_prot, 
+                     test = test, test2 = test2)
 }
 
 ttest <- function(df, grp1, grp2){ 
@@ -358,7 +411,9 @@ df_ml <- df_ml |>
 # changing values with 0 to NA
 df_ml$LFQvalue[df_ml$LFQvalue==0] <- NA
 
-df_ml$missingness <- assign_missing(df_ml$prot.id, df_ml$celltype, df_ml$LFQvalue)$missingness
+missingness <- assign_missing(df_ml$prot.id, df_ml$celltype, df_ml$LFQvalue)
+df_ml$missingness_per_cond <- missingness$missingness_per_cond
+df_ml$missingness_per_prot <- missingness$missingness_per_prot
 
 # removing blank spaces and all separators from colnames
 colnames(df_ml)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq.len',
