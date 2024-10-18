@@ -4076,6 +4076,977 @@ ggarrange(
 )
 ```
 
+## t-test 24th rep out {.tabset}
+
+In this section we calculate the t-test again, but without the 24th replicate.
+
+In our calculations, we tested the following hypothesis:
+
+$H_0$: There is no significant difference between the means of the two groups. <br>
+$H_1$: There is a significant difference between the two population means.
+
+### Raw Data
+
+**Summary** <br>
+The p-value plots show us that we had to normalize the data, because the output
+below doesn't show strong differences between KO and WT cells.
+
+```{r p-value rawdata 24 rep out}
+# prepare data for t-test
+df_24out <- lfq[,-c(3,6)]
+df_24out <- na.omit(df_24out)
+
+# calculate the p-values for our data
+pvalue_24out <- df_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(df_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(df_24out)), 
+                  grp2=grep("WT", colnames(df_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_24out <- ggplot(data = pvalue_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value impdata 24 rep out}
+lfq_imp_24out <- lfq_imp[, -c(3,6)]
+
+# calculate the p-values for our data
+pvalue_imp_24out <- lfq_imp_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lfq_imp_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(lfq_imp_24out)), 
+                  grp2=grep("WT", colnames(lfq_imp_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_imp_24out <- ggplot(data = pvalue_imp_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value RFdata 24 rep out}
+imputed_RF_24out <- imputed_RF[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_RF_24out <- imputed_RF_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_RF_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(imputed_RF_24out)), 
+                  grp2=grep("WT", colnames(imputed_RF_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_RF_24out <- ggplot(data = pvalue_RF_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value kNN data 24 rep out}
+# handling with duplicates
+df_kNN_24out <- df_kNN[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_kNN_24out <- df_kNN_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(df_kNN_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(df_kNN_24out)), 
+                  grp2=grep("WT", colnames(df_kNN_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_kNN_24out <- ggplot(data = pvalue_kNN_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value ludovic data 24 rep out}
+# calculate the p-values for our data
+pvalue_ludovic_24out <- imputed_ludovic[,-c(3,6)] |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_ludovic[,-c(3,6)], 1, ttest, 
+                  grp1=grep("KO", colnames(imputed_ludovic[,-c(3,6)])), 
+                  grp2=grep("WT", colnames(imputed_ludovic[,-c(3,6)])))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_ludovic_24out <- ggplot(data = pvalue_ludovic_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_24out
+```
+
+```{r}
+ggarrange(
+    hist_p_imp_24out,
+    hist_p_RF_24out,
+    hist_p_kNN_24out,
+    hist_p_ludovic_24out,
+    nrow=2,ncol=2
+)
+```
+
+### Z-Score
+
+**Summary** <br>
+The p-value plots look very bad, which means that we have lost whole differences 
+between the samples.
+
+```{r p-value raw data standardization 24 rep out}
+# prepare data for t-test
+standard_df_24out <- standard_df[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_standard_24out <- standard_df_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_24out)), 
+                  grp2=grep("WT", colnames(standard_df_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard_24out <- ggplot(data = pvalue_standard_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value imputed data standardization 24 rep out}
+# prepare data for t-test
+standard_df_imp_24out <- standard_df_imp[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_standard_imp_24out <- standard_df_imp_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_imp_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_imp_24out)), 
+                  grp2=grep("WT", colnames(standard_df_imp_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard_imp_24out <- ggplot(data = pvalue_standard_imp_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value rf data standardization 24 rep out}
+# prepare data for t-test
+standard_df_RF_24out <- standard_df_RF[-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_standard_RF_24out <- standard_df_RF_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_RF_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_RF_24out)), 
+                  grp2=grep("WT", colnames(standard_df_RF_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard_RF_24out <- ggplot(data = pvalue_standard_RF_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value kNN data standardization 24 rep out}
+# prepare data for t-test
+standard_df_kNN_24out <- standard_df_kNN[-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_standard_kNN_24out <- standard_df_kNN_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_kNN_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_kNN_24out)), 
+                  grp2=grep("WT", colnames(standard_df_kNN_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard_kNN_24out <- ggplot(data = pvalue_standard_kNN_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value ludovic data standardization 24 rep out}
+# prepare data for t-test
+standard_df_ludovic_24out <- standard_df_ludovic[-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_standard_ludovic_24out <- standard_df_ludovic_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_ludovic_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_ludovic_24out)), 
+                  grp2=grep("WT", colnames(standard_df_ludovic_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard_ludovic_24out <- ggplot(data = pvalue_standard_ludovic_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_standard
+```
+
+```{r}
+ggarrange(
+    hist_p_standard_imp,
+    hist_p_standard_RF,
+    hist_p_standard_kNN,
+    hist_p_standard_ludovic,
+    nrow=2,ncol=2
+)
+```
+
+### Min-Max
+
+**Summary** <br>
+Again the p-value plots look very bad, which means that we have again lost whole 
+differences between the samples.
+
+```{r p-value raw data minmax 24 rep out}
+# prepare data for t-test
+minmax_df_24out <- minmax_df[-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_minmax_24out <- minmax_df_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_24out)), 
+                  grp2=grep("WT", colnames(minmax_df_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax_24out <- ggplot(data = pvalue_minmax_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value imputed data minmax 24 rep out}
+# prepare data for t-test
+minmax_df_imp_24out <- minmax_df_imp[-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_minmax_imp_24out <- minmax_df_imp_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_imp_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_imp_24out)), 
+                  grp2=grep("WT", colnames(minmax_df_imp_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax_imp_24out <- ggplot(data = pvalue_minmax_imp_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value rf data minmax 24 rep out}
+# prepare data for t-test
+minmax_df_RF_24out <- minmax_df_RF[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_minmax_RF_24out <- minmax_df_RF_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_RF_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_RF_24out)), 
+                  grp2=grep("WT", colnames(minmax_df_RF_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax_RF_24out <- ggplot(data = pvalue_minmax_RF_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value kNN data minmax 24 rep out}
+# prepare data for t-test
+minmax_df_kNN_24out <- minmax_df_kNN[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_minmax_kNN_24out <- minmax_df_kNN_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_kNN_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_kNN_24out)), 
+                  grp2=grep("WT", colnames(minmax_df_kNN_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax_kNN_24out <- ggplot(data = pvalue_minmax_kNN_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value ludovic data minmax 24 rep out}
+# prepare data for t-test
+minmax_df_ludovic_24out <- minmax_df_ludovic[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_minmax_ludovic_24out <- minmax_df_ludovic_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_ludovic_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_ludovic_24out)), 
+                  grp2=grep("WT", colnames(minmax_df_ludovic_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax_ludovic_24out <- ggplot(data = pvalue_minmax_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_minmax_24out
+```
+
+```{r}
+ggarrange(
+    hist_p_minmax_imp_24out,
+    hist_p_minmax_RF_24out,
+    hist_p_minmax_kNN_24out,
+    hist_p_minmax_ludovic_24out,
+    nrow=2,ncol=2
+)
+```
+
+### Median Scaling
+
+**Summary**<br>
+Again the p-value plots look very bad, which means that we have again lost whole 
+differences between the samples.
+
+```{r p-value raw data median 24 rep out}
+# prepare data for t-test
+med_df_24out <- med_df[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_med_24out <- med_df_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df_24out)), 
+                  grp2=grep("WT", colnames(med_df_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med_24out <- ggplot(data = pvalue_med_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value imputed data median 24 rep out}
+# prepare data for t-test
+med_df_imp_24out <- med_df_imp[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_med_imp_24out <- med_df_imp_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_imp_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df_imp_24out)), 
+                  grp2=grep("WT", colnames(med_df_imp_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med_imp_24out <- ggplot(data = pvalue_med_imp_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value rf data median 24 rep out}
+# prepare data for t-test
+med_df_RF_24out <- med_df_RF[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_med_RF_24out <- med_df_RF_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_RF_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df_RF_24out)), 
+                  grp2=grep("WT", colnames(med_df_RF_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med_RF_24out <- ggplot(data = pvalue_med_RF_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value kNN data median 24 rep out}
+# prepare data for t-test
+med_df_kNN_24out <- med_df_kNN[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_med_kNN_24out <- med_df_kNN_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_kNN_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df_kNN_24out)), 
+                  grp2=grep("WT", colnames(med_df_kNN_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med_kNN_24out <- ggplot(data = pvalue_med_kNN_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value ludovic data median 24 rep out}
+# prepare data for t-test
+med_df_ludovic_24out <- med_df_ludovic[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_med_ludovic_24out <- med_df_ludovic_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_ludovic_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df_ludovic_24out)), 
+                  grp2=grep("WT", colnames(med_df_ludovic_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med_ludovic_24out <- ggplot(data = pvalue_med_ludovic_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_med_24out
+```
+
+```{r}
+ggarrange(
+    hist_p_med_imp_24out,
+    hist_p_med_RF_24out,
+    hist_p_med_kNN_24out,
+    hist_p_med_ludovic_24out,
+    nrow=2,ncol=2
+)
+```
+
+### Mad Scaling
+
+**Summary**<br>
+Again the p-value plots look very bad, which means that we have again lost whole 
+differences between the samples.
+
+```{r p-value raw data mad 24 rep out}
+# prepare data for t-test
+mad_df_24out <- mad_df[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_mad_24out <- mad_df_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_24out)), 
+                  grp2=grep("WT", colnames(mad_df_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_mad_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad_24out <- ggplot(data = pvalue_mad_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value imputed data mad 24 rep out}
+# prepare data for t-test
+mad_df_imp_24out <- mad_df_imp[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_mad_imp_24out <- mad_df_imp_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_imp_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_imp_24out)), 
+                  grp2=grep("WT", colnames(mad_df_imp_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_mad_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad_imp_24out <- ggplot(data = pvalue_mad_imp_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value rf data mad 24 rep out}
+# prepare data for t-test
+mad_df_RF_24out <- mad_df_RF[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_mad_RF_24out <- mad_df_RF_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_RF_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_RF_24out)), 
+                  grp2=grep("WT", colnames(mad_df_RF_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_mad_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad_RF_24out <- ggplot(data = pvalue_mad_RF_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value kNN data mad 24 rep out}
+# prepare data for t-test
+mad_df_kNN_24out <- mad_df_kNN[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_mad_kNN_24out <- mad_df_kNN_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_kNN_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_kNN_24out)), 
+                  grp2=grep("WT", colnames(mad_df_kNN_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_mad_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad_kNN_24out <- ggplot(data = pvalue_mad_kNN_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value ludovic data mad 24 rep out}
+# prepare data for t-test
+mad_df_ludovic_24out <- mad_df_ludovic[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_mad_ludovic_24out <- mad_df_ludovic_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_ludovic_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_ludovic_24out)), 
+                  grp2=grep("WT", colnames(mad_df_ludovic_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_mad_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad_ludovic_24out <- ggplot(data = pvalue_mad_ludovic_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_mad_24out
+```
+
+```{r}
+ggarrange(
+    hist_p_mad_imp_24out,
+    hist_p_mad_RF_24out,
+    hist_p_mad_kNN_24out,
+    hist_p_mad_ludovic_24out,
+    nrow=2,ncol=2
+)
+```
+
+### Linear Regression
+
+**Summary**<br>
+Again the p-value plots look very bad, which means that we have again lost whole 
+differences between the samples.
+
+```{r p-value raw data lm24 rep out}
+# prepare data for t-test
+lm_df_24out <- lm_df[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_lm_24out <- lm_df_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_24out)), 
+                  grp2=grep("WT", colnames(lm_df_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm_24out <- ggplot(data = pvalue_lm_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value imputed data lm24 rep out}
+# prepare data for t-test
+lm_df_imp_24out <- lm_df_imp[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_lm_imp_24out <- lm_df_imp_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_imp_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_imp_24out)), 
+                  grp2=grep("WT", colnames(lm_df_imp_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm_imp_24out <- ggplot(data = pvalue_lm_imp_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value rf data lm24 rep out}
+# prepare data for t-test
+lm_df_RF_24out <- lm_df_RF[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_lm_RF_24out <- lm_df_RF_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_RF_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_RF_24out)), 
+                  grp2=grep("WT", colnames(lm_df_RF_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm_RF_24out <- ggplot(data = pvalue_lm_RF_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value kNN data lm24 rep out}
+# prepare data for t-test
+lm_df_kNN_24out <- lm_df_kNN[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_lm_kNN_24out <- lm_df_kNN_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_kNN_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_kNN_24out)), 
+                  grp2=grep("WT", colnames(lm_df_kNN_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm_kNN_24out <- ggplot(data = pvalue_lm_kNN_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value ludovic data lm24 rep out}
+# prepare data for t-test
+lm_df_ludovic_24out <- lm_df_ludovic[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_lm_ludovic_24out <- lm_df_ludovic_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_ludovic_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_ludovic_24out)), 
+                  grp2=grep("WT", colnames(lm_df_ludovic_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm_ludovic_24out <- ggplot(data = pvalue_lm_ludovic_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_lm_24out
+```
+
+```{r}
+ggarrange(
+    hist_p_lm_imp_24out,
+    hist_p_lm_RF_24out,
+    hist_p_lm_kNN_24out,
+    hist_p_lm_ludovic_24out,
+    nrow=2,ncol=2
+)
+```
+
+### VSN
+
+**Summary**<br>
+Again the p-value plots look very bad, which means that we have again lost whole 
+differences between the samples.
+
+```{r p-value raw data vsn 24 rep out}
+# prepare data for t-test
+vsn_df_24out <- vsn_df[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_vsn_24out <- vsn_df_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_24out)), 
+                  grp2=grep("WT", colnames(vsn_df_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn_24out <- ggplot(data = pvalue_vsn_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value imputed data vsn 24 rep out}
+# prepare data for t-test
+vsn_df_imp_24out <- vsn_df_imp[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_vsn_imp_24out <- vsn_df_imp_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_imp_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_imp_24out)), 
+                  grp2=grep("WT", colnames(vsn_df_imp_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn_imp_24out <- ggplot(data = pvalue_vsn_imp_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value rf data vsn 24 rep out}
+# prepare data for t-test
+vsn_df_RF_24out <- vsn_df_RF[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_vsn_RF_24out <- vsn_df_RF_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_RF_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_RF_24out)), 
+                  grp2=grep("WT", colnames(vsn_df_RF_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_RF_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn_RF_24out <- ggplot(data = pvalue_vsn_RF_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value kNN data vsn 24 rep out}
+# prepare data for t-test
+vsn_df_kNN_24out <- vsn_df_kNN[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_vsn_kNN_24out <- vsn_df_kNN_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_kNN_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_kNN_24out)), 
+                  grp2=grep("WT", colnames(vsn_df_kNN_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn_kNN_24out <- ggplot(data = pvalue_vsn_kNN_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value ludovic data vsn 24 rep out}
+# prepare data for t-test
+vsn_df_ludovic_24out <- vsn_df_ludovic[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_vsn_ludovic_24out <- vsn_df_ludovic_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_ludovic_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_ludovic_24out)), 
+                  grp2=grep("WT", colnames(vsn_df_ludovic_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn_ludovic_24out <- ggplot(data = pvalue_vsn_ludovic_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_vsn_24out
+```
+
+```{r}
+ggarrange(
+    hist_p_vsn_imp_24out,
+    hist_p_vsn_RF_24out,
+    hist_p_vsn_kNN_24out,
+    hist_p_vsn_ludovic_24out,
+    nrow=2,ncol=2
+)
+```
+
+### EigenMS
+
+**Summary**<br>
+Finally, we have the expected p-value plots, which means that the EigenMS method 
+again has the best results.
+
+```{r p-value raw data eigen 24 rep out}
+# prepare data for t-test
+eigen_df_24out <- eigen_df[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_eigen_24out <- eigen_df_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_24out)), 
+                  grp2=grep("WT", colnames(eigen_df_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen_24out <- ggplot(data = pvalue_eigen_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value imputed data eigen 24 rep out}
+# prepare data for t-test
+eigen_df_imp_24out <- eigen_df_imp[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_eigen_imp_24out <- eigen_df_imp_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_imp_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_imp_24out)), 
+                  grp2=grep("WT", colnames(eigen_df_imp_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_imp_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen_imp_24out <- ggplot(data = pvalue_eigen_imp_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value rf data eigen 24 rep out}
+# prepare data for t-test
+eigen_df_RF_24out <- eigen_df_RF[,-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_eigen_RF_24out <- eigen_df_RF_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_RF_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_RF_24out)), 
+                  grp2=grep("WT", colnames(eigen_df_RF_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen_RF_24out <- ggplot(data = pvalue_eigen_RF_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value kNN data eigen 24 rep out}
+# The kNN method doesn't work well with imputation. In a few rows 
+# we didn't have a unique value for each sample. Sometimes there was only one 
+# value for all columns and sometimes there were two values, one for KO and the 
+# other for WT. That's why we had to remove duplicates from data.
+
+# prepare data for t-test
+eigen_df_kNN_24out <- eigen_df_kNN[,-c(3,6,7)]
+
+# calculate the p-values for our data
+pvalue_eigen_kNN_24out <- eigen_df_kNN_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_kNN_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_kNN_24out)), 
+                  grp2=grep("WT", colnames(eigen_df_kNN_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_kNN_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen_kNN_24out <- ggplot(data = pvalue_eigen_kNN_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value ludovic data eigen 24 rep out}
+# prepare data for t-test
+eigen_df_ludovic_24out <- eigen_df_ludovic[,c(1:2, 4:5)]
+
+# calculate the p-values for our data
+pvalue_eigen_ludovic_24out <- eigen_df_ludovic_24out |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_ludovic_24out, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_ludovic_24out)), 
+                  grp2=grep("WT", colnames(eigen_df_ludovic_24out)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_ludovic_24out$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen_ludovic_24out <- ggplot(data = pvalue_eigen_ludovic_24out, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_eigen_24out
+```
+
+```{r}
+ggarrange(
+    hist_p_eigen_imp_24out,
+    hist_p_eigen_RF_24out,
+    hist_p_eigen_kNN_24out,
+    hist_p_eigen_ludovic_24out,
+    nrow=2,ncol=2
+)
+```
+
+
 # Fold Change
 
 ## Raw Data {.tabset}
@@ -4609,19 +5580,41 @@ data <- data.frame(
 data[, 3:8][is.na(data[, 3:8])] <- 0
 ```
 
-```{r interactive bar-plot}
+<div style="display: flex;">
+
+<div style="flex: 50%;">
+
+```{r}
 library(plotly)
 # Define user input from a list of genes
 shiny::selectInput("gene", "Select Gene:", choices = unique(data$Gene_Name))
+```
 
+</div>
+
+<div style="flex: 50%;">
+
+```{r}
+# Define the user input of the Y lims
+shiny::sliderInput('bottom_y', "Select the bottom level of the Y axis:", 0, 40, 15)
+shiny::sliderInput('upper_y', "Select the upper level of the Y axis:", 0, 40, 30)
+```
+
+</div>
+
+</div>
+
+```{r interactive bar-plot}
 # Creating output with interactive bar plot
 output$genePlot <- renderPlotly({
   selected_gene <- input$gene
+  bottom_y <- input$bottom_y
+  upper_y <- input$upper_y
 
   # Filter data for selected gene
   filtered_data <- data |>
       dplyr::filter(Gene_Name == selected_gene)
-
+  
   # Create the plot
   plot_ly(data = filtered_data, type = "bar") |>
       add_trace(x = ~Batch, y = ~Raw, name = 'Raw') |>
@@ -4633,13 +5626,44 @@ output$genePlot <- renderPlotly({
       layout(
       title = paste("Scatter Plot for Gene:", selected_gene),
       xaxis = list(title = NULL),
-      yaxis = list(title = "LFQ Values")
+      yaxis = list(title = "LFQ Values", range = c(bottom_y,upper_y))
       )
 })
 ```
 
 ```{r show bar-plot}
 plotlyOutput("genePlot")
+```
+
+```{r interactive bar-plot unlogged}
+# Creating output with interactive bar plot
+output$genePlotunlogged <- renderPlotly({
+  selected_gene <- input$gene
+
+  # Filter data for selected gene
+  filtered_data <- data |>
+      dplyr::filter(Gene_Name == selected_gene)
+  filtered_data[,3:8] <- 2^filtered_data[,3:8]
+  filtered_data[filtered_data == 1] <- 0
+  
+  # Create the plot
+  plot_ly(data = filtered_data, type = "bar") |>
+      add_trace(x = ~Batch, y = ~Raw, name = 'Raw') |>
+      add_trace(x = ~Batch, y = ~Eigen.Raw, name = 'Eigen Raw') |>
+      add_trace(x = ~Batch, y = ~RF, name = 'RF') |>
+      add_trace(x = ~Batch, y = ~Eigen.RF, name = 'Eigen RF') |>
+      add_trace(x = ~Batch, y = ~Ludovic, name = 'Ludovic') |>
+      add_trace(x = ~Batch, y = ~Eigen.Ludovic, name = 'Eigen Ludovic') |>
+      layout(
+      title = paste("Scatter Plot for Gene:", selected_gene, '- unlogged data'),
+      xaxis = list(title = NULL),
+      yaxis = list(title = "LFQ Values")
+      )
+})
+```
+
+```{r show bar-plot unlogded}
+plotlyOutput("genePlotunlogged")
 ```
 
 # Conclusion
