@@ -16,26 +16,22 @@ css: document_style.css
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", fig.keep = "all", echo=FALSE)
 
-if (!require("randomForest", quietly = TRUE))
-    install.packages("randomForest")
-if (!require("caret", quietly = TRUE))
-    install.packages("caret")
-if (!require('pcaMethods', quietly = TRUE))
-    install.packages('pcaMethods')
-if (!require('DT', quietly = TRUE))
-    install.packages('DT')
-if (!require('ggpubr', quietly = TRUE))
-    install.packages('ggpubr')
-if (!require('ggplot2', quietly = TRUE))
-    install.packages('ggplot2')
-if (!require('dplyr', quietly = TRUE))
-    install.packages('dplyr')
-if (!require('tidyr', quietly = TRUE))
-    install.packages('tidyr')
-if (!require('vsn', quietly = TRUE))
-    install.packages('vsn')
-if (!require('plotly', quietly = TRUE))
-    install.packages('plotly')
+# if (!require("caret", quietly = TRUE))
+#     install.packages("caret")
+# if (!require('DT', quietly = TRUE))
+#     install.packages('DT')
+# if (!require('ggpubr', quietly = TRUE))
+#     install.packages('ggpubr')
+# if (!require('ggplot2', quietly = TRUE))
+#     install.packages('ggplot2')
+# if (!require('dplyr', quietly = TRUE))
+#     install.packages('dplyr')
+# if (!require('tidyr', quietly = TRUE))
+#     install.packages('tidyr')
+# if (!require('vsn', quietly = TRUE))
+#     install.packages('vsn')
+# if (!require('plotly', quietly = TRUE))
+#     install.packages('plotly')
 
 show_cv_table <- function(df) {
     DT::datatable(df, rownames = FALSE, 
@@ -207,6 +203,7 @@ library(dplyr)
 library(tidyr)
 library(vsn)
 library(protti)
+library(plotly)
 source('EigenMS/EigenMS/EigenMS.R')
 
 writeLines('table {
@@ -421,14 +418,16 @@ colnames(df_ml)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq.len',
 
 # Remove unnecessary columns and reordering columns
 df_ml.to.models <- df_ml |>
-    dplyr::select(-prot.id, -Sample, -sampletype) |> dplyr::select(1:10, 12, 11) |>
-    dplyr::mutate(missingness = as.numeric(as.factor(missingness)),
+    dplyr::select(-prot.id, -Sample, -sampletype) |> dplyr::select(1:10, 12, 13, 11) |>
+    dplyr::mutate(missingness_per_prot = as.numeric(as.factor(missingness_per_prot)),
+                  missingness_per_cond = as.numeric(as.factor(missingness_per_cond)),
                   celltype = as.numeric(celltype),
                   rep = as.numeric(rep))
 
 df_ml <- df_ml |>
-    dplyr::select(-prot.id, -Sample) |> dplyr::select(1:11, 13, 12) |>
-    dplyr::mutate(missingness = as.factor(missingness))
+    dplyr::select(-prot.id, -Sample) |> dplyr::select(1:11, 13, 14, 12) |>
+    dplyr::mutate(missingness_per_prot = as.factor(missingness_per_prot),
+                  missingness_per_cond = as.factor(missingness_per_cond))
 ```
 
 ```{r data to protti}
@@ -476,7 +475,7 @@ predictions <- predict(rf.model, df_ml.to.models[missing,])
 
 # data frame with predicted LFQ values by random forest model
 imputed_RF <- df_ml
-imputed_RF[missing,13] <- predictions$predictions
+imputed_RF[missing,14] <- predictions$predictions
 imputed_RF <- imputed_RF |>
     dplyr::select(celltype, rep, LFQvalue) |>
     dplyr::mutate('Batch' = paste(celltype, rep, sep='.'),
@@ -499,7 +498,7 @@ predictions2 <- predict(kNN.model, df_ml.to.models[missing,1:12])
 
 # data frame with predicted LFQ values by random forest model
 imputed_kNN <- df_ml
-imputed_kNN[missing,13] <- predictions2
+imputed_kNN[missing,14] <- predictions2
 imputed_kNN <- imputed_kNN |>
     dplyr::select(celltype, rep, LFQvalue) |>
     dplyr::mutate('Batch' = paste(celltype, rep, sep='.'),
@@ -3167,7 +3166,7 @@ below doesn't show strong differences between KO and WT cells.
 
 ```{r p-value raw data}
 # prepare data for t-test
-df <- lfq
+df <- lfq[,1:6]
 df <- na.omit(df)
 
 # calculate the p-values for our data
@@ -5101,499 +5100,6 @@ ggarrange(
 )
 ```
 
-
-# Fold Change
-
-## Raw Data {.tabset}
-
-### Non-Imputed
-
-```{r fc raw data}
-# Preparing data for calculations
-lfq <- cbind.data.frame(lfq, protein.ids=protein.groups$`Protein IDs`)
-lfq_long <- lfq |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
-
-# Add a new column with groups KO or WT
-lfq_long$group <- 'TOTALS_OCIAD1_KO'
-lfq_long$group[grep('WT',lfq_long$sample)] <- 'TOTALS_OCIAD1_WT'
-
-# Calculation of means for groups KO and WT
-means <- lfq_long |>
-  dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
-
-means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
-    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
-
-# Preparing data for volcano plot
-FC <- merge(means, lfq)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
-
-to_volcano <- merge(FC,pvalue)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
-                                       yes = TRUE, no = FALSE)
-```
-
-```{r v1}
-# plotting the volcano plot
-v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
-    geom_point() +
-    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
-    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Non-Imputed Data', x='log2(fold change)', color='Significance', y='-log10(p-value)') +
-    theme_bw()
-
-# add interactive labels
-plotly::ggplotly(v, tooltip = c('label'))
-```
-
-### Mati Code
-
-```{r fc imp data}
-# Preparing data for calculations
-lfq_imp <- cbind.data.frame(lfq_imp, protein.ids=protein.groups$`Protein IDs`)
-lfq_long_imp <- lfq_imp |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
-
-# Add a new column with groups KO or WT
-lfq_long_imp$group <- 'TOTALS_OCIAD1_KO'
-lfq_long_imp$group[grep('WT',lfq_long_imp$sample)] <- 'TOTALS_OCIAD1_WT'
-
-# Calculation of means for groups KO and WT
-means <- lfq_long_imp |>
-    dplyr::group_by(group, protein.ids) |>
-    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
-
-means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
-    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
-
-# Preparing data for volcano plot
-FC <- merge(means, lfq_imp)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
-
-to_volcano <- merge(FC,pvalue_imp)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
-                                       yes = TRUE, no = FALSE)
-```
-
-```{r v2}
-# plotting the volcano plot
-v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
-    geom_point() +
-    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
-    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - Mati Code', x='log2(fold change)', color='Significance', y='-log10(p-value)') +
-    theme_bw()
-
-# add interactive labels
-plotly::ggplotly(v, tooltip = c('label'))
-```
-
-### Random Forest
-
-```{r fc RF data}
-# Preparing data for calculations
-imputed_RF <- cbind.data.frame(imputed_RF, protein.ids=protein.groups$`Protein IDs`)
-imputed_long_RF <- imputed_RF |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
-
-# Add a new column with groups KO or WT
-imputed_long_RF$group <- 'TOTALS_OCIAD1_KO'
-imputed_long_RF$group[grep('WT',imputed_long_RF$sample)] <- 'TOTALS_OCIAD1_WT'
-
-# Calculation of means for groups KO and WT
-means <- imputed_long_RF |>
-    dplyr::group_by(group, protein.ids) |>
-    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
-
-means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
-    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
-
-# Add a type of missing to the data frame with means for groups KO and WT 
-means$missingness <- df_ml$missingness[seq(1, nrow(imputed_long_RF), by=6)]
-
-# Preparing data for volcano plot
-FC <- merge(means, imputed_RF)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
-
-to_volcano <- merge(FC, pvalue_RF)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
-                                       yes = TRUE, no = FALSE)
-```
-
-```{r v3}
-# Plotting the volcano plot
-v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
-    geom_point() +
-    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
-    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - Random Forest', 
-         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-    theme_bw()
-
-# Add interactive labels
-plotly::ggplotly(v, tooltip = c('label', 'color'))
-```
-
-### k-Nearest Neighbors
-
-```{r fc kNN data}
-# Preparing data for calculations
-imputed_kNN <- cbind.data.frame(imputed_kNN, protein.ids=protein.groups$`Protein IDs`)
-imputed_kNN <- imputed_kNN[-duplicates,]
-imputed_long_kNN <- imputed_kNN |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
-
-# Add a new column with groups KO or WT
-imputed_long_kNN$group <- 'TOTALS_OCIAD1_KO'
-imputed_long_kNN$group[grep('WT',imputed_long_kNN$sample)] <- 'TOTALS_OCIAD1_WT'
-
-# Calculation of means for groups KO and WT
-means <- imputed_long_kNN |>
-    dplyr::group_by(group, protein.ids) |>
-    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
-
-means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
-    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
-
-# Extracting a type of missing 
-miss_type_kNN <- df_ml |> 
-    dplyr::mutate(row = rep(1:nrow(imputed_RF), each=6)) |>
-    dplyr::mutate(group = paste(celltype, sampletype, rep, sep='_')) |>
-    reshape2::dcast(row ~ group, value.var='missingness') |>
-    dplyr::select(-row) |>
-    dplyr::mutate(missingness = KO_TOTALS_22) |> dplyr::select(missingness)
-
-# Add a type of missing to the data frame with means for groups KO and WT 
-means$missingness <- miss_type_kNN[-duplicates,]
-
-# Preparing data for volcano plot
-FC <- merge(means, imputed_kNN)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[-duplicates])
-
-to_volcano <- merge(FC, pvalue_kNN)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
-                                       yes = TRUE, no = FALSE)
-```
-
-```{r v4}
-# Plotting the volcano plot
-v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
-    geom_point() +
-    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
-    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
-         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-    theme_bw()
-
-# Add interactive labels
-plotly::ggplotly(v, tooltip = c('label', 'color'))
-```
-
-### Ludovic
-
-```{r fc ludovic data}
-# extract protein ids, to be sure that we get good rows
-imputed_prots <-  as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
-
-# Preparing data for calculations
-imputed_ludovic <- cbind.data.frame(imputed_ludovic, 
-                                    protein.ids=protein.groups$`Protein IDs`[imputed_prots])
-imputed_long_ludovic <- imputed_ludovic |>
-    tidyr::pivot_longer(3:8, names_to = 'sample', values_to = 'LFQvalue')
-
-# Add a new column with groups KO or WT
-imputed_long_ludovic$group <- 'TOTALS_OCIAD1_KO'
-imputed_long_ludovic$group[grep('WT',imputed_long_ludovic$sample)] <- 'TOTALS_OCIAD1_WT'
-
-# Calculation of means for groups KO and WT
-means <- imputed_long_ludovic |>
-    dplyr::group_by(group, protein.ids) |>
-    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
-
-means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
-    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
-
-# Preparing data for volcano plot
-FC <- merge(means, imputed_ludovic)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[imputed_prots])
-
-to_volcano <- merge(FC, pvalue_ludovic, by='Protein IDs')
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
-                                       yes = TRUE, no = FALSE)
-```
-
-```{r v5}
-# Plotting the volcano plot
-v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness.x)) + 
-    geom_point() +
-    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
-    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - Ludovic', 
-         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-    theme_bw()
-
-# Add interactive labels
-plotly::ggplotly(v, tooltip = c('label', 'color'))
-```
-
-## EigenMS {.tabset}
-
-### Non-Imputed
-
-```{r fc eigen raw data}
-# extract protein ids, to be sure that we get good rows
-eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df)))
-
-# Preparing data for calculations
-eigen_df <- cbind.data.frame(eigen_df, protein.ids=protein.groups$`Protein IDs`[eig_prots])
-eigen_df_long <- eigen_df |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
-
-# Add a new column with groups KO or WT
-eigen_df_long$group <- 'TOTALS_OCIAD1_KO'
-eigen_df_long$group[grep('WT',eigen_df_long$sample)] <- 'TOTALS_OCIAD1_WT'
-
-# Calculation of means for groups KO and WT
-means <- eigen_df_long |>
-  dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
-
-means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
-    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
-
-# Preparing data for volcano plot
-FC <- merge(means, eigen_df)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
-
-to_volcano <- merge(FC,pvalue_eigen)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
-                                       yes = TRUE, no = FALSE)
-```
-
-```{r v1 eigen}
-# plotting the volcano plot
-v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
-    geom_point() +
-    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
-    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Non-Imputed Data', 
-         x='log2(fold change)', color='Significance', y='-log10(p-value)') +
-    theme_bw()
-
-# add interactive labels
-plotly::ggplotly(v, tooltip = c('label'))
-```
-
-### Mati Code
-
-```{r fc eigen imp data}
-# extract protein ids, to be sure that we get good rows
-eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_imp)))
-
-# Preparing data for calculations
-eigen_df_imp <- cbind.data.frame(eigen_df_imp, protein.ids=protein.groups$`Protein IDs`[eig_prots])
-eigen_df_long_imp <- eigen_df_imp |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
-
-# Add a new column with groups KO or WT
-eigen_df_long_imp$group <- 'TOTALS_OCIAD1_KO'
-eigen_df_long_imp$group[grep('WT',eigen_df_long_imp$sample)] <- 'TOTALS_OCIAD1_WT'
-
-# Calculation of means for groups KO and WT
-means <- eigen_df_long_imp |>
-  dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
-
-means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
-    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
-
-# Preparing data for volcano plot
-FC <- merge(means, eigen_df_imp)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
-
-to_volcano <- merge(FC, pvalue_eigen_imp)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
-                                       yes = TRUE, no = FALSE)
-```
-
-```{r v2 eigen}
-# plotting the volcano plot
-v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
-    geom_point() +
-    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
-    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - Mati Code', 
-         x='log2(fold change)', color='Significance', y='-log10(p-value)') +
-    theme_bw()
-
-# add interactive labels
-plotly::ggplotly(v, tooltip = c('label'))
-```
-
-### Random Forest
-
-```{r fc eigen RF data}
-# extract protein ids, to be sure that we get good rows
-eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_RF)))
-
-# Preparing data for calculations
-eigen_df_RF <- cbind.data.frame(eigen_df_RF, protein.ids=protein.groups$`Protein IDs`[eig_prots])
-eigen_df_long_RF <- eigen_df_RF |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
-
-# Add a new column with groups KO or WT
-eigen_df_long_RF$group <- 'TOTALS_OCIAD1_KO'
-eigen_df_long_RF$group[grep('WT',eigen_df_long_RF$sample)] <- 'TOTALS_OCIAD1_WT'
-
-# Calculation of means for groups KO and WT
-means <- eigen_df_long_RF |>
-  dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
-
-means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
-    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
-
-# Add a type of missing to the data frame with means for groups KO and WT 
-means$missingness <- df_ml$missingness[seq(1, nrow(eigen_df_long_RF), by=6)]
-
-# Preparing data for volcano plot
-FC <- merge(means, eigen_df_RF)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
-
-to_volcano <- merge(FC, pvalue_eigen_RF)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
-                                       yes = TRUE, no = FALSE)
-```
-
-```{r v3 eigen}
-# Plotting the volcano plot
-v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
-    geom_point() +
-    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
-    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - Random Forest', 
-         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-    theme_bw()
-
-# Add interactive labels
-plotly::ggplotly(v, tooltip = c('label', 'color'))
-```
-
-### k-Nearest Neighbors
-
-```{r fc eigen kNN data}
-# extract protein ids, to be sure that we get good rows
-eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_kNN)))
-
-# Preparing data for calculations
-eigen_df_kNN <- cbind.data.frame(eigen_df_kNN, protein.ids=protein.groups$`Protein IDs`[eig_prots])
-eigen_df_long_kNN <- eigen_df_kNN |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
-
-# Add a new column with groups KO or WT
-eigen_df_long_kNN$group <- 'TOTALS_OCIAD1_KO'
-eigen_df_long_kNN$group[grep('WT',eigen_df_long_kNN$sample)] <- 'TOTALS_OCIAD1_WT'
-
-# Calculation of means for groups KO and WT
-means <- eigen_df_long_kNN |>
-  dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
-
-means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
-    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
-
-# Add a type of missing to the data frame with means for groups KO and WT 
-means$missingness <- miss_type_kNN[-duplicates,]
-
-# Preparing data for volcano plot
-FC <- merge(means, eigen_df_kNN)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
-
-to_volcano <- merge(FC, pvalue_eigen_kNN)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
-                                       yes = TRUE, no = FALSE)
-```
-
-```{r v4 eigen}
-# Plotting the volcano plot
-v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
-    geom_point() +
-    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
-    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
-         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-    theme_bw()
-
-# Add interactive labels
-plotly::ggplotly(v, tooltip = c('label', 'color'))
-```
-
-### Ludovic
-
-```{r fc eigen ludovic data}
-# extract protein ids, to be sure that we get good rows
-eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_ludovic)))
-
-# Preparing data for calculations
-eigen_df_ludovic <- cbind.data.frame(eigen_df_ludovic, 
-                                     protein.ids=protein.groups$`Protein IDs`[eig_prots], 
-                                     missingness=imputed_ludovic$missingness)
-eigen_df_long_ludovic <- eigen_df_ludovic |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
-
-# Add a new column with groups KO or WT
-eigen_df_long_ludovic$group <- 'TOTALS_OCIAD1_KO'
-eigen_df_long_ludovic$group[grep('WT',eigen_df_long_ludovic$sample)] <- 'TOTALS_OCIAD1_WT'
-
-# Calculation of means for groups KO and WT
-means <- eigen_df_long_ludovic |>
-  dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
-
-means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
-    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
-
-# Preparing data for volcano plot
-FC <- merge(means, eigen_df_ludovic)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
-
-to_volcano <- merge(FC, pvalue_eigen_ludovic)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
-                                       yes = TRUE, no = FALSE)
-```
-
-```{r v5 eigen}
-# Plotting the volcano plot
-v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                 shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
-    geom_point() +
-    geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
-    geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-    labs(title='Volcano plot for Imputed Data - Ludovic', 
-         x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-    theme_bw()
-
-# Add interactive labels
-plotly::ggplotly(v, tooltip = c('label', 'color'))
-```
-
 # Raw VS Normalized
 
 ```{r}
@@ -5640,7 +5146,6 @@ data[, 3:8][is.na(data[, 3:8])] <- 0
 <div style="flex: 50%;">
 
 ```{r}
-library(plotly)
 # Define user input from a list of genes
 shiny::selectInput("gene", "Select Gene:", choices = unique(data$Gene_Name))
 ```
@@ -5719,6 +5224,571 @@ output$genePlotunlogged <- renderPlotly({
 
 ```{r show bar-plot unlogded}
 plotlyOutput("genePlotunlogged")
+```
+
+# Fold Change
+
+## Raw Data {.tabset}
+
+### Non-Imputed
+
+```{r fc raw data}
+# Preparing data for calculations
+lfq <- cbind.data.frame(lfq, protein.ids=protein.groups$`Protein IDs`)
+lfq_long <- lfq |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+lfq_long$group <- 'TOTALS_OCIAD1_KO'
+lfq_long$group[grep('WT',lfq_long$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- lfq_long |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, lfq)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
+
+to_volcano <- merge(FC,pvalue)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v1}
+# plotting the volcano plot
+output$V1 <- renderPlotly({
+    selected_gene <- input$gene
+    
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+        geom_point() +
+        geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+        geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+        labs(title='Volcano plot for Non-Imputed Data', x='log2(fold change)', color='Significance', y='-log10(p-value)') +
+        theme_bw() +
+        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    
+    # add interactive labels
+    plotly::ggplotly(v, tooltip = c('label'))
+    
+})
+
+plotlyOutput('V1')
+```
+
+### Mati Code
+
+```{r fc imp data}
+# Preparing data for calculations
+lfq_imp <- cbind.data.frame(lfq_imp, protein.ids=protein.groups$`Protein IDs`)
+lfq_long_imp <- lfq_imp |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+lfq_long_imp$group <- 'TOTALS_OCIAD1_KO'
+lfq_long_imp$group[grep('WT',lfq_long_imp$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- lfq_long_imp |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, lfq_imp)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
+
+to_volcano <- merge(FC,pvalue_imp)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v2}
+# plotting the volcano plot
+output$V2 <- renderPlotly({
+    selected_gene <- input$gene
+    
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+        geom_point() +
+        geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+        geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+        labs(title='Volcano plot for Imputed Data - Mati Code', x='log2(fold change)', color='Significance', y='-log10(p-value)') +
+        theme_bw() +
+        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    
+    # add interactive labels
+    plotly::ggplotly(v, tooltip = c('label'))
+})
+
+plotlyOutput('V2')
+```
+
+### Random Forest
+
+```{r fc RF data}
+# Preparing data for calculations
+imputed_RF <- cbind.data.frame(imputed_RF, protein.ids=protein.groups$`Protein IDs`)
+imputed_long_RF <- imputed_RF |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+imputed_long_RF$group <- 'TOTALS_OCIAD1_KO'
+imputed_long_RF$group[grep('WT',imputed_long_RF$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- imputed_long_RF |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Add a type of missing to the data frame with means for groups KO and WT 
+means$missingness <- df_ml$missingness[seq(1, nrow(imputed_long_RF), by=6)]
+
+# Preparing data for volcano plot
+FC <- merge(means, imputed_RF)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
+
+to_volcano <- merge(FC, pvalue_RF)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v3}
+# Plotting the volcano plot
+
+output$V3 <- renderPlotly({
+    selected_gene <- input$gene
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+        geom_point() +
+        geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+        geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+        labs(title='Volcano plot for Imputed Data - Random Forest', 
+             x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+        theme_bw() +
+        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    
+    # Add interactive labels
+    plotly::ggplotly(v, tooltip = c('label', 'color'))
+})
+
+plotlyOutput('V3')
+```
+
+### k-Nearest Neighbors
+
+```{r fc kNN data}
+# Preparing data for calculations
+imputed_kNN <- cbind.data.frame(imputed_kNN, protein.ids=protein.groups$`Protein IDs`)
+imputed_kNN <- imputed_kNN[-duplicates,]
+imputed_long_kNN <- imputed_kNN |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+imputed_long_kNN$group <- 'TOTALS_OCIAD1_KO'
+imputed_long_kNN$group[grep('WT',imputed_long_kNN$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- imputed_long_kNN |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Extracting a type of missing 
+miss_type_kNN <- df_ml |> 
+    dplyr::mutate(row = rep(1:nrow(imputed_RF), each=6)) |>
+    dplyr::mutate(group = paste(celltype, sampletype, rep, sep='_')) |>
+    reshape2::dcast(row ~ group, value.var='missingness') |>
+    dplyr::select(-row) |>
+    dplyr::mutate(missingness = KO_TOTALS_22) |> dplyr::select(missingness)
+
+# Add a type of missing to the data frame with means for groups KO and WT 
+means$missingness <- miss_type_kNN[-duplicates,]
+
+# Preparing data for volcano plot
+FC <- merge(means, imputed_kNN)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[-duplicates])
+
+to_volcano <- merge(FC, pvalue_kNN)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v4}
+# Plotting the volcano plot
+output$V4 <- renderPlotly({
+    selected_gene <- input$gene
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+        geom_point() +
+        geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+        geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+        labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+             x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+        theme_bw() +
+        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    
+    # Add interactive labels
+    plotly::ggplotly(v, tooltip = c('label', 'color'))
+})
+
+plotlyOutput('V4')
+```
+
+### Ludovic
+
+```{r fc ludovic data}
+# extract protein ids, to be sure that we get good rows
+imputed_prots <-  as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
+
+# Preparing data for calculations
+imputed_ludovic <- cbind.data.frame(imputed_ludovic, 
+                                    protein.ids=protein.groups$`Protein IDs`[imputed_prots])
+imputed_long_ludovic <- imputed_ludovic |>
+    tidyr::pivot_longer(3:8, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+imputed_long_ludovic$group <- 'TOTALS_OCIAD1_KO'
+imputed_long_ludovic$group[grep('WT',imputed_long_ludovic$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- imputed_long_ludovic |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, imputed_ludovic)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[imputed_prots])
+
+to_volcano <- merge(FC, pvalue_ludovic, by='Protein IDs')
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v5}
+# Plotting the volcano plot
+output$V5 <- renderPlotly({
+    selected_gene <- input$gene
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness.x)) + 
+        geom_point() +
+        geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+        geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+        labs(title='Volcano plot for Imputed Data - Ludovic', 
+             x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+        theme_bw() +
+        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    
+    # Add interactive labels
+    plotly::ggplotly(v, tooltip = c('label', 'color'))
+})
+plotlyOutput('V5')
+```
+
+## EigenMS {.tabset}
+
+### Non-Imputed
+
+```{r fc eigen raw data}
+# extract protein ids, to be sure that we get good rows
+eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df)))
+
+# Preparing data for calculations
+eigen_df <- cbind.data.frame(eigen_df, protein.ids=protein.groups$`Protein IDs`[eig_prots])
+eigen_df_long <- eigen_df |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+eigen_df_long$group <- 'TOTALS_OCIAD1_KO'
+eigen_df_long$group[grep('WT',eigen_df_long$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- eigen_df_long |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, eigen_df)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
+
+to_volcano <- merge(FC,pvalue_eigen)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v1 eigen}
+# plotting the volcano plot
+output$V1eig <- renderPlotly({
+    selected_gene <- input$gene
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+        geom_point() +
+        geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+        geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+        labs(title='Volcano plot for Non-Imputed Data', 
+             x='log2(fold change)', color='Significance', y='-log10(p-value)') +
+        theme_bw() +
+        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    
+    # add interactive labels
+    plotly::ggplotly(v, tooltip = c('label'))
+})
+
+plotlyOutput('V1eig')
+```
+
+### Mati Code
+
+```{r fc eigen imp data}
+# extract protein ids, to be sure that we get good rows
+eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_imp)))
+
+# Preparing data for calculations
+eigen_df_imp <- cbind.data.frame(eigen_df_imp, protein.ids=protein.groups$`Protein IDs`[eig_prots])
+eigen_df_long_imp <- eigen_df_imp |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+eigen_df_long_imp$group <- 'TOTALS_OCIAD1_KO'
+eigen_df_long_imp$group[grep('WT',eigen_df_long_imp$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- eigen_df_long_imp |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, eigen_df_imp)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
+
+to_volcano <- merge(FC, pvalue_eigen_imp)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v2 eigen}
+# plotting the volcano plot
+output$V2eig <- renderPlotly({
+    selected_gene <- input$gene
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+        geom_point() +
+        geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+        geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+        labs(title='Volcano plot for Imputed Data - Mati Code', 
+             x='log2(fold change)', color='Significance', y='-log10(p-value)') +
+        theme_bw() +
+        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    
+    # add interactive labels
+    plotly::ggplotly(v, tooltip = c('label'))
+})
+
+plotlyOutput('V2eig')
+```
+
+### Random Forest
+
+```{r fc eigen RF data}
+# extract protein ids, to be sure that we get good rows
+eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_RF)))
+
+# Preparing data for calculations
+eigen_df_RF <- cbind.data.frame(eigen_df_RF, protein.ids=protein.groups$`Protein IDs`[eig_prots])
+eigen_df_long_RF <- eigen_df_RF |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+eigen_df_long_RF$group <- 'TOTALS_OCIAD1_KO'
+eigen_df_long_RF$group[grep('WT',eigen_df_long_RF$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- eigen_df_long_RF |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Add a type of missing to the data frame with means for groups KO and WT 
+means$missingness <- df_ml$missingness[seq(1, nrow(eigen_df_long_RF), by=6)]
+
+# Preparing data for volcano plot
+FC <- merge(means, eigen_df_RF)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
+
+to_volcano <- merge(FC, pvalue_eigen_RF)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v3 eigen}
+# Plotting the volcano plot
+output$V3eig <- renderPlotly({
+    selected_gene <- input$gene
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+        geom_point() +
+        geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+        geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+        labs(title='Volcano plot for Imputed Data - Random Forest', 
+             x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+        theme_bw() +
+        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    
+    # Add interactive labels
+    plotly::ggplotly(v, tooltip = c('label', 'color'))
+})
+
+plotlyOutput('V3eig')
+```
+
+### k-Nearest Neighbors
+
+```{r fc eigen kNN data}
+# extract protein ids, to be sure that we get good rows
+eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_kNN)))
+
+# Preparing data for calculations
+eigen_df_kNN <- cbind.data.frame(eigen_df_kNN, protein.ids=protein.groups$`Protein IDs`[eig_prots])
+eigen_df_long_kNN <- eigen_df_kNN |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+eigen_df_long_kNN$group <- 'TOTALS_OCIAD1_KO'
+eigen_df_long_kNN$group[grep('WT',eigen_df_long_kNN$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- eigen_df_long_kNN |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Add a type of missing to the data frame with means for groups KO and WT 
+means$missingness <- miss_type_kNN[-duplicates,]
+
+# Preparing data for volcano plot
+FC <- merge(means, eigen_df_kNN)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
+
+to_volcano <- merge(FC, pvalue_eigen_kNN)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v4 eigen}
+# Plotting the volcano plot
+output$V4eig <- renderPlotly({
+    selected_gene <_ input$gene
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+        geom_point() +
+        geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+        geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+        labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
+             x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+        theme_bw() +
+        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    
+    # Add interactive labels
+    plotly::ggplotly(v, tooltip = c('label', 'color'))
+})
+
+plotlyOutput('V4eig')
+```
+
+### Ludovic
+
+```{r fc eigen ludovic data}
+# extract protein ids, to be sure that we get good rows
+eig_prots <- as.numeric(gsub('prot_', '',rownames(eigen_df_ludovic)))
+
+# Preparing data for calculations
+eigen_df_ludovic <- cbind.data.frame(eigen_df_ludovic, 
+                                     protein.ids=protein.groups$`Protein IDs`[eig_prots], 
+                                     missingness=imputed_ludovic$missingness)
+eigen_df_long_ludovic <- eigen_df_ludovic |>
+    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+eigen_df_long_ludovic$group <- 'TOTALS_OCIAD1_KO'
+eigen_df_long_ludovic$group[grep('WT',eigen_df_long_ludovic$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- eigen_df_long_ludovic |>
+  dplyr::group_by(group, protein.ids) |>
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+# Preparing data for volcano plot
+FC <- merge(means, eigen_df_ludovic)
+FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
+
+to_volcano <- merge(FC, pvalue_eigen_ludovic)
+to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v5 eigen}
+# Plotting the volcano plot
+output$V5eig <- renderPlotly({
+    selected_gene <- input$gene
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+        geom_point() +
+        geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
+        geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
+        labs(title='Volcano plot for Imputed Data - Ludovic', 
+             x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
+        theme_bw() +
+        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    
+    # Add interactive labels
+    plotly::ggplotly(v, tooltip = c('label', 'color'))
+})
+
+plotlyOutput('V5eig')
 ```
 
 # Conclusion
