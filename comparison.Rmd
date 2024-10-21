@@ -5254,9 +5254,9 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
 FC <- merge(means, lfq)
 FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
 
-to_volcano <- merge(FC,pvalue)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+to_volcano1 <- merge(FC,pvalue)
+to_volcano1$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano1$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano1$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
 ```
 
@@ -5264,16 +5264,27 @@ to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
 # plotting the volcano plot
 output$V1 <- renderPlotly({
     selected_gene <- input$gene
+    selected_row <- which(to_volcano1$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano1 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano1[-selected_row,]
+    } else {
+        to_volcano <- to_volcano1
+    }
     
-    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                     color=sig_TOTALS_OCIAD1, label=gene)) + 
         geom_point() +
         geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
         geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-        labs(title='Volcano plot for Non-Imputed Data', x='log2(fold change)', color='Significance', y='-log10(p-value)') +
-        theme_bw() +
-        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
-                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+        labs(title='Volcano plot for Non-Imputed Data', x='log2(fold change)', 
+             color='Significance', y='-log10(p-value)') +
+        theme_bw()
     
+    if (length(selected_row) != 0) {
+        v + geom_point(data = sel_gene_data, 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    }
     # add interactive labels
     plotly::ggplotly(v, tooltip = c('label'))
     
@@ -5306,9 +5317,9 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
 FC <- merge(means, lfq_imp)
 FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
 
-to_volcano <- merge(FC,pvalue_imp)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+to_volcano2 <- merge(FC,pvalue_imp)
+to_volcano2$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano2$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano2$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
 ```
 
@@ -5316,16 +5327,27 @@ to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
 # plotting the volcano plot
 output$V2 <- renderPlotly({
     selected_gene <- input$gene
+    selected_row <- which(to_volcano2$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano2 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano2[-selected_row,]
+    } else {
+        to_volcano <- to_volcano2
+    }
     
-    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                                     color=sig_TOTALS_OCIAD1, label=gene)) + 
         geom_point() +
         geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
         geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
-        labs(title='Volcano plot for Imputed Data - Mati Code', x='log2(fold change)', color='Significance', y='-log10(p-value)') +
-        theme_bw() +
-        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
-                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+        labs(title='Volcano plot for Imputed Data - Mati Code', x='log2(fold change)', 
+             color='Significance', y='-log10(p-value)') +
+        theme_bw()
     
+    if (length(selected_row) != 0) {
+        v + geom_point(data = sel_gene_data, 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    }
     # add interactive labels
     plotly::ggplotly(v, tooltip = c('label'))
 })
@@ -5354,15 +5376,15 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
 # Add a type of missing to the data frame with means for groups KO and WT 
-means$missingness <- df_ml$missingness[seq(1, nrow(imputed_long_RF), by=6)]
+means$missingness <- df_ml$missingness_per_prot[seq(1, nrow(imputed_long_RF), by=6)]
 
 # Preparing data for volcano plot
 FC <- merge(means, imputed_RF)
 FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`)
 
-to_volcano <- merge(FC, pvalue_RF)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+to_volcano3 <- merge(FC, pvalue_RF)
+to_volcano3$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano3$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano3$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
 ```
 
@@ -5371,17 +5393,27 @@ to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
 
 output$V3 <- renderPlotly({
     selected_gene <- input$gene
+    selected_row <- which(to_volcano3$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano3 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano3[-selected_row,]
+    } else {
+        to_volcano <- to_volcano3
+    }
+    
     v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+                shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
         geom_point() +
         geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
         geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
         labs(title='Volcano plot for Imputed Data - Random Forest', 
              x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-        theme_bw() +
-        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
-                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+        theme_bw() 
     
+    if (length(selected_row) != 0) {
+        v + geom_point(data = sel_gene_data, 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    }
     # Add interactive labels
     plotly::ggplotly(v, tooltip = c('label', 'color'))
 })
@@ -5414,7 +5446,7 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
 miss_type_kNN <- df_ml |> 
     dplyr::mutate(row = rep(1:nrow(imputed_RF), each=6)) |>
     dplyr::mutate(group = paste(celltype, sampletype, rep, sep='_')) |>
-    reshape2::dcast(row ~ group, value.var='missingness') |>
+    reshape2::dcast(row ~ group, value.var='missingness_per_prot') |>
     dplyr::select(-row) |>
     dplyr::mutate(missingness = KO_TOTALS_22) |> dplyr::select(missingness)
 
@@ -5425,9 +5457,9 @@ means$missingness <- miss_type_kNN[-duplicates,]
 FC <- merge(means, imputed_kNN)
 FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[-duplicates])
 
-to_volcano <- merge(FC, pvalue_kNN)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+to_volcano4 <- merge(FC, pvalue_kNN)
+to_volcano4$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano4$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano4$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
 ```
 
@@ -5435,16 +5467,28 @@ to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
 # Plotting the volcano plot
 output$V4 <- renderPlotly({
     selected_gene <- input$gene
-    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+    selected_row <- which(to_volcano4$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano4 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano4[-selected_row,]
+    } else {
+        to_volcano <- to_volcano4
+    }
+    
+    v <- ggplot(data=to_volcano, 
+                aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
         geom_point() +
         geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
         geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
         labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
              x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-        theme_bw() +
-        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+        theme_bw()
+    
+    if (length(selected_row) != 0) {
+        v + geom_point(data = sel_gene_data, 
                    aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    }
     
     # Add interactive labels
     plotly::ggplotly(v, tooltip = c('label', 'color'))
@@ -5481,26 +5525,38 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
 FC <- merge(means, imputed_ludovic)
 FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[imputed_prots])
 
-to_volcano <- merge(FC, pvalue_ludovic, by='Protein IDs')
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+to_volcano5 <- merge(FC, pvalue_ludovic, by='Protein IDs')
+to_volcano5$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano5$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano5$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
+colnames(to_volcano5)[6] <- 'missingness' 
 ```
 
 ```{r v5}
 # Plotting the volcano plot
 output$V5 <- renderPlotly({
     selected_gene <- input$gene
+    selected_row <- which(to_volcano5$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano5 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano5[-selected_row,]
+    } else {
+        to_volcano <- to_volcano5
+    }
+    
     v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness.x)) + 
+                shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
         geom_point() +
         geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
         geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
         labs(title='Volcano plot for Imputed Data - Ludovic', 
              x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-        theme_bw() +
-        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+        theme_bw()
+    
+    if (length(selected_row) != 0) {
+        v + geom_point(data = sel_gene_data, 
                    aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    }
     
     # Add interactive labels
     plotly::ggplotly(v, tooltip = c('label', 'color'))
@@ -5537,9 +5593,9 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
 FC <- merge(means, eigen_df)
 FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
 
-to_volcano <- merge(FC,pvalue_eigen)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+to_volcano6 <- merge(FC,pvalue_eigen)
+to_volcano6$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano6$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano6$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
 ```
 
@@ -5547,16 +5603,28 @@ to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
 # plotting the volcano plot
 output$V1eig <- renderPlotly({
     selected_gene <- input$gene
-    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+    selected_row <- which(to_volcano6$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano6 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano6[-selected_row,]
+    } else {
+        to_volcano <- to_volcano6
+    }
+    
+    v <- ggplot(data=to_volcano, 
+                aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                color=sig_TOTALS_OCIAD1, label=gene)) + 
         geom_point() +
         geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
         geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
         labs(title='Volcano plot for Non-Imputed Data', 
              x='log2(fold change)', color='Significance', y='-log10(p-value)') +
-        theme_bw() +
-        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
-                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+        theme_bw()
     
+    if (length(selected_row) != 0) {
+        v + geom_point(data = sel_gene_data, 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    }
     # add interactive labels
     plotly::ggplotly(v, tooltip = c('label'))
 })
@@ -5591,9 +5659,9 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
 FC <- merge(means, eigen_df_imp)
 FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
 
-to_volcano <- merge(FC, pvalue_eigen_imp)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+to_volcano7 <- merge(FC, pvalue_eigen_imp)
+to_volcano7$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano7$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano7$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
 ```
 
@@ -5601,16 +5669,27 @@ to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
 # plotting the volcano plot
 output$V2eig <- renderPlotly({
     selected_gene <- input$gene
-    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), color=sig_TOTALS_OCIAD1, label=gene)) + 
+    selected_row <- which(to_volcano7$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano7 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano7[-selected_row,]
+    } else {
+        to_volcano <- to_volcano7
+    }
+    
+    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                color=sig_TOTALS_OCIAD1, label=gene)) + 
         geom_point() +
         geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
         geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
         labs(title='Volcano plot for Imputed Data - Mati Code', 
              x='log2(fold change)', color='Significance', y='-log10(p-value)') +
-        theme_bw() +
-        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
-                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+        theme_bw()
     
+    if (length(selected_row) != 0) {
+        v + geom_point(data = sel_gene_data, 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    }
     # add interactive labels
     plotly::ggplotly(v, tooltip = c('label'))
 })
@@ -5642,15 +5721,15 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
 # Add a type of missing to the data frame with means for groups KO and WT 
-means$missingness <- df_ml$missingness[seq(1, nrow(eigen_df_long_RF), by=6)]
+means$missingness <- df_ml$missingness_per_prot[seq(1, nrow(eigen_df_long_RF), by=6)]
 
 # Preparing data for volcano plot
 FC <- merge(means, eigen_df_RF)
 FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
 
-to_volcano <- merge(FC, pvalue_eigen_RF)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+to_volcano8 <- merge(FC, pvalue_eigen_RF)
+to_volcano8$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano8$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano8$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
 ```
 
@@ -5658,17 +5737,27 @@ to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
 # Plotting the volcano plot
 output$V3eig <- renderPlotly({
     selected_gene <- input$gene
+    selected_row <- which(to_volcano8$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano8 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano8[-selected_row,]
+    } else {
+        to_volcano <- to_volcano8
+    }
+    
     v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+                shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
         geom_point() +
         geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
         geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
         labs(title='Volcano plot for Imputed Data - Random Forest', 
              x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-        theme_bw() +
-        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
-                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+        theme_bw() 
     
+    if (length(selected_row) != 0) {
+        v + geom_point(data = sel_gene_data, 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    }
     # Add interactive labels
     plotly::ggplotly(v, tooltip = c('label', 'color'))
 })
@@ -5706,27 +5795,37 @@ means$missingness <- miss_type_kNN[-duplicates,]
 FC <- merge(means, eigen_df_kNN)
 FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
 
-to_volcano <- merge(FC, pvalue_eigen_kNN)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+to_volcano9 <- merge(FC, pvalue_eigen_kNN)
+to_volcano9$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano9$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano9$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
 ```
 
 ```{r v4 eigen}
 # Plotting the volcano plot
 output$V4eig <- renderPlotly({
-    selected_gene <_ input$gene
+    selected_gene <- input$gene
+    selected_row <- which(to_volcano9$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano9 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano9[-selected_row,]
+    } else {
+        to_volcano <- to_volcano9
+    }
+    
     v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+                shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
         geom_point() +
         geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
         geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
         labs(title='Volcano plot for Imputed Data - k-Nearest Neighbors', 
              x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-        theme_bw() +
-        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
-                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+        theme_bw()
     
+    if (length(selected_row) != 0) {
+        v + geom_point(data = sel_gene_data, 
+                   aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    }
     # Add interactive labels
     plotly::ggplotly(v, tooltip = c('label', 'color'))
 })
@@ -5763,9 +5862,9 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
 FC <- merge(means, eigen_df_ludovic)
 FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[eig_prots])
 
-to_volcano <- merge(FC, pvalue_eigen_ludovic)
-to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
-                                           to_volcano$p_OCIAD1_TOTALS<p.cutoff,
+to_volcano10 <- merge(FC, pvalue_eigen_ludovic)
+to_volcano10$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano10$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano10$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
 ```
 
@@ -5773,16 +5872,28 @@ to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff&
 # Plotting the volcano plot
 output$V5eig <- renderPlotly({
     selected_gene <- input$gene
-    v <- ggplot(data=to_volcano, aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
-                                     shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
+    selected_row <- which(to_volcano10$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano10 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano10[-selected_row,]
+    } else {
+        to_volcano <- to_volcano10
+    }
+    
+    v <- ggplot(data=to_volcano, 
+                aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS), 
+                shape=sig_TOTALS_OCIAD1, label=gene, color=missingness)) + 
         geom_point() +
         geom_vline(xintercept=c(-1, 1), linetype = 2, alpha=0.5) +
         geom_hline(yintercept = -log10(0.05), linetype = 2, alpha=0.5) +
         labs(title='Volcano plot for Imputed Data - Ludovic', 
              x='log2(fold change)', color='Missing Type', y='-log10(p-value)', shape='Significance') +
-        theme_bw() +
-        geom_point(data = to_volcano[to_volcano$gene == selected_gene,], 
+        theme_bw()
+    
+    if (length(selected_row) != 0) {
+        v + geom_point(data = sel_gene_data, 
                    aes(x=FC_OCIAD1, y=-log10(p_OCIAD1_TOTALS)), color = 'brown', size=3)
+    }
     
     # Add interactive labels
     plotly::ggplotly(v, tooltip = c('label', 'color'))
