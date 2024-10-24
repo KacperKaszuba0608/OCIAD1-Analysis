@@ -33,6 +33,79 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", fi
 # if (!require('plotly', quietly = TRUE))
 #     install.packages('plotly')
 
+shift_dist_impute = function(df, width = 0.3, downshift = 1.8, seed = 7694) {
+    # df = data frame containing filtered data
+    # Assumes missing data (in df) follows a narrowed and downshifted normal distribution
+    
+    #Seed for reproducibility (useful for later analysis)
+    set.seed(seed)
+    
+    # Create new column indicating whether the values are imputed 
+    # df$imputed = !is.finite(df$LFQvalue)
+    
+    # Imputation
+    temp <- df
+    temp[!is.finite(temp)] = NA #make sure all non-finite values are really NA
+    temp.sd = width * sd(temp, na.rm = TRUE) #shrink sd width
+    temp.mean = mean(temp, na.rm = TRUE) - 
+        downshift * sd(temp, na.rm = TRUE) #shift mean of imputed values
+    n.missing = sum(is.na(temp))
+    temp[is.na(temp)] = rnorm(n.missing, mean = temp.mean, sd = temp.sd) #replace NA with values from the new distribution
+    
+    df <- temp
+    
+    return(df)
+}
+
+
+imputation <- function(rf_model, df_to_model, df_ml) {
+    
+    mar_prots <- which(df_to_model$missingness == 3)
+    mnar_prots_long <- which(df_to_model$missingness == 4)
+    
+    mar_impute <- predict(rf_model, df_to_model[mar_prots,-ncol(df_to_model)])$predictions
+    
+    lfq_wide <- df_ml |>
+        dplyr::select(celltype, rep, LFQvalue) |>
+        dplyr::mutate(batch = paste(celltype, rep, sep='.')) |>
+        dplyr::select(batch, LFQvalue) |>
+        tidyr::pivot_wider(id_cols = dplyr::everything(), names_from = batch, values_from = LFQvalue, values_fn = list) |>
+        tidyr::unnest(c('KO.22', 'KO.23', 'KO.24', 'WT.22', 'WT.23', 'WT.24')) |>
+        dplyr::mutate(missingness = df_ml$missingness[seq(1,nrow(df_ml), by=6)])
+    
+    mnar_prots <- which(lfq_wide$missingness == 'MNAR')
+    
+    lfq.KO <- lfq_wide |> dplyr::select(dplyr::contains('KO'))
+    lfq.KO <- log2(lfq.KO)
+    lfq.WT <- lfq_wide |> dplyr::select(dplyr::contains('WT'))
+    lfq.WT <- log2(lfq.WT)
+    
+    mnar_impute.KO <- apply(lfq.KO, 2, shift_dist_impute) # function wrote by Mateusz
+    mnar_impute.WT <- apply(lfq.WT, 2, shift_dist_impute) # function wrote by Mateusz
+
+    lfq.KO[mnar_prots,] <- mnar_impute.KO[mnar_prots,]
+    lfq.WT[mnar_prots,] <- mnar_impute.WT[mnar_prots,]
+    
+    lfq_imp <- cbind.data.frame(lfq.KO, lfq.WT) |>
+        tidyr::pivot_longer(cols = dplyr::everything(), names_to = 'batch', values_to = 'LFQ')
+    
+    df_final <- df_ml
+    
+    df_final$LFQvalue <- lfq_imp$LFQ
+    
+    df_final$LFQvalue[mar_prots] <- log2(mar_impute)
+    
+    df_final <- df_final |>
+        dplyr::select(celltype, rep, missingness, LFQvalue) |>
+        dplyr::mutate(batch = paste(celltype, rep, sep='.')) |>
+        dplyr::select(batch, LFQvalue) |>
+        tidyr::pivot_wider(id_cols = everything(), names_from = batch, values_from = LFQvalue, values_fn = list) |>
+        tidyr::unnest(c('KO.22', 'KO.23', 'KO.24', 'WT.22', 'WT.23', 'WT.24')) |>
+        dplyr::mutate(missingness = df_ml$missingness[seq(1,nrow(df_ml), by=6)])
+    
+    return(df_final)
+}
+
 show_cv_table <- function(df) {
     DT::datatable(df, rownames = FALSE, 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
@@ -111,39 +184,43 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
     df$missingness_per_prot <- do.call(c,missingness_per_prot)
     
     # Testing new missing assigning
-    test <- df |>
+    missingness_final <- df |>
         dplyr::select(condition, missingness_per_cond) |>
         tidyr::pivot_wider(id_cols=everything(), names_from = 'condition', 
                            values_from='missingness_per_cond', values_fn = list) |> 
         tidyr::unnest(cols = everything())
     
-    cond_id <- seq(1,nrow(test), by=3)
-    test2 <- test[cond_id,]
+    cond_id <- seq(1,nrow(missingness_final), by=3)
+    missingness_final <- missingness_final[cond_id,]
     
-    test3 <- purrr::map(1:nrow(test2), function(i) {
-        if (all(test2[i,] == 'all_NA')) {
+    missingness_final2 <- purrr::map(1:nrow(missingness_final), function(i) {
+        if (all(missingness_final[i,] == 'all_NA')) {
             rep(NA, occur)
-        } else if ((test2[i,1] == 'complete' & test2[i,2] == 'all_NA') | (test2[i,2] == 'complete' & test2[i,1] == 'all_NA')) {
+        } else if ((missingness_final[i,1] == 'complete' & missingness_final[i,2] == 'all_NA') | (missingness_final[i,2] == 'complete' & missingness_final[i,1] == 'all_NA')) {
             rep('MNAR', occur)
-        } else if ((test2[i,1] == 'MAR' & test2[i,2] == 'MNAR') | (test2[i,2] == 'MAR' & test2[i,1] == 'MNAR')) {
+        } else if ((missingness_final[i,1] == 'MAR' & missingness_final[i,2] == 'MNAR') | (missingness_final[i,2] == 'MAR' & missingness_final[i,1] == 'MNAR')) {
             rep(NA, occur)
-        } else if (all(test2[i,] == 'MAR')) {
-            rep('MAR', occur)
-        } else if (all(test2[i,] == 'MNAR')) {
-            rep('MNAR', occur)
-        } else if (all(test2[i,] == 'complete')) {
+        } else if (all(missingness_final[i,] == 'MAR')) {
+            rep(NA, occur) # zostawić NA i policzyć p-value dla mniejszej ilości danych
+        } else if (all(missingness_final[i,] == 'MNAR')) {
+            rep(NA, occur)
+        } else if (all(missingness_final[i,] == 'complete')) {
             rep('complete', occur)
+        } else if ((missingness_final[i,1] == 'complete' & missingness_final[i,2] =='MNAR') | (missingness_final[i,2] == 'complete' & missingness_final[i,1] =='MNAR')) {
+            rep('MAR', occur)
+        } else if ((missingness_final[i,1] == 'complete' & missingness_final[i,2] =='MAR') | (missingness_final[i,2] == 'complete' & missingness_final[i,1] =='MAR')) {
+            rep(NA, occur)
         } else {
             rep(NA, occur)
         }
     })
 
-    df$test = do.call(c, test3)
+    df$missingness = do.call(c,missingness_final2)
     
     # return
     ret_list <- list(df = df, missingness_per_cond=df$missingness_per_cond,
-                     missingness_per_prot = df$missingness_per_prot, 
-                     test = test, test2 = test2)
+                     missingness_per_prot = df$missingness_per_prot,
+                     missingness = df$missingness)
 }
 
 ttest <- function(df, grp1, grp2){ 
@@ -371,22 +448,6 @@ lfq_imp <- read.csv('./data/LFQ_raw_totals_imp.csv')
 colnames(lfq_imp) <- gsub('_TOTALS_', '.I.', colnames(lfq_imp))
 ```
 
-```{r nonimp TOTALS data}
-# Extracting only TOTALS data for knockout
-LFQ_KO <- lfq |> select(contains('KO'))
-
-# Extracting only TOTALS data for wild type
-LFQ_WT <- lfq |> select(contains('WT'))
-```
-
-```{r imp TOTALS data}
-# Extracting only TOTALS data for knockout
-LFQ_KO_imp <- lfq_imp |> select(contains('KO'))
-
-# Extracting only TOTALS data for wild type
-LFQ_WT_imp <- lfq_imp |> select(contains('WT'))
-```
-
 ```{r data to RF and kNN}
 # extracting columns to machine learning models
 df_ml <- protein.groups |>
@@ -411,23 +472,29 @@ df_ml$LFQvalue[df_ml$LFQvalue==0] <- NA
 missingness <- assign_missing(df_ml$prot.id, df_ml$celltype, df_ml$LFQvalue)
 df_ml$missingness_per_cond <- missingness$missingness_per_cond
 df_ml$missingness_per_prot <- missingness$missingness_per_prot
+df_ml$missingness <- missingness$missingness
+
+df_ml$missingness[is.na(df_ml$missingness)] <- 'all_NA'
 
 # removing blank spaces and all separators from colnames
 colnames(df_ml)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq.len',
                                       'mol.weight.kDa','q.value','score','ms.count')
 
+
 # Remove unnecessary columns and reordering columns
 df_ml.to.models <- df_ml |>
-    dplyr::select(-prot.id, -Sample, -sampletype) |> dplyr::select(1:10, 12, 13, 11) |>
+    dplyr::select(-prot.id, -Sample, -sampletype) |> dplyr::select(1:10, 12:14, 11) |>
     dplyr::mutate(missingness_per_prot = as.numeric(as.factor(missingness_per_prot)),
                   missingness_per_cond = as.numeric(as.factor(missingness_per_cond)),
                   celltype = as.numeric(celltype),
-                  rep = as.numeric(rep))
+                  rep = as.numeric(rep),
+                  missingness = as.numeric(as.factor(missingness)))
 
 df_ml <- df_ml |>
-    dplyr::select(-prot.id, -Sample) |> dplyr::select(1:11, 13, 14, 12) |>
+    dplyr::select(-prot.id, -Sample) |> dplyr::select(1:11, 13:15, 12) |>
     dplyr::mutate(missingness_per_prot = as.factor(missingness_per_prot),
-                  missingness_per_cond = as.factor(missingness_per_cond))
+                  missingness_per_cond = as.factor(missingness_per_cond),
+                  missingness = as.factor(missingness))
 ```
 
 ```{r data to protti}
@@ -467,7 +534,7 @@ rf.model <- ranger::ranger(LFQvalue ~ .,
                           seed = 123,
                           importance = 'impurity')
 
-# extracting missing rows - can be usefull later
+# extracting missing rows - can be useful later
 missing <- which(is.na(df_ml$LFQvalue))
 
 # predict the values for NA rows
@@ -475,7 +542,7 @@ predictions <- predict(rf.model, df_ml.to.models[missing,])
 
 # data frame with predicted LFQ values by random forest model
 imputed_RF <- df_ml
-imputed_RF[missing,14] <- predictions$predictions
+imputed_RF[missing,15] <- predictions$predictions
 imputed_RF <- imputed_RF |>
     dplyr::select(celltype, rep, LFQvalue) |>
     dplyr::mutate('Batch' = paste(celltype, rep, sep='.'),
@@ -483,10 +550,6 @@ imputed_RF <- imputed_RF |>
     dplyr::select(Batch, LFQvalue) |>
     tidyr::pivot_wider(id_cols=everything(), names_from = Batch, values_from = LFQvalue, values_fn = list) |>
     unnest(cols = c(KO.22, KO.23, KO.24, WT.22, WT.23, WT.24))
-
-# extracting KO and WT
-LFQ_KO_RF <- imputed_RF |> dplyr::select(contains('KO'))
-LFQ_WT_RF <- imputed_RF |> dplyr::select(contains('WT'))
 ```
 
 ```{r imputation kNN}
@@ -494,11 +557,12 @@ LFQ_WT_RF <- imputed_RF |> dplyr::select(contains('WT'))
 kNN.model <- caret::train(LFQvalue ~ ., data=train_data, method='knn')
 
 # predict the values for NA rows
-predictions2 <- predict(kNN.model, df_ml.to.models[missing,1:12])
+predictions2 <- predict(kNN.model, df_ml.to.models[missing,1:13])
 
 # data frame with predicted LFQ values by random forest model
 imputed_kNN <- df_ml
-imputed_kNN[missing,14] <- predictions2
+imputed_kNN[missing,15] <- predictions2
+
 imputed_kNN <- imputed_kNN |>
     dplyr::select(celltype, rep, LFQvalue) |>
     dplyr::mutate('Batch' = paste(celltype, rep, sep='.'),
@@ -506,10 +570,6 @@ imputed_kNN <- imputed_kNN |>
     dplyr::select(Batch, LFQvalue) |>
     tidyr::pivot_wider(id_cols=everything(), names_from = Batch, values_from = LFQvalue, values_fn = list) |>
     unnest(cols = c(KO.22, KO.23, KO.24, WT.22, WT.23, WT.24))
-
-# extracting KO and WT
-LFQ_KO_kNN <- imputed_kNN |> dplyr::select(contains('KO'))
-LFQ_WT_kNN <- imputed_kNN |> dplyr::select(contains('WT'))
 ```
 
 ```{r ludovic imputation}
@@ -520,6 +580,10 @@ data_missing <- df_to_protti |>
                        grouping = `Protein IDs`,
                        intensity = Intensity,
                        ref_condition = 'all')
+
+temp <- df_ml$missingness
+temp[which(temp == 'all_NA')] <- NA
+data_missing$missingness <- temp
 
 # impute data with protti fxn using ludovic method
 imputed_ludovic <- impute(
@@ -533,19 +597,70 @@ imputed_ludovic <- impute(
     method = 'ludovic',
     skip_log2_transform_error = TRUE
 )
-rm(data_missing)
-
-# remove the NA values 
-imputed_ludovic <- imputed_ludovic[which(!is.na(imputed_ludovic$missingness)),]
+rm(data_missing, temp)
 
 # extracting KO and WT
 imputed_ludovic <- imputed_ludovic |>
     dplyr::select(Sample, imputed_intensity, `Protein IDs`, missingness) |>
     tidyr::pivot_wider(id_cols = everything(), names_from = Sample, values_from = imputed_intensity)
+```
 
+```{r our way of imputation}
+imputed_shift.rf <- imputation(rf.model, df_ml.to.models, df_ml)
+```
+
+```{r nonimp TOTALS data}
+temp <- apply(lfq, 1, function(row) length(which(is.na(row))))
+rows.to.omit <- which(temp > 2)
+
+lfq <- lfq[-rows.to.omit,]
+
+# Extracting only TOTALS data for knockout
+LFQ_KO <- lfq |> select(contains('KO'))
+
+# Extracting only TOTALS data for wild type
+LFQ_WT <- lfq |> select(contains('WT'))
+```
+
+```{r imp TOTALS data}
+lfq_imp <- lfq_imp[-rows.to.omit, ]
+# Extracting only TOTALS data for knockout
+LFQ_KO_imp <- lfq_imp |> select(contains('KO'))
+
+# Extracting only TOTALS data for wild type
+LFQ_WT_imp <- lfq_imp |> select(contains('WT'))
+```
+
+```{r}
+# Random Forest
+imputed_RF <- imputed_RF[-rows.to.omit,]
+
+# extracting KO and WT
+LFQ_KO_RF <- imputed_RF |> dplyr::select(contains('KO'))
+LFQ_WT_RF <- imputed_RF |> dplyr::select(contains('WT'))
+
+# K-Nearest Neighbors
+imputed_kNN <- imputed_kNN[-rows.to.omit,]
+
+# extracting KO and WT
+LFQ_KO_kNN <- imputed_kNN |> dplyr::select(contains('KO'))
+LFQ_WT_kNN <- imputed_kNN |> dplyr::select(contains('WT'))
+
+# Ludovic
+imputed_ludovic <- imputed_ludovic[-rows.to.omit,]
+
+# extracting KO and WT
 LFQ_KO_ludovic <- imputed_ludovic |> dplyr::select(contains('KO'))
 LFQ_WT_ludovic <- imputed_ludovic |> dplyr::select(contains('WT'))
+
+# Shift Dist + Random Forest
+imputed_shift.rf <- imputed_shift.rf[-rows.to.omit,]
+
+# extracting KO and WT
+LFQ_KO_shift.rf <- imputed_shift.rf |> dplyr::select(contains('KO'))
+LFQ_WT_shift.rf <- imputed_shift.rf |> dplyr::select(contains('WT'))
 ```
+
 
 # Distributions {.tabset}
 
@@ -562,13 +677,13 @@ cell type  has a distribution shift to the right. Our goal is to get this
 distribution closer to the others, and we can do this using different 
 normalization methods.
 
-## Mati Code
+## Shift Dist
 
 ```{r distributions mati code}
 ggarrange(
     plothist(LFQ_KO, '', FALSE) + xlab('KO') + ggtitle('Non-Imputed'), 
     plothist(LFQ_WT, '', FALSE) + xlab('WT') + ggtitle(''),
-    plothist(LFQ_KO_imp, '', FALSE) + xlab('KO') + ggtitle('Imputed'), 
+    plothist(LFQ_KO_imp, '', FALSE) + xlab('KO') + ggtitle('Imputed - Shift Dist'), 
     plothist(LFQ_WT_imp, '', FALSE) + xlab('WT') + ggtitle(''),
     nrow=2,ncol=2
 )
@@ -610,6 +725,18 @@ ggarrange(
 )
 ```
 
+## Shift Dist & RF
+
+```{r distribution ludovic}
+ggarrange(
+    plothist(LFQ_KO, '', FALSE) + xlab('KO') + ggtitle('Non-Imputed'), 
+    plothist(LFQ_WT, '', FALSE) + xlab('WT') + ggtitle(''),
+    plothist(LFQ_KO_shift.rf, '', FALSE) + xlab('KO') + ggtitle('Imputed - Shift Dist + RF'), 
+    plothist(LFQ_WT_shift.rf, '', FALSE) + xlab('WT') + ggtitle(''),
+    nrow=2,ncol=2
+)
+```
+
 # Transformations {.tabset}
 
 The first methods which we should use to bring the 24th distribution closer to other 
@@ -641,14 +768,14 @@ DT::datatable(t(round(skew,4)), options=list(paging=F, info=F, searching=F)) |>
     DT::formatStyle(3, backgroundColor ='lightgreen')
 ```
 
-## Imputed
+## Shift Dist
 
 ```{r skew imp}
 skew_imp <- data.frame(raw_data = moments::skewness(2^lfq_imp,na.rm=T),
-                   sqrt = moments::skewness(sqrt(2^lfq_imp)),
-                   log = moments::skewness(log(2^lfq_imp)),
-                   log10 = moments::skewness(log10(2^lfq_imp)),
-                   `frac` = moments::skewness(1/(2^lfq_imp)))
+                   sqrt = moments::skewness(sqrt(2^lfq_imp),na.rm=T),
+                   log = moments::skewness(log(2^lfq_imp),na.rm=T),
+                   log10 = moments::skewness(log10(2^lfq_imp),na.rm=T),
+                   `frac` = moments::skewness(1/(2^lfq_imp),na.rm=T))
 DT::datatable(t(round(skew_imp,4)), options=list(paging=F, info=F, searching=F)) |>
     DT::formatStyle(3, backgroundColor ='lightgreen')
 ```
@@ -657,10 +784,10 @@ DT::datatable(t(round(skew_imp,4)), options=list(paging=F, info=F, searching=F))
 
 ```{r skew rf}
 skew_rf <- data.frame(raw_data = moments::skewness(2^imputed_RF,na.rm=T),
-                   sqrt = moments::skewness(sqrt(2^imputed_RF)),
-                   log = moments::skewness(log(2^imputed_RF)),
-                   log10 = moments::skewness(log10(2^imputed_RF)),
-                   `frac` = moments::skewness(1/(2^imputed_RF)))
+                   sqrt = moments::skewness(sqrt(2^imputed_RF),na.rm=T),
+                   log = moments::skewness(log(2^imputed_RF),na.rm=T),
+                   log10 = moments::skewness(log10(2^imputed_RF),na.rm=T),
+                   `frac` = moments::skewness(1/(2^imputed_RF),na.rm=T))
 DT::datatable(t(round(skew_rf,4)), options=list(paging=F, info=F, searching=F)) |>
     DT::formatStyle(3, backgroundColor ='lightgreen')
 ```
@@ -669,10 +796,10 @@ DT::datatable(t(round(skew_rf,4)), options=list(paging=F, info=F, searching=F)) 
 
 ```{r skew kNN}
 skew_kNN <- data.frame(raw_data = moments::skewness(2^imputed_kNN,na.rm=T),
-                   sqrt = moments::skewness(sqrt(2^imputed_kNN)),
-                   log = moments::skewness(log(2^imputed_kNN)),
-                   log10 = moments::skewness(log10(2^imputed_kNN)),
-                   `frac` = moments::skewness(1/(2^imputed_kNN)))
+                   sqrt = moments::skewness(sqrt(2^imputed_kNN),na.rm=T),
+                   log = moments::skewness(log(2^imputed_kNN),na.rm=T),
+                   log10 = moments::skewness(log10(2^imputed_kNN),na.rm=T),
+                   `frac` = moments::skewness(1/(2^imputed_kNN),na.rm=T))
 DT::datatable(t(round(skew_kNN,4)), options=list(paging=F, info=F, searching=F)) |>
     DT::formatStyle(3, backgroundColor ='lightgreen')
 ```
@@ -681,11 +808,23 @@ DT::datatable(t(round(skew_kNN,4)), options=list(paging=F, info=F, searching=F))
 
 ```{r skew ludovic}
 skew_ludovic <- data.frame(raw_data = moments::skewness(2^imputed_ludovic[,3:8],na.rm=T),
-                   sqrt = moments::skewness(sqrt(2^imputed_ludovic[,3:8])),
-                   log = moments::skewness(log(2^imputed_ludovic[,3:8])),
-                   log10 = moments::skewness(log10(2^imputed_ludovic[,3:8])),
-                   `frac` = moments::skewness(1/(2^imputed_ludovic[,3:8])))
+                   sqrt = moments::skewness(sqrt(2^imputed_ludovic[,3:8]),na.rm=T),
+                   log = moments::skewness(log(2^imputed_ludovic[,3:8]),na.rm=T),
+                   log10 = moments::skewness(log10(2^imputed_ludovic[,3:8]),na.rm=T),
+                   `frac` = moments::skewness(1/(2^imputed_ludovic[,3:8]),na.rm=T))
 DT::datatable(t(round(skew_ludovic,4)), options=list(paging=F, info=F, searching=F)) |>
+    DT::formatStyle(3, backgroundColor ='lightgreen')
+```
+
+## Shift Dist & RF
+
+```{r skew shift + RF}
+skew_shift.rf <- data.frame(raw_data = moments::skewness(2^imputed_shift.rf[,1:6],na.rm=T),
+                   sqrt = moments::skewness(sqrt(2^imputed_shift.rf[,1:6]),na.rm=T),
+                   log = moments::skewness(log(2^imputed_shift.rf[,1:6]),na.rm=T),
+                   log10 = moments::skewness(log10(2^imputed_shift.rf[,1:6]),na.rm=T),
+                   `frac` = moments::skewness(1/(2^imputed_shift.rf[,1:6]),na.rm=T))
+DT::datatable(t(round(skew_shift.rf,4)), options=list(paging=F, info=F, searching=F)) |>
     DT::formatStyle(3, backgroundColor ='lightgreen')
 ```
 
@@ -717,18 +856,20 @@ Formula: $\tilde{y}_{ij} = \frac{y_ij - \bar{y_j}}{\theta_j}$, where:
 
 ```{r KO standardization}
 LFQ_KO.standard <- as.data.frame(scale(LFQ_KO)) # Non-Imputed
-LFQ_KO_imp.standard <- as.data.frame(scale(LFQ_KO_imp)) # Imputed - Mati Code
+LFQ_KO_imp.standard <- as.data.frame(scale(LFQ_KO_imp)) # Imputed - Shift Dist
 LFQ_KO_RF.standard <- as.data.frame(scale(LFQ_KO_RF)) # Imputed RF
 LFQ_KO_kNN.standard <- as.data.frame(scale(LFQ_KO_kNN)) # Imputed kNN
 LFQ_KO_ludovic.standard <- as.data.frame(scale(LFQ_KO_ludovic)) # Imputed ludovic
+LFQ_KO_shift.rf.standard <- as.data.frame(scale(LFQ_KO_shift.rf)) # Imputed Shift Dist + RF
 ```
 
 ```{r WT standardization}
 LFQ_WT.standard <- as.data.frame(scale(LFQ_WT)) # Non-Imputed
-LFQ_WT_imp.standard <- as.data.frame(scale(LFQ_WT_imp)) # Imputed - Mati Code
+LFQ_WT_imp.standard <- as.data.frame(scale(LFQ_WT_imp)) # Imputed - Shift Dist
 LFQ_WT_RF.standard <- as.data.frame(scale(LFQ_WT_RF)) # Imputed RF
 LFQ_WT_kNN.standard <- as.data.frame(scale(LFQ_WT_kNN)) # Imputed kNN
 LFQ_WT_ludovic.standard <- as.data.frame(scale(LFQ_WT_ludovic)) # Imputed ludovic
+LFQ_WT_shift.rf.standard <- as.data.frame(scale(LFQ_WT_shift.rf)) # Imputed Shift Dist + RF
 ```
 
 **Summary** <br>
@@ -749,14 +890,14 @@ annotate_figure(ggarrange(
 ```{r}
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_imp.standard, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_imp.standard, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_imp.standard, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_imp.standard, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
-        ), top = text_grob('Imputed Data - Mati Code', size = 16)
+        ), top = text_grob('Imputed Data - Shift Dist', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_RF.standard, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_RF.standard, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_RF.standard, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_RF.standard, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Random Forest', size = 16)
     ),
@@ -764,18 +905,27 @@ ggarrange(
 )
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_kNN.standard, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_kNN.standard, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_kNN.standard, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_kNN.standard, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - kNN', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_ludovic.standard, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_ludovic.standard, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_ludovic.standard, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_ludovic.standard, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Ludovic', size = 16)
     ),
     nrow=2,ncol=1
+)
+```
+
+```{r fig.height=4}
+annotate_figure(ggarrange(
+    plothist(LFQ_KO_shift.rf.standard, NULL, FALSE) + xlab('KO'), 
+    plothist(LFQ_WT_shift.rf.standard, NULL, FALSE) + xlab('WT'),
+    nrow=1,ncol=2
+    ), top = text_grob('Imputed Data - Shift Dist + RF', size = 16)
 )
 ```
 
@@ -793,16 +943,18 @@ min_max_norm <- function(df) {
 }
 
 LFQ_KO.minmax <- as.data.frame(lapply(LFQ_KO, function(col) min_max_norm(col)))  # Non-Imputed
-LFQ_KO_imp.minmax <- as.data.frame(lapply(LFQ_KO_imp, function(col) min_max_norm(col)))  # Imputed
+LFQ_KO_imp.minmax <- as.data.frame(lapply(LFQ_KO_imp, function(col) min_max_norm(col)))  # Shift Dist
 LFQ_KO_RF.minmax <- as.data.frame(lapply(LFQ_KO_RF, function(col) min_max_norm(col)))  # Imputed RF
 LFQ_KO_kNN.minmax <- as.data.frame(lapply(LFQ_KO_kNN, function(col) min_max_norm(col)))  # Imputed kNN
 LFQ_KO_ludovic.minmax <- as.data.frame(lapply(LFQ_KO_ludovic, function(col) min_max_norm(col)))  # Imputed ludovic
+LFQ_KO_shift.rf.minmax <- as.data.frame(lapply(LFQ_KO_shift.rf, function(col) min_max_norm(col)))  # Imputed Shift Dist + RF
 
 LFQ_WT.minmax <- as.data.frame(lapply(LFQ_WT, function(col) min_max_norm(col)))  # Non-Imputed
-LFQ_WT_imp.minmax <- as.data.frame(lapply(LFQ_WT_imp, function(col) min_max_norm(col)))  # Imputed
+LFQ_WT_imp.minmax <- as.data.frame(lapply(LFQ_WT_imp, function(col) min_max_norm(col)))  # Shift Dist
 LFQ_WT_RF.minmax <- as.data.frame(lapply(LFQ_WT_RF, function(col) min_max_norm(col)))  # Imputed RF
 LFQ_WT_kNN.minmax <- as.data.frame(lapply(LFQ_WT_kNN, function(col) min_max_norm(col)))  # Imputed kNN
 LFQ_WT_ludovic.minmax <- as.data.frame(lapply(LFQ_WT_ludovic, function(col) min_max_norm(col)))  # Imputed ludovic
+LFQ_WT_shift.rf.minmax <- as.data.frame(lapply(LFQ_WT_shift.rf, function(col) min_max_norm(col)))  # Imputed Shift Dist + RF
 ```
 
 **Summary** <br>
@@ -823,14 +975,14 @@ annotate_figure(ggarrange(
 ```{r}
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_imp.minmax, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_imp.minmax, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_imp.minmax, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_imp.minmax, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
-        ), top = text_grob('Imputed Data - Mati Code', size = 16)
+        ), top = text_grob('Imputed Data - Shift Dist', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_RF.minmax, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_RF.minmax, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_RF.minmax, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_RF.minmax, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Random Forest', size = 16)
     ),
@@ -839,18 +991,27 @@ ggarrange(
 
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_kNN.minmax, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_kNN.minmax, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_kNN.minmax, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_kNN.minmax, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - kNN', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_ludovic.minmax, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_ludovic.minmax, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_ludovic.minmax, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_ludovic.minmax, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Ludovic', size = 16)
     ),
     nrow=2,ncol=1
+)
+```
+
+```{r fig.height=4}
+annotate_figure(ggarrange(
+    plothist(LFQ_KO.minmax, NULL, FALSE) + xlab('KO'), 
+    plothist(LFQ_WT.minmax, NULL, FALSE) + xlab('WT'),
+    nrow=1,ncol=2
+    ), top = text_grob('Imputed Data - Shift Dist + RF', size = 16)
 )
 ```
 
@@ -864,16 +1025,18 @@ $$x' = \frac{x-median(x)}{(Q3-Q1)}$$
 
 ```{r median scaling}
 LFQ_KO.med <- as.data.frame(DescTools::RobScale(LFQ_KO, scale=FALSE)) # Non-Imputed
-LFQ_KO_imp.med <- as.data.frame(DescTools::RobScale(LFQ_KO_imp, scale=FALSE)) # Imputed
-LFQ_KO_RF.med <- as.data.frame(DescTools::RobScale(LFQ_KO_RF, scale=FALSE)) # Imputed
-LFQ_KO_kNN.med <- as.data.frame(DescTools::RobScale(LFQ_KO_kNN, scale=FALSE)) # Imputed
-LFQ_KO_ludovic.med <- as.data.frame(DescTools::RobScale(LFQ_KO_ludovic, scale=FALSE)) # Imputed
+LFQ_KO_imp.med <- as.data.frame(DescTools::RobScale(LFQ_KO_imp, scale=FALSE)) # Imputed Shift Dist
+LFQ_KO_RF.med <- as.data.frame(DescTools::RobScale(LFQ_KO_RF, scale=FALSE)) # Imputed RF
+LFQ_KO_kNN.med <- as.data.frame(DescTools::RobScale(LFQ_KO_kNN, scale=FALSE)) # Imputed kNN
+LFQ_KO_ludovic.med <- as.data.frame(DescTools::RobScale(LFQ_KO_ludovic, scale=FALSE)) # Imputed Ludovic
+LFQ_KO_shift.rf.med <- as.data.frame(DescTools::RobScale(LFQ_KO_shift.rf, scale=FALSE)) # Imputed Shift Dist + RF
 
 LFQ_WT.med <- as.data.frame(DescTools::RobScale(LFQ_WT, scale=FALSE)) # Non-Imputed
-LFQ_WT_imp.med <- as.data.frame(DescTools::RobScale(LFQ_WT_imp, scale=FALSE)) # Imputed
-LFQ_WT_RF.med <- as.data.frame(DescTools::RobScale(LFQ_WT_RF, scale=FALSE)) # Imputed
-LFQ_WT_kNN.med <- as.data.frame(DescTools::RobScale(LFQ_WT_kNN, scale=FALSE)) # Imputed
-LFQ_WT_ludovic.med <- as.data.frame(DescTools::RobScale(LFQ_WT_ludovic, scale=FALSE)) # Imputed
+LFQ_WT_imp.med <- as.data.frame(DescTools::RobScale(LFQ_WT_imp, scale=FALSE)) # Imputed Shift Dist
+LFQ_WT_RF.med <- as.data.frame(DescTools::RobScale(LFQ_WT_RF, scale=FALSE)) # Imputed RF
+LFQ_WT_kNN.med <- as.data.frame(DescTools::RobScale(LFQ_WT_kNN, scale=FALSE)) # Imputed kNN
+LFQ_WT_ludovic.med <- as.data.frame(DescTools::RobScale(LFQ_WT_ludovic, scale=FALSE)) # Imputed Ludovic
+LFQ_WT_shift.rf.med <- as.data.frame(DescTools::RobScale(LFQ_WT_shift.rf, scale=FALSE)) # Imputed Shift Dist + RF
 ```
 
 **Summary**<br>
@@ -894,14 +1057,14 @@ annotate_figure(ggarrange(
 ```{r}
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_imp.med, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_imp.med, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_imp.med, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_imp.med, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Mati Code', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_RF.med, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_RF.med, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_RF.med, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_RF.med, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Random Forest', size = 16)
     ),
@@ -910,18 +1073,27 @@ ggarrange(
 
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_kNN.med, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_kNN.med, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_kNN.med, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_kNN.med, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - kNN', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_ludovic.med, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_ludovic.med, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_ludovic.med, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_ludovic.med, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Ludovic', size = 16)
     ),
     nrow=2,ncol=1
+)
+```
+
+```{r fig.height=4}
+annotate_figure(ggarrange(
+    plothist(LFQ_KO_shift.rf.med, NULL, FALSE) + xlab('KO'), 
+    plothist(LFQ_WT_shift.rf.med, NULL, FALSE) + xlab('WT'),
+    nrow=1,ncol=2
+    ), top = text_grob('Imputed Data - Shift Dist + RF', size = 16)
 )
 ```
 
@@ -939,16 +1111,18 @@ $$x' = \frac{x - MAD}{(Q3-Q1)}$$
 
 ```{r mad scaling}
 LFQ_KO.mad <- as.data.frame(DescTools::RobScale(LFQ_KO)) # Non-Imputed
-LFQ_KO_imp.mad <- as.data.frame(DescTools::RobScale(LFQ_KO_imp)) # Imputed
+LFQ_KO_imp.mad <- as.data.frame(DescTools::RobScale(LFQ_KO_imp)) # Imputed Shift Dist
 LFQ_KO_RF.mad <- as.data.frame(DescTools::RobScale(LFQ_KO_RF)) # Imputed RF
 LFQ_KO_kNN.mad <- as.data.frame(DescTools::RobScale(LFQ_KO_kNN)) # Imputed kNN
 LFQ_KO_ludovic.mad <- as.data.frame(DescTools::RobScale(LFQ_KO_ludovic)) # Imputed ludovic
+LFQ_KO_shift.rf.mad <- as.data.frame(DescTools::RobScale(LFQ_KO_shift.rf)) # Imputed Shift Dist + RF
 
 LFQ_WT.mad <- as.data.frame(DescTools::RobScale(LFQ_WT)) # Non-Imputed
-LFQ_WT_imp.mad <- as.data.frame(DescTools::RobScale(LFQ_WT_imp)) # Imputed
+LFQ_WT_imp.mad <- as.data.frame(DescTools::RobScale(LFQ_WT_imp)) # Imputed Shift Dist
 LFQ_WT_RF.mad <- as.data.frame(DescTools::RobScale(LFQ_WT_RF)) # Imputed RF
 LFQ_WT_kNN.mad <- as.data.frame(DescTools::RobScale(LFQ_WT_kNN)) # Imputed kNN
 LFQ_WT_ludovic.mad <- as.data.frame(DescTools::RobScale(LFQ_WT_ludovic)) # Imputed ludovic
+LFQ_WT_shift.rf.mad <- as.data.frame(DescTools::RobScale(LFQ_WT_shift.rf)) # Imputed Shift Dist + RF
 ```
 
 **Summary**<br>
@@ -969,14 +1143,14 @@ annotate_figure(ggarrange(
 ```{r}
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_imp.mad, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_imp.mad, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_imp.mad, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_imp.mad, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Mati Code', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_RF.mad, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_RF.mad, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_RF.mad, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_RF.mad, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Random Forest', size = 16)
     ),
@@ -985,18 +1159,27 @@ ggarrange(
 
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_kNN.mad, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_kNN.mad, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_kNN.mad, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_kNN.mad, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - kNN', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_ludovic.mad, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_ludovic.mad, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_ludovic.mad, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_ludovic.mad, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Ludovic', size = 16)
     ),
     nrow=2,ncol=1
+)
+```
+
+```{r fig.height=4}
+annotate_figure(ggarrange(
+    plothist(LFQ_KO_shift.rf.mad, NULL, FALSE) + xlab('KO'), 
+    plothist(LFQ_WT_shift.rf.mad, NULL, FALSE) + xlab('WT'),
+    nrow=1,ncol=2
+    ), top = text_grob('Imputed Data - Shift Dist + RF', size = 16)
 )
 ```
 
@@ -1065,10 +1248,25 @@ LFQ_KO_long <- LFQ_KO_ludovic |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
 model <- lm(LFQValue ~ Batch, data=LFQ_KO_long) # calculate linear model
-LFQ_KO_long$normalized <- residuals(model) # normalized data
+LFQ_KO_long$normalized <- NA # preparing column for normalized data
+LFQ_KO_long[which(!is.na(LFQ_KO_long$LFQValue)), 'normalized'] <- residuals(model)
 
 # reshape data to the wide format
 LFQ_KO_ludovic.lm <- LFQ_KO_long |> 
+    mutate(row = rep(1:nrow(LFQ_KO_ludovic), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
+    select(-row)
+
+# Imputed Shift Dist + RF
+LFQ_KO_long <- LFQ_KO_shift.rf |>
+    pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
+
+model <- lm(LFQValue ~ Batch, data=LFQ_KO_long) # calculate linear model
+LFQ_KO_long$normalized <- NA # preparing column for normalized data
+LFQ_KO_long[which(!is.na(LFQ_KO_long$LFQValue)), 'normalized'] <- residuals(model)
+
+# reshape data to the wide format
+LFQ_KO_shift.rf.lm <- LFQ_KO_long |> 
     mutate(row = rep(1:nrow(LFQ_KO_ludovic), each=3)) |>
     reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
@@ -1134,10 +1332,27 @@ LFQ_WT_long <- LFQ_WT_ludovic |>
     pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
 
 model <- lm(LFQValue ~ Batch, data=LFQ_WT_long) # calculate linear model
-LFQ_WT_long$normalized <- residuals(model) # normalized data
+LFQ_WT_long$normalized <- NA # preparing column for normalized data
+# normalized data
+LFQ_WT_long[which(!is.na(LFQ_WT_long$LFQValue)), 'normalized'] <- residuals(model)
 
 # reshape data to the wide format
 LFQ_WT_ludovic.lm <- LFQ_WT_long |> 
+    mutate(row = rep(1:nrow(LFQ_WT_ludovic), each=3)) |>
+    reshape2::dcast(row ~ Batch, value.var='normalized') |>
+    select(-row)
+
+# Imputed Shift Dist + RF
+LFQ_WT_long <- LFQ_WT_shift.rf |>
+    pivot_longer(cols = 1:3, names_to = "Batch", values_to = "LFQValue")
+
+model <- lm(LFQValue ~ Batch, data=LFQ_WT_long) # calculate linear model
+LFQ_WT_long$normalized <- NA # preparing column for normalized data
+# normalized data
+LFQ_WT_long[which(!is.na(LFQ_WT_long$LFQValue)), 'normalized'] <- residuals(model)
+
+# reshape data to the wide format
+LFQ_WT_shift.rf.lm <- LFQ_WT_long |> 
     mutate(row = rep(1:nrow(LFQ_WT_ludovic), each=3)) |>
     reshape2::dcast(row ~ Batch, value.var='normalized') |>
     select(-row)
@@ -1161,14 +1376,14 @@ annotate_figure(ggarrange(
 ```{r}
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_imp.lm, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_imp.lm, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_imp.lm, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_imp.lm, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Mati Code', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_RF.lm, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_RF.lm, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_RF.lm, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_RF.lm, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Random Forest', size = 16)
     ),
@@ -1177,18 +1392,27 @@ ggarrange(
 
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_kNN.lm, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_kNN.lm, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_kNN.lm, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_kNN.lm, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - kNN', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_ludovic.lm, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_ludovic.lm, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_ludovic.lm, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_ludovic.lm, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Ludovic', size = 16)
     ),
     nrow=2,ncol=1
+)
+```
+
+```{r fig.height=4}
+annotate_figure(ggarrange(
+    plothist(LFQ_KO_shift.rf.lm, NULL, FALSE) + xlab('KO'), 
+    plothist(LFQ_WT_shift.rf.lm, NULL, FALSE) + xlab('WT'),
+    nrow=1,ncol=2
+    ), top = text_grob('Imputed Data - Shift Dist + RF', size = 16)
 )
 ```
 
@@ -1236,17 +1460,23 @@ lfq_rglist_ludovic <- new('RGList', list(
     R = as.matrix(2^LFQ_KO_ludovic),   # condition
     G = as.matrix(2^LFQ_WT_ludovic)))  # control
 
+lfq_rglist_shift.rf <- new('RGList', list(
+    R = as.matrix(2^LFQ_KO_shift.rf),   # condition
+    G = as.matrix(2^LFQ_WT_shift.rf)))  # control
+
 LFQ_KO.vsn <- justvsn(lfq_rglist)@assayData$R  # Non-Imputed
 LFQ_KO_imp.vsn <- justvsn(lfq_rglist_imp)@assayData$R # Imputed
 LFQ_KO_RF.vsn <- justvsn(lfq_rglist_RF)@assayData$R # Imputed RF
 LFQ_KO_kNN.vsn <- justvsn(lfq_rglist_kNN)@assayData$R # Imputed kNN
 LFQ_KO_ludovic.vsn <- justvsn(lfq_rglist_ludovic)@assayData$R # Imputed ludovic
+LFQ_KO_shift.rf.vsn <- justvsn(lfq_rglist_shift.rf)@assayData$R # Imputed Shift Dist + RF
 
 LFQ_WT.vsn <- justvsn(lfq_rglist)@assayData$G  # Non-Imputed
 LFQ_WT_imp.vsn <- justvsn(lfq_rglist_imp)@assayData$G # Imputed
 LFQ_WT_RF.vsn <- justvsn(lfq_rglist_RF)@assayData$G # Imputed RF
 LFQ_WT_kNN.vsn <- justvsn(lfq_rglist_kNN)@assayData$G # Imputed kNN
 LFQ_WT_ludovic.vsn <- justvsn(lfq_rglist_ludovic)@assayData$G # Imputed ludovic
+LFQ_WT_shift.rf.vsn <- justvsn(lfq_rglist_shift.rf)@assayData$G # Imputed Shift Dist + RF
 ```
 
 **Summary**<br>
@@ -1269,14 +1499,14 @@ annotate_figure(ggarrange(
 ```{r}
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_imp.vsn, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_imp.vsn, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_imp.vsn, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_imp.vsn, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Mati Code', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_RF.vsn, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_RF.vsn, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_RF.vsn, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_RF.vsn, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Random Forest', size = 16)
     ),
@@ -1285,18 +1515,27 @@ ggarrange(
 
 ggarrange(
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_kNN.vsn, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_kNN.vsn, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_kNN.vsn, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_kNN.vsn, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - kNN', size = 16)
     ),
     annotate_figure(ggarrange(
-        plothist(LFQ_KO_ludovic.vsn, '', FALSE) + xlab('KO'), 
-        plothist(LFQ_WT_ludovic.vsn, '', FALSE) + xlab('WT'),
+        plothist(LFQ_KO_ludovic.vsn, NULL, FALSE) + xlab('KO'), 
+        plothist(LFQ_WT_ludovic.vsn, NULL, FALSE) + xlab('WT'),
         nrow=1,ncol=2
         ), top = text_grob('Imputed Data - Ludovic', size = 16)
     ),
     nrow=2,ncol=1
+)
+```
+
+```{r fig.height=4}
+annotate_figure(ggarrange(
+    plothist(LFQ_KO_shift.rf.vsn, NULL, FALSE) + xlab('KO'), 
+    plothist(LFQ_WT_shift.rf.vsn, NULL, FALSE) + xlab('WT'),
+    nrow=1,ncol=2
+    ), top = text_grob('Imputed Data - Shift Dist + RF', size = 16)
 )
 ```
 
@@ -1365,20 +1604,30 @@ LFQ_ludovic.eig1 <- eig_norm1(imputed_ludovic[,-c(1,2)],
                               prot.info = prot.info)
 # Performing eig normalization
 LFQ_ludovic.eig_norm <- eig_norm2(LFQ_ludovic.eig1)
+
+# Imputed Shift Dist + RF
+prot.info <- data.frame(prot_ID = paste('prot_', 1:nrow(imputed_shift.rf), sep = '')) # add info about LFQ value
+LFQ_shift.rf.eig1 <- eig_norm1(imputed_shift.rf[,1:6], 
+                      treatment = treatment, 
+                      prot.info = prot.info)
+# Performing eig normalization
+LFQ_shift.rf.eig_norm <- eig_norm2(LFQ_shift.rf.eig1)
 ```
 
 ```{r KO and WT eigen}
 LFQ_KO.eigen <- LFQ.eig_norm$norm_m[,1:3] # Non-Imputed
-LFQ_KO_imp.eigen <- LFQ_imp.eig_norm$norm_m[,1:3] # Imputed Mati Code
+LFQ_KO_imp.eigen <- LFQ_imp.eig_norm$norm_m[,1:3] # Imputed Shift Dist
 LFQ_KO_RF.eigen <- LFQ_RF.eig_norm$norm_m[,1:3] # Imputed RF
 LFQ_KO_kNN.eigen <- LFQ_kNN.eig_norm$norm_m[,1:3] # Imputed kNN
 LFQ_KO_ludovic.eigen <- LFQ_ludovic.eig_norm$norm_m[,1:3] # Imputed ludovic
+LFQ_KO_shift.rf.eigen <- LFQ_shift.rf.eig_norm$norm_m[,1:3] # Imputed Shift Dist + RF
 
 LFQ_WT.eigen <- LFQ.eig_norm$norm_m[,4:6] # Non-Imputed
-LFQ_WT_imp.eigen <- LFQ_imp.eig_norm$norm_m[,4:6] # Imputed Mati Code
+LFQ_WT_imp.eigen <- LFQ_imp.eig_norm$norm_m[,4:6] # Imputed Shift Dist
 LFQ_WT_RF.eigen <- LFQ_RF.eig_norm$norm_m[,4:6] # Imputed RF
 LFQ_WT_kNN.eigen <- LFQ_kNN.eig_norm$norm_m[,4:6] # Imputed kNN
 LFQ_WT_ludovic.eigen <- LFQ_ludovic.eig_norm$norm_m[,4:6] # Imputed ludovic
+LFQ_WT_shift.rf.eigen <- LFQ_shift.rf.eig_norm$norm_m[,4:6] # Imputed Shift Dist
 ```
 
 **Summary**<br>
@@ -1431,6 +1680,15 @@ ggarrange(
 )
 ```
 
+```{r fig.height=4}
+annotate_figure(ggarrange(
+    plothist(LFQ_KO_shift.rf.eigen, NULL, FALSE) + xlab('KO'), 
+    plothist(LFQ_WT_shift.rf.eigen, NULL, FALSE) + xlab('WT'),
+    nrow=1,ncol=2
+    ), top = text_grob('Non-Imputed Data', size = 16)
+)
+```
+
 # Additional Plots {.tabset}
 
 In this section we have interactive plots with additional information about the 
@@ -1440,9 +1698,6 @@ type (KO or WT) and the number of replicates.
 ## LFQ KO rep. 22
 
 ```{r prepare data ko 22}
-# extract the IDs of protein imputed by ludovic method
-ludovic_ids <- as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`))
-
 # Prepare the data frame to plotting - Raw Data
 to_plot_KO22.0 <- data.frame(
     method = 'Raw',
@@ -1450,9 +1705,9 @@ to_plot_KO22.0 <- data.frame(
     shift_dist = LFQ_KO_imp$KO.I.22,
     rf = LFQ_KO_RF$KO.22,
     knn = LFQ_KO_kNN$KO.22,
-    ludovic = NA
+    ludovic = LFQ_KO_ludovic$KO_22,
+    shift.rf = LFQ_KO_shift.rf$KO.22
 )
-to_plot_KO22.0$ludovic[ludovic_ids] <- LFQ_KO_ludovic$KO_22
 
 # Prepare the data frame to plotting - Z-Score
 to_plot_KO22.1 <- data.frame(
@@ -1461,9 +1716,9 @@ to_plot_KO22.1 <- data.frame(
     shift_dist = LFQ_KO_imp.standard$KO.I.22,
     rf = LFQ_KO_RF.standard$KO.22,
     knn = LFQ_KO_kNN.standard$KO.22,
-    ludovic = NA
+    ludovic = LFQ_KO_ludovic.standard$KO_22,
+    shift.rf = LFQ_KO_shift.rf.standard$KO.22
 )
-to_plot_KO22.1$ludovic[ludovic_ids] <- LFQ_KO_ludovic.standard$KO_22
 
 # Prepare the data frame to plotting - Min-Max
 to_plot_KO22.2 <- data.frame(
@@ -1472,9 +1727,9 @@ to_plot_KO22.2 <- data.frame(
     shift_dist = LFQ_KO_imp.minmax$KO.I.22,
     rf = LFQ_KO_RF.minmax$KO.22,
     knn = LFQ_KO_kNN.minmax$KO.22,
-    ludovic = NA
+    ludovic = LFQ_KO_ludovic.minmax$KO_22,
+    shift.rf = LFQ_KO_shift.rf.minmax$KO.22
 )
-to_plot_KO22.2$ludovic[ludovic_ids] <- LFQ_KO_ludovic.minmax$KO_22
 
 # Prepare the data frame to plotting - Median Scaling
 to_plot_KO22.3 <- data.frame(
@@ -1483,9 +1738,9 @@ to_plot_KO22.3 <- data.frame(
     shift_dist = LFQ_KO_imp.med$KO.I.22,
     rf = LFQ_KO_RF.med$KO.22,
     knn = LFQ_KO_kNN.med$KO.22,
-    ludovic = NA
+    ludovic = LFQ_KO_ludovic.med$KO_22,
+    shift.rf = LFQ_KO_shift.rf.med$KO.22
 )
-to_plot_KO22.3$ludovic[ludovic_ids] <- LFQ_KO_ludovic.med$KO_22
 
 # Prepare the data frame to plotting - MAD Scaling
 to_plot_KO22.4 <- data.frame(
@@ -1494,9 +1749,9 @@ to_plot_KO22.4 <- data.frame(
     shift_dist = LFQ_KO_imp.mad$KO.I.22,
     rf = LFQ_KO_RF.mad$KO.22,
     knn = LFQ_KO_kNN.mad$KO.22,
-    ludovic = NA
+    ludovic = LFQ_KO_ludovic.mad$KO_22,
+    shift.rf = LFQ_KO_shift.rf.mad$KO.22
 )
-to_plot_KO22.4$ludovic[ludovic_ids] <- LFQ_KO_ludovic.mad$KO_22
 
 # Prepare the data frame to plotting - Linear Regression
 to_plot_KO22.5 <- data.frame(
@@ -1505,9 +1760,9 @@ to_plot_KO22.5 <- data.frame(
     shift_dist = LFQ_KO_imp.lm$KO.I.22,
     rf = LFQ_KO_RF.lm$KO.22,
     knn = LFQ_KO_kNN.lm$KO.22,
-    ludovic = NA
+    ludovic = LFQ_KO_ludovic.lm$KO_22,
+    shift.rf = LFQ_KO_shift.rf.lm$KO.22
 )
-to_plot_KO22.5$ludovic[ludovic_ids] <- LFQ_KO_ludovic.lm$KO_22
 
 # Prepare the data frame to plotting - VSN
 to_plot_KO22.6 <- data.frame(
@@ -1516,28 +1771,26 @@ to_plot_KO22.6 <- data.frame(
     shift_dist = LFQ_KO_imp.vsn[,1],
     rf = LFQ_KO_RF.vsn[,1],
     knn = LFQ_KO_kNN.vsn[,1],
-    ludovic = NA
+    ludovic = LFQ_KO_ludovic.vsn[,1],
+    shift.rf = LFQ_KO_shift.rf.vsn[,1]
 )
-to_plot_KO22.6$ludovic[ludovic_ids] <- LFQ_KO_ludovic.vsn[,1]
 
-raw_ids <- as.numeric(gsub('prot_', '', rownames(LFQ_KO.eigen)))
 # Prepare the data frame to plotting - EigenMS
 to_plot_KO22.7 <- data.frame(
     method = 'EigenMS',
-    original = NA,
+    original = LFQ_KO.eigen[,1],
     shift_dist = LFQ_KO_imp.eigen[,1],
     rf = LFQ_KO_RF.eigen[,1],
     knn = LFQ_KO_kNN.eigen[,1],
-    ludovic = NA
+    ludovic = LFQ_KO_ludovic.eigen[,1],
+    shift.rf = LFQ_KO_shift.rf.eigen[,1]
 )
-to_plot_KO22.7$original[raw_ids] <- LFQ_KO.eigen[,1]
-to_plot_KO22.7$ludovic[ludovic_ids] <- LFQ_KO_ludovic.eigen[,1]
 
 to_plot_KO22 <- rbind.data.frame(to_plot_KO22.0, to_plot_KO22.1, to_plot_KO22.2, 
                                  to_plot_KO22.3, to_plot_KO22.4, to_plot_KO22.5, 
                                  to_plot_KO22.6, to_plot_KO22.7)
 rm(to_plot_KO22.0, to_plot_KO22.1, to_plot_KO22.2, to_plot_KO22.3, to_plot_KO22.4,
-   to_plot_KO22.5, to_plot_KO22.6, to_plot_KO22.7, ludovic_ids, raw_ids)
+   to_plot_KO22.5, to_plot_KO22.6, to_plot_KO22.7)
 ```
 
 ```{r plotting ko 22}
@@ -1551,7 +1804,7 @@ output$lfq.ko.22.Plot <- renderPlotly({
     # Filter data for selected gene
     filtered_data <- to_plot_KO22 |>
         dplyr::filter(method == selected_method1) |>
-        tidyr::pivot_longer(2:6, names_to='Type', values_to = 'LFQ_KO_22')
+        tidyr::pivot_longer(2:7, names_to='Type', values_to = 'LFQ_KO_22')
     
     plotly::plot_ly(data = filtered_data, x = ~LFQ_KO_22, split = ~Type,
                     type = 'histogram', opacity = 0.5, histfunc = 'count', xbins = 20) |>
@@ -2674,6 +2927,75 @@ ggarrange(
 )
 ```
 
+### Shift Dist & RF
+
+```{r CV6, fig.width=10}
+# CV calculation for all normalization methods with imputed data using ludovic
+cv_shift.rf.before <- data.frame(KO=apply(2^LFQ_KO_shift.rf, 1, cv), WT=apply(2^LFQ_WT_shift.rf,1,cv))
+cv_shift.rf.standard <- data.frame(KO=apply(2^LFQ_KO_shift.rf.standard, 1, cv), WT=apply(2^LFQ_WT_shift.rf.standard, 1, cv))
+cv_shift.rf.minmax <- data.frame(KO=apply(2^LFQ_KO_shift.rf.minmax, 1, cv), WT= apply(2^LFQ_WT_shift.rf.minmax, 1, cv))
+cv_shift.rf.med <- data.frame(KO=apply(2^LFQ_KO_shift.rf.med, 1, cv), WT=apply(2^LFQ_WT_shift.rf.med, 1, cv))
+cv_shift.rf.mad <- data.frame(KO=apply(2^LFQ_KO_shift.rf.mad, 1, cv), WT=apply(2^LFQ_WT_shift.rf.mad, 1, cv))
+cv_shift.rf.lm <- data.frame(KO=apply(2^LFQ_KO_shift.rf.lm, 1, cv), WT=apply(2^LFQ_WT_shift.rf.lm, 1, cv))
+cv_shift.rf.vsn <- data.frame(KO=apply(2^LFQ_KO_shift.rf.vsn, 1, cv), WT=apply(2^LFQ_WT_shift.rf.vsn, 1, cv))
+cv_shift.rf.eig <- data.frame(KO=apply(2^LFQ_KO_shift.rf.eigen, 1, cv), WT=apply(2^LFQ_WT_shift.rf.eigen, 1, cv))
+
+plotoneviolin(data.frame(
+    Original = cv_shift.rf.before$KO,
+    Z.Score = cv_shift.rf.standard$KO,
+    Min.Max = cv_shift.rf.minmax$KO,
+    Median.Scaling = cv_shift.rf.med$KO,
+    MAD.Scaling = cv_shift.rf.mad$KO,
+    Linear.Regression = cv_shift.rf.lm$KO,
+    VSN = cv_shift.rf.vsn$KO,
+    EigenMS = cv_shift.rf.eig$KO
+    ), 'LFQ CV [%] for KO Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv_shift.rf.before$WT,
+    Z.Score = cv_shift.rf.standard$WT,
+    Min.Max = cv_shift.rf.minmax$WT,
+    Median.Scaling = cv_shift.rf.med$WT,
+    MAD.Scaling = cv_shift.rf.mad$WT,
+    Linear.Regression = cv_shift.rf.lm$WT,
+    VSN = cv_shift.rf.vsn$WT,
+    EigenMS = cv_shift.rf.eig$WT
+    ), 'LFQ CV [%] for WT Samples') + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+
+plotoneviolin(data.frame(
+    Original = cv_shift.rf.before,
+    Z.Score = cv_shift.rf.standard,
+    Min.Max = cv_shift.rf.minmax,
+    Median.Scaling = cv_shift.rf.med,
+    MAD.Scaling = cv_shift.rf.mad,
+    Linear.Regression = cv_shift.rf.lm,
+    VSN = cv_shift.rf.vsn,
+    EigenMS = cv_shift.rf.eig
+    ), 'LFQ CV [%] for Samples') +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust=1)) + 
+    ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7))
+```
+
+```{r show CV5}
+ggarrange(
+    plotoneviolin(cv_shift.rf.before, 'Original'),
+    plotoneviolin(cv_shift.rf.standard, 'Z-Score'),
+    plotoneviolin(cv_shift.rf.minmax, 'Min-Max'),
+    plotoneviolin(cv_shift.rf.med, 'Median Scaling'),
+    nrow=2,ncol=2
+)
+
+ggarrange(
+    plotoneviolin(cv_shift.rf.mad, 'MAD Scaling'),
+    plotoneviolin(cv_shift.rf.lm, 'Linear Regression'),
+    plotoneviolin(cv_shift.rf.vsn, 'VSN'),
+    plotoneviolin(cv_shift.rf.eig, 'EigenMS'),
+    nrow=2,ncol=2
+)
+```
+
 ### Summary
 
 ```{r}
@@ -2716,6 +3038,14 @@ colnames(cv_kNN_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
 cv_ludovic_all <- data.frame(cv_ludovic.before, cv_ludovic.standard, cv_ludovic.minmax, cv_ludovic.med,
                          cv_ludovic.mad, cv_ludovic.lm, cv_ludovic.vsn, cv_ludovic.eig)
 colnames(cv_ludovic_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
+                          'MinMax_KO', 'MinMax_WT', 'Median_KO', 'Median_WT', 
+                          'MAD_KO', 'MAD_WT', 'Linear_KO', 'Linear_WT', 
+                          'VSN_KO', 'VSN_WT', 'EigenMS_KO', 'EigenMS_WT')
+
+# bind all calculated CV values into one data frame - shift dist + RF
+cv_shift.rf_all <- data.frame(cv_shift.rf.before, cv_shift.rf.standard, cv_shift.rf.minmax, cv_shift.rf.med,
+                         cv_shift.rf.mad, cv_shift.rf.lm, cv_shift.rf.vsn, cv_shift.rf.eig)
+colnames(cv_shift.rf_all) <- c('Before_KO', 'Before_WT', 'Z-score_KO', 'Z-score_WT',
                           'MinMax_KO', 'MinMax_WT', 'Median_KO', 'Median_WT', 
                           'MAD_KO', 'MAD_WT', 'Linear_KO', 'Linear_WT', 
                           'VSN_KO', 'VSN_WT', 'EigenMS_KO', 'EigenMS_WT')
