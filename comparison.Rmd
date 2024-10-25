@@ -235,9 +235,6 @@ ttest <- function(df, grp1, grp2){
   results$p.value
 }
 
-p.cutoff = 0.05 #set p value cutoff
-FC.cutoff = 1 # set fold change cutoff
-
 plothist <- function(df, title='', plot.title.and.legend=TRUE) {
     if (!is.data.frame(df)) { df <- as.data.frame(df)}
     
@@ -2603,6 +2600,11 @@ output$ko.vs.wt <- renderPlotly({
 })
 ```
 
+```{r}
+plotlyOutput("ko.vs.wt")
+```
+
+
 
 
 # Statistics Metrics {.tabset}
@@ -3588,7 +3590,7 @@ DT::datatable(cbind(icc_shift.rf.KO.all, icc_shift.rf.WT.all),
                     background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
 ```
 
-## t-test {.tabset}
+## t-test 0.06 {.tabset}
 
 In our project we used the paired t-test, which is a test based on the differences
 between the values of a single pair, i.e., one deducted from the other. The 
@@ -3605,6 +3607,1185 @@ In our calculations, we tested the following hypothesis:
 
 $H_0$: There is no significant difference between the means of the two groups. <br>
 $H_1$: There is a significant difference between the two population means.
+
+```{r}
+p.cutoff = 0.06
+FC.cutoff = 1 # set fold change cutoff 
+```
+
+### Raw Data
+
+**Summary** <br>
+The p-value plots show us that we had to normalize the data, because the output
+below doesn't show strong differences between KO and WT cells.
+
+```{r p-value 0.06 raw data}
+# prepare data for t-test
+df <- lfq[-which(miss_type$miss == 'MNAR'),]
+
+# calculate the p-values for our data
+pvalue <- df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(df, 1, ttest, 
+                  grp1=grep("KO", colnames(df)), 
+                  grp2=grep("WT", colnames(df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p <- ggplot(data = pvalue, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value 0.06 imp data}
+# calculate the p-values for our data
+pvalue_imp <- lfq_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lfq_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(lfq_imp)), 
+                  grp2=grep("WT", colnames(lfq_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_imp <- ggplot(data = pvalue_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 RF data}
+# calculate the p-values for our data
+pvalue_RF <- imputed_RF |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_RF, 1, ttest, 
+                  grp1=grep("KO", colnames(imputed_RF)), 
+                  grp2=grep("WT", colnames(imputed_RF)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_RF <- ggplot(data = pvalue_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 kNN data}
+# handling with duplicates
+duplicates <- which(lapply(1:nrow(imputed_kNN), function(i) length(unique(as.numeric(imputed_kNN[i,])))) != 6)
+# prepare data for t-test
+df_kNN <- imputed_kNN[-duplicates,]
+
+# calculate the p-values for our data
+pvalue_kNN <- df_kNN |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(df_kNN, 1, ttest, 
+                  grp1=grep("KO", colnames(df_kNN)), 
+                  grp2=grep("WT", colnames(df_kNN)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_kNN <- ggplot(data = pvalue_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 ludovic data}
+# calculate the p-values for our data
+pvalue_ludovic <- imputed_ludovic |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_ludovic, 1, ttest, 
+                  grp1=grep("KO", colnames(imputed_ludovic)), 
+                  grp2=grep("WT", colnames(imputed_ludovic)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_ludovic <- ggplot(data = pvalue_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 shift.rf data}
+# calculate the p-values for our data
+pvalue_shift.rf <- imputed_shift.rf |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_shift.rf, 1, ttest, 
+                  grp1=grep("KO", colnames(imputed_shift.rf)), 
+                  grp2=grep("WT", colnames(imputed_shift.rf)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_shift.rf <- ggplot(data = pvalue_shift.rf, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Shift Dist & RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p
+```
+
+```{r}
+ggarrange(
+    hist_p_imp,
+    hist_p_RF,
+    hist_p_kNN,
+    hist_p_ludovic,
+    nrow=2,ncol=2
+)
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_shift.rf
+```
+
+### Z-Score
+
+**Summary** <br>
+The p-value plots look very bad, which means that we have lost whole differences 
+between the samples.
+
+```{r p-value 0.06 raw data standardization}
+# prepare data for t-test
+standard_df <- data.frame(LFQ_KO.standard, LFQ_WT.standard)
+standard_df <- standard_df[-which(miss_type$miss == 'MNAR'),]
+
+# calculate the p-values for our data
+pvalue_standard <- standard_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df)), 
+                  grp2=grep("WT", colnames(standard_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard <- ggplot(data = pvalue_standard, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value 0.06 imputed data standardization}
+# prepare data for t-test
+standard_df_imp <- data.frame(LFQ_KO_imp.standard, LFQ_WT_imp.standard)
+
+# calculate the p-values for our data
+pvalue_standard_imp <- standard_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_imp)), 
+                  grp2=grep("WT", colnames(standard_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard_imp <- ggplot(data = pvalue_standard_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 rf data standardization}
+# prepare data for t-test
+standard_df_RF <- data.frame(LFQ_KO_RF.standard, LFQ_WT_RF.standard)
+
+# calculate the p-values for our data
+pvalue_standard_RF <- standard_df_RF |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_RF, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_RF)), 
+                  grp2=grep("WT", colnames(standard_df_RF)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard_RF <- ggplot(data = pvalue_standard_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 kNN data standardization}
+# prepare data for t-test
+standard_df_kNN <- data.frame(LFQ_KO_kNN.standard, LFQ_WT_kNN.standard)
+duplicates <- which(lapply(1:nrow(standard_df_kNN), function(i) length(unique(as.numeric(standard_df_kNN[i,])))) != 6)
+standard_df_kNN <- standard_df_kNN
+
+# calculate the p-values for our data
+pvalue_standard_kNN <- standard_df_kNN |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_kNN, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_kNN)), 
+                  grp2=grep("WT", colnames(standard_df_kNN)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard_kNN <- ggplot(data = pvalue_standard_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 ludovic data standardization}
+# prepare data for t-test
+standard_df_ludovic <- data.frame(LFQ_KO_ludovic.standard, LFQ_WT_ludovic.standard)
+
+# calculate the p-values for our data
+pvalue_standard_ludovic <- standard_df_ludovic |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_ludovic, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_ludovic)), 
+                  grp2=grep("WT", colnames(standard_df_ludovic)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard_ludovic <- ggplot(data = pvalue_standard_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 shift.rf data standardization}
+# prepare data for t-test
+standard_df_shift.rf <- data.frame(LFQ_KO_shift.rf.standard, LFQ_WT_shift.rf.standard)
+
+# calculate the p-values for our data
+pvalue_standard_shift.rf <- standard_df_shift.rf |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_shift.rf, 1, ttest, 
+                  grp1=grep("KO", colnames(standard_df_shift.rf)), 
+                  grp2=grep("WT", colnames(standard_df_shift.rf)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_standard_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_standard_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_standard_shift.rf <- ggplot(data = pvalue_standard_shift.rf, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Shift Dist & RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_standard
+```
+
+```{r}
+ggarrange(
+    hist_p_standard_imp,
+    hist_p_standard_RF,
+    hist_p_standard_kNN,
+    hist_p_standard_ludovic,
+    nrow=2,ncol=2
+)
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_standard_shift.rf
+```
+
+### Min-Max
+
+**Summary** <br>
+Again the p-value plots look very bad, which means that we have again lost whole 
+differences between the samples.
+
+```{r p-value 0.06 raw data minmax}
+# prepare data for t-test
+minmax_df <- data.frame(LFQ_KO.minmax, LFQ_WT.minmax)
+minmax_df <- minmax_df[-which(miss_type$miss == 'MNAR'),]
+
+# calculate the p-values for our data
+pvalue_minmax <- minmax_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df)), 
+                  grp2=grep("WT", colnames(minmax_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax <- ggplot(data = pvalue_minmax, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value 0.06 imputed data minmax}
+# prepare data for t-test
+minmax_df_imp <- data.frame(LFQ_KO_imp.minmax, LFQ_WT_imp.minmax)
+
+# calculate the p-values for our data
+pvalue_minmax_imp <- minmax_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_imp)), 
+                  grp2=grep("WT", colnames(minmax_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax_imp <- ggplot(data = pvalue_minmax_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 rf data minmax}
+# prepare data for t-test
+minmax_df_RF <- data.frame(LFQ_KO_RF.minmax, LFQ_WT_RF.minmax)
+
+# calculate the p-values for our data
+pvalue_minmax_RF <- minmax_df_RF |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_RF, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_RF)), 
+                  grp2=grep("WT", colnames(minmax_df_RF)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax_RF <- ggplot(data = pvalue_minmax_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 kNN data minmax}
+# prepare data for t-test
+minmax_df_kNN <- data.frame(LFQ_KO_kNN.minmax, LFQ_WT_kNN.minmax)
+
+# calculate the p-values for our data
+pvalue_minmax_kNN <- minmax_df_kNN |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_kNN, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_kNN)), 
+                  grp2=grep("WT", colnames(minmax_df_kNN)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax_kNN <- ggplot(data = pvalue_minmax_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 ludovic data minmax}
+# prepare data for t-test
+minmax_df_ludovic <- data.frame(LFQ_KO_ludovic.minmax, LFQ_WT_ludovic.minmax)
+
+# calculate the p-values for our data
+pvalue_minmax_ludovic <- minmax_df_ludovic |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_ludovic, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_ludovic)), 
+                  grp2=grep("WT", colnames(minmax_df_ludovic)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax_ludovic <- ggplot(data = pvalue_minmax_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 shift.rf data minmax}
+# prepare data for t-test
+minmax_df_shift.rf <- data.frame(LFQ_KO_shift.rf.minmax, LFQ_WT_shift.rf.minmax)
+
+# calculate the p-values for our data
+pvalue_minmax_shift.rf <- minmax_df_shift.rf |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_shift.rf, 1, ttest, 
+                  grp1=grep("KO", colnames(minmax_df_shift.rf)), 
+                  grp2=grep("WT", colnames(minmax_df_shift.rf)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_minmax_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_minmax_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_minmax_shift.rf <- ggplot(data = pvalue_minmax_shift.rf, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Shift Dist & RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_minmax
+```
+
+```{r}
+ggarrange(
+    hist_p_minmax_imp,
+    hist_p_minmax_RF,
+    hist_p_minmax_kNN,
+    hist_p_minmax_ludovic,
+    nrow=2,ncol=2
+)
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_minmax_shift.rf
+```
+
+### Median Scaling
+
+**Summary**<br>
+Again the p-value plots look very bad, which means that we have again lost whole 
+differences between the samples.
+
+```{r p-value 0.06 raw data median}
+# prepare data for t-test
+med_df <- data.frame(LFQ_KO.med, LFQ_WT.med)
+med_df <- med_df[-which(miss_type$miss == 'MNAR'),]
+
+# calculate the p-values for our data
+pvalue_med <- med_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df)), 
+                  grp2=grep("WT", colnames(med_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med <- ggplot(data = pvalue_med, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value 0.06 imputed data median}
+# prepare data for t-test
+med_df_imp <- data.frame(LFQ_KO_imp.med, LFQ_WT_imp.med)
+
+# calculate the p-values for our data
+pvalue_med_imp <- med_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df_imp)), 
+                  grp2=grep("WT", colnames(med_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med_imp <- ggplot(data = pvalue_med_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 rf data median}
+# prepare data for t-test
+med_df_RF <- data.frame(LFQ_KO_RF.med, LFQ_WT_RF.med)
+
+# calculate the p-values for our data
+pvalue_med_RF <- med_df_RF |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_RF, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df_RF)), 
+                  grp2=grep("WT", colnames(med_df_RF)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med_RF <- ggplot(data = pvalue_med_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 kNN data median}
+# prepare data for t-test
+med_df_kNN <- data.frame(LFQ_KO_kNN.med, LFQ_WT_kNN.med)
+
+# calculate the p-values for our data
+pvalue_med_kNN <- med_df_kNN |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_kNN, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df_kNN)), 
+                  grp2=grep("WT", colnames(med_df_kNN)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med_kNN <- ggplot(data = pvalue_med_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 ludovic data median}
+# prepare data for t-test
+med_df_ludovic <- data.frame(LFQ_KO_ludovic.med, LFQ_WT_ludovic.med)
+
+# calculate the p-values for our data
+pvalue_med_ludovic <- med_df_ludovic |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_ludovic, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df_ludovic)), 
+                  grp2=grep("WT", colnames(med_df_ludovic)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med_ludovic <- ggplot(data = pvalue_med_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 shift.rf data median}
+# prepare data for t-test
+med_df_shift.rf <- data.frame(LFQ_KO_shift.rf.med, LFQ_WT_shift.rf.med)
+
+# calculate the p-values for our data
+pvalue_med_shift.rf <- med_df_shift.rf |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_shift.rf, 1, ttest, 
+                  grp1=grep("KO", colnames(med_df_shift.rf)), 
+                  grp2=grep("WT", colnames(med_df_shift.rf)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_med_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_med_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_med_shift.rf <- ggplot(data = pvalue_med_shift.rf, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Shift Dist & RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_med
+```
+
+```{r}
+ggarrange(
+    hist_p_med_imp,
+    hist_p_med_RF,
+    hist_p_med_kNN,
+    hist_p_med_ludovic,
+    nrow=2,ncol=2
+)
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_med_shift.rf
+```
+
+### MAD Scaling
+
+**Summary**<br>
+Again the p-value plots look very bad, which means that we have again lost whole 
+differences between the samples.
+
+```{r p-value 0.06 raw data mad}
+# prepare data for t-test
+mad_df <- data.frame(LFQ_KO.mad, LFQ_WT.mad)
+mad_df <- mad_df[-which(miss_type$miss == 'MNAR'),]
+
+# calculate the p-values for our data
+pvalue_mad <- mad_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df)), 
+                  grp2=grep("WT", colnames(mad_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_mad$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad <- ggplot(data = pvalue_mad, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value 0.06 imputed data mad}
+# prepare data for t-test
+mad_df_imp <- data.frame(LFQ_KO_imp.mad, LFQ_WT_imp.mad)
+
+# calculate the p-values for our data
+pvalue_mad_imp <- mad_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_imp)), 
+                  grp2=grep("WT", colnames(mad_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+m <- mean(pvalue_mad_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad_imp <- ggplot(data = pvalue_mad_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 rf data mad}
+# prepare data for t-test
+mad_df_RF <- data.frame(LFQ_KO_RF.mad, LFQ_WT_RF.mad)
+
+# calculate the p-values for our data
+pvalue_mad_RF <- mad_df_RF |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_RF, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_RF)), 
+                  grp2=grep("WT", colnames(mad_df_RF)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_mad_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad_RF <- ggplot(data = pvalue_mad_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 kNN data mad}
+# prepare data for t-test
+mad_df_kNN <- data.frame(LFQ_KO_kNN.mad, LFQ_WT_kNN.mad)
+
+# calculate the p-values for our data
+pvalue_mad_kNN <- mad_df_kNN |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_kNN, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_kNN)), 
+                  grp2=grep("WT", colnames(mad_df_kNN)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_mad_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad_kNN <- ggplot(data = pvalue_mad_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 ludovic data mad}
+# prepare data for t-test
+mad_df_ludovic <- data.frame(LFQ_KO_ludovic.mad, LFQ_WT_ludovic.mad)
+
+# calculate the p-values for our data
+pvalue_mad_ludovic <- mad_df_ludovic |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_ludovic, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_ludovic)), 
+                  grp2=grep("WT", colnames(mad_df_ludovic)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_mad_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad_ludovic <- ggplot(data = pvalue_mad_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 shift.rf data mad}
+# prepare data for t-test
+mad_df_shift.rf <- data.frame(LFQ_KO_shift.rf.mad, LFQ_WT_shift.rf.mad)
+
+# calculate the p-values for our data
+pvalue_mad_shift.rf <- mad_df_shift.rf |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_shift.rf, 1, ttest, 
+                  grp1=grep("KO", colnames(mad_df_shift.rf)), 
+                  grp2=grep("WT", colnames(mad_df_shift.rf)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_mad_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_mad_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_mad_shift.rf <- ggplot(data = pvalue_mad_shift.rf, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Shift Dist & RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_mad
+```
+
+```{r}
+ggarrange(
+    hist_p_mad_imp,
+    hist_p_mad_RF,
+    hist_p_mad_kNN,
+    hist_p_mad_ludovic,
+    nrow=2,ncol=2
+)
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_mad_shift.rf
+```
+
+### Linear Regression
+
+**Summary**<br>
+Again the p-value plots look very bad, which means that we have again lost whole 
+differences between the samples.
+
+```{r p-value 0.06 raw data lm}
+# prepare data for t-test
+lm_df <- data.frame(LFQ_KO.lm, LFQ_WT.lm)
+lm_df <- lm_df[-which(miss_type$miss == 'MNAR'),]
+
+# calculate the p-values for our data
+pvalue_lm <- lm_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df)), 
+                  grp2=grep("WT", colnames(lm_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm <- ggplot(data = pvalue_lm, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value 0.06 imputed data lm}
+# prepare data for t-test
+lm_df_imp <- data.frame(LFQ_KO_imp.lm, LFQ_WT_imp.lm)
+
+# calculate the p-values for our data
+pvalue_lm_imp <- lm_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_imp)), 
+                  grp2=grep("WT", colnames(lm_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm_imp <- ggplot(data = pvalue_lm_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 rf data lm}
+# prepare data for t-test
+lm_df_RF <- data.frame(LFQ_KO_RF.lm, LFQ_WT_RF.lm)
+
+# calculate the p-values for our data
+pvalue_lm_RF <- lm_df_RF |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_RF, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_RF)), 
+                  grp2=grep("WT", colnames(lm_df_RF)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm_RF <- ggplot(data = pvalue_lm_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 kNN data lm}
+# prepare data for t-test
+lm_df_kNN <- data.frame(LFQ_KO_kNN.lm, LFQ_WT_kNN.lm)
+
+# calculate the p-values for our data
+pvalue_lm_kNN <- lm_df_kNN |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_kNN, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_kNN)), 
+                  grp2=grep("WT", colnames(lm_df_kNN)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm_kNN <- ggplot(data = pvalue_lm_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 ludovic data lm}
+# prepare data for t-test
+lm_df_ludovic <- data.frame(LFQ_KO_ludovic.lm, LFQ_WT_ludovic.lm)
+
+# calculate the p-values for our data
+pvalue_lm_ludovic <- lm_df_ludovic |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_ludovic, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_ludovic)), 
+                  grp2=grep("WT", colnames(lm_df_ludovic)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm_ludovic <- ggplot(data = pvalue_lm_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 shift.rf data lm}
+# prepare data for t-test
+lm_df_shift.rf <- data.frame(LFQ_KO_shift.rf.lm, LFQ_WT_shift.rf.lm)
+
+# calculate the p-values for our data
+pvalue_lm_shift.rf <- lm_df_shift.rf |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_shift.rf, 1, ttest, 
+                  grp1=grep("KO", colnames(lm_df_shift.rf)), 
+                  grp2=grep("WT", colnames(lm_df_shift.rf)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_lm_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_lm_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_lm_shift.rf <- ggplot(data = pvalue_lm_shift.rf, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Shift Dist & RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_lm
+```
+
+```{r}
+ggarrange(
+    hist_p_lm_imp,
+    hist_p_lm_RF,
+    hist_p_lm_kNN,
+    hist_p_lm_ludovic,
+    nrow=2,ncol=2
+)
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_lm_shift.rf
+```
+
+### VSN
+
+**Summary**<br>
+Again the p-value plots look very bad, which means that we have again lost whole 
+differences between the samples.
+
+```{r p-value 0.06 raw data vsn}
+# prepare data for t-test
+vsn_df <- data.frame(LFQ_KO.vsn, LFQ_WT.vsn)
+vsn_df <- vsn_df[-which(miss_type$miss == 'MNAR'),]
+
+# calculate the p-values for our data
+pvalue_vsn <- vsn_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df)), 
+                  grp2=grep("WT", colnames(vsn_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn <- ggplot(data = pvalue_vsn, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value 0.06 imputed data vsn}
+# prepare data for t-test
+vsn_df_imp <- data.frame(LFQ_KO_imp.vsn, LFQ_WT_imp.vsn)
+
+# calculate the p-values for our data
+pvalue_vsn_imp <- vsn_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_imp)), 
+                  grp2=grep("WT", colnames(vsn_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn_imp <- ggplot(data = pvalue_vsn_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 rf data vsn}
+# prepare data for t-test
+vsn_df_RF <- data.frame(LFQ_KO_RF.vsn, LFQ_WT_RF.vsn)
+
+# calculate the p-values for our data
+pvalue_vsn_RF <- vsn_df_RF |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_RF, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_RF)), 
+                  grp2=grep("WT", colnames(vsn_df_RF)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn_RF <- ggplot(data = pvalue_vsn_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 kNN data vsn}
+# prepare data for t-test
+vsn_df_kNN <- data.frame(LFQ_KO_kNN.vsn, LFQ_WT_kNN.vsn)
+
+# calculate the p-values for our data
+pvalue_vsn_kNN <- vsn_df_kNN |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_kNN, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_kNN)), 
+                  grp2=grep("WT", colnames(vsn_df_kNN)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn_kNN <- ggplot(data = pvalue_vsn_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 ludovic data vsn}
+# prepare data for t-test
+vsn_df_ludovic <- data.frame(LFQ_KO_ludovic.vsn, LFQ_WT_ludovic.vsn)
+
+# calculate the p-values for our data
+pvalue_vsn_ludovic <- vsn_df_ludovic |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_ludovic, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_ludovic)), 
+                  grp2=grep("WT", colnames(vsn_df_ludovic)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn_ludovic <- ggplot(data = pvalue_vsn_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 shift.rf data vsn}
+# prepare data for t-test
+vsn_df_shift.rf <- data.frame(LFQ_KO_shift.rf.vsn, LFQ_WT_shift.rf.vsn)
+
+# calculate the p-values for our data
+pvalue_vsn_shift.rf <- vsn_df_shift.rf |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_shift.rf, 1, ttest, 
+                  grp1=grep("KO", colnames(vsn_df_shift.rf)), 
+                  grp2=grep("WT", colnames(vsn_df_shift.rf)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_vsn_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_vsn_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_vsn_shift.rf <- ggplot(data = pvalue_vsn_shift.rf, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Shift Dist & RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_vsn
+```
+
+```{r}
+ggarrange(
+    hist_p_vsn_imp,
+    hist_p_vsn_RF,
+    hist_p_vsn_kNN,
+    hist_p_vsn_ludovic,
+    nrow=2,ncol=2
+)
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_vsn_shift.rf
+```
+
+### EigenMS
+
+**Summary**<br>
+Finally, we have the expected p-value plots, which means that the EigenMS method 
+again has the best results.
+
+```{r p-value 0.06 raw data eigen}
+# prepare data for t-test
+eigen_df1 <- data.frame(LFQ_KO.eigen, LFQ_WT.eigen)
+eigen_df <- eigen_df1[-which(miss_type$miss == 'MNAR'),]
+
+# calculate the p-values for our data
+pvalue_eigen <- eigen_df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df)), 
+                  grp2=grep("WT", colnames(eigen_df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen <- ggplot(data = pvalue_eigen, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 4, color = "black")
+```
+
+```{r p-value 0.06 imputed data eigen}
+# prepare data for t-test
+eigen_df_imp <- data.frame(LFQ_KO_imp.eigen, LFQ_WT_imp.eigen)
+
+# calculate the p-values for our data
+pvalue_eigen_imp <- eigen_df_imp |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_imp, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_imp)), 
+                  grp2=grep("WT", colnames(eigen_df_imp)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen_imp <- ggplot(data = pvalue_eigen_imp, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Mati Code - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 rf data eigen}
+# prepare data for t-test
+eigen_df_RF <- data.frame(LFQ_KO_RF.eigen, LFQ_WT_RF.eigen)
+
+# calculate the p-values for our data
+pvalue_eigen_RF <- eigen_df_RF |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_RF, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_RF)), 
+                  grp2=grep("WT", colnames(eigen_df_RF)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen_RF <- ggplot(data = pvalue_eigen_RF, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 kNN data eigen}
+# prepare data for t-test
+eigen_df_kNN <- data.frame(LFQ_KO_kNN.eigen, LFQ_WT_kNN.eigen)
+
+# calculate the p-values for our data
+pvalue_eigen_kNN <- eigen_df_kNN |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_kNN, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_kNN)), 
+                  grp2=grep("WT", colnames(eigen_df_kNN)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen_kNN <- ggplot(data = pvalue_eigen_kNN, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed kNN - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 ludovic data eigen}
+# prepare data for t-test
+eigen_df_ludovic <- data.frame(LFQ_KO_ludovic.eigen, LFQ_WT_ludovic.eigen)
+
+# calculate the p-values for our data
+pvalue_eigen_ludovic <- eigen_df_ludovic |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_ludovic, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_ludovic)), 
+                  grp2=grep("WT", colnames(eigen_df_ludovic)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen_ludovic <- ggplot(data = pvalue_eigen_ludovic, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r p-value 0.06 shift.rf data eigen}
+# prepare data for t-test
+eigen_df_shift.rf <- data.frame(LFQ_KO_shift.rf.eigen, LFQ_WT_shift.rf.eigen)
+
+# calculate the p-values for our data
+pvalue_eigen_shift.rf <- eigen_df_shift.rf |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_shift.rf, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_shift.rf)), 
+                  grp2=grep("WT", colnames(eigen_df_shift.rf)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+m <- mean(pvalue_eigen_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
+me <- median(pvalue_eigen_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
+
+# Plotting the histogram of the p-values filled with a significance info
+hist_p_eigen_shift.rf <- ggplot(data = pvalue_eigen_shift.rf, aes(x = p_OCIAD1_TOTALS, fill=significant)) + 
+    geom_histogram(bins = 100) + ggtitle('Imputed Shift Dist & RF - p.value') + theme(legend.position = 'none') +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_eigen
+```
+
+```{r}
+ggarrange(
+    hist_p_eigen_imp,
+    hist_p_eigen_RF,
+    hist_p_eigen_kNN,
+    hist_p_eigen_ludovic,
+    nrow=2,ncol=2
+)
+```
+
+```{r fig.height=3, fig.width=5}
+hist_p_eigen_shift.rf
+```
+
+## t-test 0.05 {.tabset}
+
+In our project we used the paired t-test, which is a test based on the differences
+between the values of a single pair, i.e., one deducted from the other. The 
+formula for the paired t-test is given by:
+
+$$t = \frac{\sum{d}}{\sqrt{\frac{n(\sum{d^2})-(\sum{d})^2}{n-1}}}$$
+
+Where:
+
+* $d$ is a difference per paired value;
+* $n$ is number of samples.
+
+In our calculations, we tested the following hypothesis:
+
+$H_0$: There is no significant difference between the means of the two groups. <br>
+$H_1$: There is a significant difference between the two population means.
+
+```{r}
+p.cutoff = 0.05
+FC.cutoff = 1 # set fold change cutoff 
+```
 
 ### Raw Data
 
@@ -4177,7 +5358,7 @@ ggarrange(
 hist_p_med_shift.rf
 ```
 
-### Mad Scaling
+### MAD Scaling
 
 **Summary**<br>
 Again the p-value plots look very bad, which means that we have again lost whole 
@@ -4757,7 +5938,423 @@ ggarrange(
 hist_p_eigen_shift.rf
 ```
 
-# Raw VS Normalized
+## Q-value {.tabset}
+
+### Raw Data {.tabset}
+
+```{r}
+qvalue <- qvalue::qvalue(pvalue$p_OCIAD1_TOTALS)
+
+qvalue_imp <- qvalue::qvalue(pvalue_imp$p_OCIAD1_TOTALS)
+
+qvalue_RF <- qvalue::qvalue(pvalue_RF$p_OCIAD1_TOTALS)
+
+qvalue_kNN <- qvalue::qvalue(pvalue_kNN$p_OCIAD1_TOTALS)
+
+qvalue_ludovic <- qvalue::qvalue(pvalue_ludovic$p_OCIAD1_TOTALS)
+
+qvalue_shift.rf <- qvalue::qvalue(pvalue_shift.rf$p_OCIAD1_TOTALS)
+```
+
+#### Non-Imputed
+
+```{r}
+plot(qvalue)
+```
+
+#### Shift Dist
+
+```{r}
+plot(qvalue_imp)
+```
+
+#### Random Forest
+
+```{r}
+plot(qvalue_RF)
+```
+
+#### k-Nearest Neighbors
+
+```{r}
+plot(qvalue_kNN)
+```
+
+#### Ludovic
+
+```{r}
+plot(qvalue_ludovic)
+```
+
+#### Shift Dist & RF
+
+```{r}
+plot(qvalue_shift.rf)
+```
+
+### Z-Score {.tabset}
+
+```{r}
+qvalue.standard <- qvalue::qvalue(pvalue_standard$p_OCIAD1_TOTALS)
+
+qvalue_imp.standard <- qvalue::qvalue(pvalue_standard_imp$p_OCIAD1_TOTALS)
+
+qvalue_RF.standard <- qvalue::qvalue(pvalue_standard_RF$p_OCIAD1_TOTALS)
+
+qvalue_kNN.standard <- qvalue::qvalue(pvalue_standard_kNN$p_OCIAD1_TOTALS)
+
+qvalue_ludovic.standard <- qvalue::qvalue(pvalue_standard_ludovic$p_OCIAD1_TOTALS)
+
+qvalue_shift.rf.standard <- qvalue::qvalue(pvalue_standard_shift.rf$p_OCIAD1_TOTALS)
+```
+#### Non-Imputed
+
+```{r}
+plot(qvalue.standard)
+```
+
+#### Shift Dist
+
+```{r}
+plot(qvalue_imp.standard)
+```
+
+#### Random Forest
+
+```{r}
+plot(qvalue_RF.standard)
+```
+
+#### k-Nearest Neighbors
+
+```{r}
+plot(qvalue_kNN.standard)
+```
+
+#### Ludovic
+
+```{r}
+plot(qvalue_ludovic.standard)
+```
+
+#### Shift Dist & RF
+
+```{r}
+plot(qvalue_shift.rf.standard)
+```
+
+### Min-Max {.tabset}
+
+```{r}
+qvalue.minmax <- qvalue::qvalue(pvalue_minmax$p_OCIAD1_TOTALS)
+
+qvalue_imp.minmax <- qvalue::qvalue(pvalue_minmax_imp$p_OCIAD1_TOTALS)
+
+qvalue_RF.minmax <- qvalue::qvalue(pvalue_minmax_RF$p_OCIAD1_TOTALS)
+
+qvalue_kNN.minmax <- qvalue::qvalue(pvalue_minmax_kNN$p_OCIAD1_TOTALS)
+
+qvalue_ludovic.minmax <- qvalue::qvalue(pvalue_minmax_ludovic$p_OCIAD1_TOTALS)
+
+qvalue_shift.rf.minmax <- qvalue::qvalue(pvalue_minmax_shift.rf$p_OCIAD1_TOTALS)
+```
+
+#### Non-Imputed
+
+```{r}
+plot(qvalue.minmax)
+```
+
+#### Shift Dist
+
+```{r}
+plot(qvalue_imp.minmax)
+```
+
+#### Random Forest
+
+```{r}
+plot(qvalue_RF.minmax)
+```
+
+#### k-Nearest Neighbors
+
+```{r}
+plot(qvalue_kNN.minmax)
+```
+
+#### Ludovic
+
+```{r}
+plot(qvalue_ludovic.minmax)
+```
+
+#### Shift Dist & RF
+
+```{r}
+plot(qvalue_shift.rf.minmax)
+```
+
+### Median Scaling {.tabset}
+
+```{r}
+qvalue.med <- qvalue::qvalue(pvalue_med$p_OCIAD1_TOTALS)
+
+qvalue_imp.med <- qvalue::qvalue(pvalue_med_imp$p_OCIAD1_TOTALS)
+
+qvalue_RF.med <- qvalue::qvalue(pvalue_med_RF$p_OCIAD1_TOTALS)
+
+qvalue_kNN.med <- qvalue::qvalue(pvalue_med_kNN$p_OCIAD1_TOTALS)
+
+qvalue_ludovic.med <- qvalue::qvalue(pvalue_med_ludovic$p_OCIAD1_TOTALS)
+
+qvalue_shift.rf.med <- qvalue::qvalue(pvalue_med_shift.rf$p_OCIAD1_TOTALS)
+```
+
+#### Non-Imputed
+
+```{r}
+plot(qvalue.med)
+```
+
+#### Shift Dist
+
+```{r}
+plot(qvalue_imp.med)
+```
+
+#### Random Forest
+
+```{r}
+plot(qvalue_RF.med)
+```
+
+#### k-Nearest Neighbors
+
+```{r}
+plot(qvalue_kNN.med)
+```
+
+#### Ludovic
+
+```{r}
+plot(qvalue_ludovic.med)
+```
+
+#### Shift Dist & RF
+
+```{r}
+plot(qvalue_shift.rf.med)
+```
+
+### MAD Scaling {.tabset}
+
+```{r}
+qvalue.mad <- qvalue::qvalue(pvalue_mad$p_OCIAD1_TOTALS)
+
+qvalue_imp.mad <- qvalue::qvalue(pvalue_mad_imp$p_OCIAD1_TOTALS)
+
+qvalue_RF.mad <- qvalue::qvalue(pvalue_mad_RF$p_OCIAD1_TOTALS)
+
+qvalue_kNN.mad <- qvalue::qvalue(pvalue_mad_kNN$p_OCIAD1_TOTALS)
+
+qvalue_ludovic.mad <- qvalue::qvalue(pvalue_mad_ludovic$p_OCIAD1_TOTALS)
+
+qvalue_shift.rf.mad <- qvalue::qvalue(pvalue_mad_shift.rf$p_OCIAD1_TOTALS)
+```
+
+#### Non-Imputed
+
+```{r}
+plot(qvalue.mad)
+```
+
+#### Shift Dist
+
+```{r}
+plot(qvalue_imp.mad)
+```
+
+#### Random Forest
+
+```{r}
+plot(qvalue_RF.mad)
+```
+
+#### k-Nearest Neighbors
+
+```{r}
+plot(qvalue_kNN.mad)
+```
+
+#### Ludovic
+
+```{r}
+plot(qvalue_ludovic.mad)
+```
+
+#### Shift Dist & RF
+
+```{r}
+plot(qvalue_shift.rf.mad)
+```
+
+### Linear Regression {.tabset}
+
+```{r}
+qvalue.lm <- qvalue::qvalue(pvalue_lm$p_OCIAD1_TOTALS)
+
+qvalue_imp.lm <- qvalue::qvalue(pvalue_lm_imp$p_OCIAD1_TOTALS)
+
+qvalue_RF.lm <- qvalue::qvalue(pvalue_lm_RF$p_OCIAD1_TOTALS)
+
+qvalue_kNN.lm <- qvalue::qvalue(pvalue_lm_kNN$p_OCIAD1_TOTALS)
+
+qvalue_ludovic.lm <- qvalue::qvalue(pvalue_lm_ludovic$p_OCIAD1_TOTALS)
+
+qvalue_shift.rf.lm <- qvalue::qvalue(pvalue_lm_shift.rf$p_OCIAD1_TOTALS)
+```
+
+#### Non-Imputed
+
+```{r}
+plot(qvalue.lm)
+```
+
+#### Shift Dist
+
+```{r}
+plot(qvalue_imp.lm)
+```
+
+#### Random Forest
+
+```{r}
+plot(qvalue_RF.lm)
+```
+
+#### k-Nearest Neighbors
+
+```{r}
+plot(qvalue_kNN.lm)
+```
+
+#### Ludovic
+
+```{r}
+plot(qvalue_ludovic.lm)
+```
+
+#### Shift Dist & RF
+
+```{r}
+plot(qvalue_shift.rf.lm)
+```
+
+### VSN {.tabset}
+
+```{r}
+qvalue.vsn <- qvalue::qvalue(pvalue_vsn$p_OCIAD1_TOTALS)
+
+qvalue_imp.vsn <- qvalue::qvalue(pvalue_vsn_imp$p_OCIAD1_TOTALS)
+
+qvalue_RF.vsn <- qvalue::qvalue(pvalue_vsn_RF$p_OCIAD1_TOTALS)
+
+qvalue_kNN.vsn <- qvalue::qvalue(pvalue_vsn_kNN$p_OCIAD1_TOTALS)
+
+qvalue_ludovic.vsn <- qvalue::qvalue(pvalue_vsn_ludovic$p_OCIAD1_TOTALS)
+
+qvalue_shift.rf.vsn <- qvalue::qvalue(pvalue_vsn_shift.rf$p_OCIAD1_TOTALS)
+```
+
+#### Non-Imputed
+
+```{r}
+plot(qvalue.vsn)
+```
+
+#### Shift Dist
+
+```{r}
+plot(qvalue_imp.vsn)
+```
+
+#### Random Forest
+
+```{r}
+plot(qvalue_RF.vsn)
+```
+
+#### k-Nearest Neighbors
+
+```{r}
+plot(qvalue_kNN.vsn)
+```
+
+#### Ludovic
+
+```{r}
+plot(qvalue_ludovic.vsn)
+```
+
+#### Shift Dist & RF
+
+```{r}
+plot(qvalue_shift.rf.vsn)
+```
+
+### EigenMS {.tabset}
+
+```{r}
+qvalue.eigen <- qvalue::qvalue(pvalue_eigen$p_OCIAD1_TOTALS)
+
+qvalue_imp.eigen <- qvalue::qvalue(pvalue_eigen_imp$p_OCIAD1_TOTALS)
+
+qvalue_RF.eigen <- qvalue::qvalue(pvalue_eigen_RF$p_OCIAD1_TOTALS)
+
+qvalue_kNN.eigen <- qvalue::qvalue(pvalue_eigen_kNN$p_OCIAD1_TOTALS)
+
+qvalue_ludovic.eigen <- qvalue::qvalue(pvalue_eigen_ludovic$p_OCIAD1_TOTALS)
+
+qvalue_shift.rf.eigen <- qvalue::qvalue(pvalue_eigen_shift.rf$p_OCIAD1_TOTALS)
+```
+
+#### Non-Imputed
+
+```{r}
+plot(qvalue.eigen)
+```
+
+#### Shift Dist
+
+```{r}
+plot(qvalue_imp.eigen)
+```
+
+#### Random Forest
+
+```{r}
+plot(qvalue_RF.eigen)
+```
+
+#### k-Nearest Neighbors
+
+```{r}
+plot(qvalue_kNN.eigen)
+```
+
+#### Ludovic
+
+```{r}
+plot(qvalue_ludovic.eigen)
+```
+
+#### Shift Dist & RF
+
+```{r}
+plot(qvalue_shift.rf.eigen)
+```
+# Raw VS Normalized     
 
 ```{r}
 # Create a data frame to make interactive plot
@@ -4875,6 +6472,34 @@ plotlyOutput("genePlotunlogged")
 ```
 
 # Fold Change
+<div style="display: flex;">
+
+<div style="flex: 33%;">
+
+```{r}
+shiny::selectInput('p.cutoff', 'Select the p-value cut off:', c(0.05, 0.06))
+```
+
+</div>
+
+<div style="flex: 33%;">
+
+```{r}
+shiny::selectInput('p.type', 'Select the type of p-value:', c('p-value', 'adj p-value'))
+```
+
+</div>
+
+<div style="flex: 33%;">
+
+```{r}
+shiny::selectInput('adj.method', 'Select the p-value adjustment method:', 
+                   c("holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none"))
+```
+
+</div>
+
+</div>
 
 ## Raw Data {.tabset}
 
@@ -4911,13 +6536,17 @@ FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
 to_volcano1 <- merge(FC,pvalue)
 to_volcano1$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano1$FC_OCIAD1)>FC.cutoff&
                                            to_volcano1$p_OCIAD1_TOTALS<p.cutoff,
-                                        yes = TRUE, no = FALSE)
+                                       yes = TRUE, no = FALSE)
 ```
 
 ```{r v1}
 # plotting the volcano plot
 output$V1 <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano1$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano1 |> dplyr::filter(gene == selected_gene)
@@ -4925,6 +6554,18 @@ output$V1 <- renderPlotly({
     } else {
         to_volcano <- to_volcano1
     }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    }
+
     
     # Base plot
     v <- plotly::plot_ly(data = to_volcano, 
@@ -4937,16 +6578,16 @@ output$V1 <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'), # Show label on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Non-Imputed Data',
+        layout(title = paste('Volcano plot for Non-Imputed Data -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5002,13 +6643,28 @@ to_volcano2$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano2$FC_OCIAD1)>FC.cutoff&
 ```{r v2}
 # plotting the volcano plot
 output$V2 <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano2$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano2 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano2[-selected_row,]
     } else {
         to_volcano <- to_volcano2
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5022,16 +6678,16 @@ output$V2 <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Imputed Data - Shift Dist',
+        layout(title = paste('Volcano plot for Imputed Data Shift Dist -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5088,13 +6744,28 @@ to_volcano3$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano3$FC_OCIAD1)>FC.cutoff&
 ```{r v3}
 # Plotting the volcano plot
 output$V3 <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano3$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano3 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano3[-selected_row,]
     } else {
         to_volcano <- to_volcano3
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5108,16 +6779,16 @@ output$V3 <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Imputed Data - RF',
+        layout(title = paste('Volcano plot for Imputed Data RF -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5174,13 +6845,28 @@ to_volcano4$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano4$FC_OCIAD1)>FC.cutoff&
 ```{r v4}
 # Plotting the volcano plot
 output$V4 <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano4$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano4 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano4[-selected_row,]
     } else {
         to_volcano <- to_volcano4
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5194,16 +6880,16 @@ output$V4 <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Imputed Data - kNN',
+        layout(title = paste('Volcano plot for Imputed Data kNN -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5260,13 +6946,28 @@ to_volcano5$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano5$FC_OCIAD1)>FC.cutoff&
 ```{r v5}
 # Plotting the volcano plot
 output$V5 <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano5$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano5 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano5[-selected_row,]
     } else {
         to_volcano <- to_volcano5
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5280,16 +6981,16 @@ output$V5 <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show gene labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Imputed Data - Ludovic',
+        layout(title = paste('Volcano plot for Imputed Data Ludovic -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5345,13 +7046,28 @@ to_volcano6$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano6$FC_OCIAD1)>FC.cutoff&
 ```{r v6}
 # Plotting the volcano plot
 output$V6 <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano6$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano6 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano6[-selected_row,]
     } else {
         to_volcano <- to_volcano6
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5365,16 +7081,16 @@ output$V6 <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Imputed Data - Ludovic',
+        layout(title = paste('Volcano plot for Imputed Data Shift Dist & RF -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5433,13 +7149,28 @@ to_volcano7$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano7$FC_OCIAD1)>FC.cutoff&
 ```{r v1 eigen}
 # plotting the volcano plot
 output$V1eig <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano7$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano7 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano7[-selected_row,]
     } else {
         to_volcano <- to_volcano7
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5453,16 +7184,16 @@ output$V1eig <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Non-Imputed Data',
+        layout(title = paste('Volcano plot for Non-Imputed Data -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5518,13 +7249,28 @@ to_volcano8$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano8$FC_OCIAD1)>FC.cutoff&
 ```{r v2 eigen}
 # plotting the volcano plot
 output$V2eig <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano8$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano8 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano8[-selected_row,]
     } else {
         to_volcano <- to_volcano8
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5538,16 +7284,16 @@ output$V2eig <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Imputed Data - Shift Dist',
+        layout(title = paste('Volcano plot for Imputed Data Shift Dist -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5604,13 +7350,28 @@ to_volcano9$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano9$FC_OCIAD1)>FC.cutoff&
 ```{r v3 eigen}
 # Plotting the volcano plot
 output$V3eig <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano9$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano9 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano9[-selected_row,]
     } else {
         to_volcano <- to_volcano9
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5624,16 +7385,16 @@ output$V3eig <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show gene labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Imputed Data - Random Forest',
+        layout(title = paste('Volcano plot for Non-Imputed Data Random Forest -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5690,13 +7451,28 @@ to_volcano10$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano10$FC_OCIAD1)>FC.cutoff&
 ```{r v4 eigen}
 # Plotting the volcano plot
 output$V4eig <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano10$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano10 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano10[-selected_row,]
     } else {
         to_volcano <- to_volcano10
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5710,16 +7486,16 @@ output$V4eig <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Imputed Data - kNN',
+        layout(title = paste('Volcano plot for Imputed Data k-Nearest Neighbors -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5776,13 +7552,28 @@ to_volcano11$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano11$FC_OCIAD1)>FC.cutoff&
 ```{r v5 eigen}
 # Plotting the volcano plot
 output$V5eig <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano11$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano11 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano11[-selected_row,]
     } else {
         to_volcano <- to_volcano11
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5796,16 +7587,16 @@ output$V5eig <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Imputed Data - Ludovic',
+        layout(title = paste('Volcano plot for Imputed Data Ludovic -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5862,13 +7653,28 @@ to_volcano12$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano12$FC_OCIAD1)>FC.cutoff&
 ```{r v6 eigen}
 # Plotting the volcano plot
 output$V6eig <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
     selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
     selected_row <- which(to_volcano12$gene == selected_gene)
     if (length(selected_row) != 0) {
         sel_gene_data <- to_volcano12 |> dplyr::filter(gene == selected_gene)
         to_volcano <- to_volcano12[-selected_row,]
     } else {
         to_volcano <- to_volcano12
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
     }
     
     # Base plot
@@ -5882,16 +7688,16 @@ output$V6eig <- renderPlotly({
                          symbol = ~sig_TOTALS_OCIAD1,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = 'Volcano plot for Imputed Data - Ludovic',
+        layout(title = paste('Volcano plot for Imputed Data Shift Dist & RF -', p.type),
                xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = '-log10(p-value)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
                shapes = list(
                    list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
                    list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
-                        y0 = -log10(0.05), y1 = -log10(0.05),
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
                         line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
                ))
     
@@ -5917,18 +7723,21 @@ plotlyOutput('V6eig')
 The table below, show how many proteins are significant and how many are not significant.
 
 ```{r}
-rbind(Raw = table(to_volcano1$sig_TOTALS_OCIAD1),
-      Raw.Eigen = table(to_volcano7$sig_TOTALS_OCIAD1),
-      Shift.Dist = table(to_volcano2$sig_TOTALS_OCIAD1),
-      Shift.Dist.Eigen = table(to_volcano8$sig_TOTALS_OCIAD1),
-      RF = table(to_volcano3$sig_TOTALS_OCIAD1),
-      RF.Eigen = table(to_volcano9$sig_TOTALS_OCIAD1),
-      kNN = table(to_volcano4$sig_TOTALS_OCIAD1),
-      kNN.Eigen = table(to_volcano10$sig_TOTALS_OCIAD1),
-      Ludovic = table(to_volcano5$sig_TOTALS_OCIAD1),
-      Ludovic.Eigen = table(to_volcano11$sig_TOTALS_OCIAD1),
-      Shift.RF = table(to_volcano6$sig_TOTALS_OCIAD1),
-      Shift.RF.Eigen = table(to_volcano12$sig_TOTALS_OCIAD1))
+DT::datatable(
+    rbind(Raw = table(to_volcano1$sig_TOTALS_OCIAD1),
+          Raw.Eigen = table(to_volcano7$sig_TOTALS_OCIAD1),
+          Shift.Dist = table(to_volcano2$sig_TOTALS_OCIAD1),
+          Shift.Dist.Eigen = table(to_volcano8$sig_TOTALS_OCIAD1),
+          RF = table(to_volcano3$sig_TOTALS_OCIAD1),
+          RF.Eigen = table(to_volcano9$sig_TOTALS_OCIAD1),
+          kNN = table(to_volcano4$sig_TOTALS_OCIAD1),
+          kNN.Eigen = table(to_volcano10$sig_TOTALS_OCIAD1),
+          Ludovic = table(to_volcano5$sig_TOTALS_OCIAD1),
+          Ludovic.Eigen = table(to_volcano11$sig_TOTALS_OCIAD1),
+          Shift.RF = table(to_volcano6$sig_TOTALS_OCIAD1),
+          Shift.RF.Eigen = table(to_volcano12$sig_TOTALS_OCIAD1)),
+    options=list(searching=FALSE, paging=FALSE, info=FALSE)
+)
 ```
 
 # Conclusion
