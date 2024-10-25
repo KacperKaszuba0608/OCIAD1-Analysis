@@ -33,7 +33,7 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", fi
 # if (!require('plotly', quietly = TRUE))
 #     install.packages('plotly')
 
-shift_dist_impute = function(df, width = 0.3, downshift = 1.8, seed = 7694) {
+shift_dist_impute = function(df, width = 0.5, downshift = 1, seed = 7694) {
     # df = data frame containing filtered data
     # Assumes missing data (in df) follows a narrowed and downshifted normal distribution
     
@@ -4802,7 +4802,8 @@ pvalue <- df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(df, 1, ttest, 
                   grp1=grep("KO", colnames(df)), 
                   grp2=grep("WT", colnames(df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')]) # add a significance column 
 m <- mean(pvalue$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -4819,7 +4820,8 @@ pvalue_imp <- lfq_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lfq_imp, 1, ttest, 
                   grp1=grep("KO", colnames(lfq_imp)), 
                   grp2=grep("WT", colnames(lfq_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -4836,7 +4838,8 @@ pvalue_RF <- imputed_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_RF, 1, ttest, 
                   grp1=grep("KO", colnames(imputed_RF)), 
                   grp2=grep("WT", colnames(imputed_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -4858,7 +4861,8 @@ pvalue_kNN <- df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(df_kNN)), 
                   grp2=grep("WT", colnames(df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-duplicates]) # add a significance column 
 m <- mean(pvalue_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -4875,7 +4879,8 @@ pvalue_ludovic <- imputed_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(imputed_ludovic)), 
                   grp2=grep("WT", colnames(imputed_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -4892,7 +4897,8 @@ pvalue_shift.rf <- imputed_shift.rf |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_shift.rf, 1, ttest, 
                   grp1=grep("KO", colnames(imputed_shift.rf)), 
                   grp2=grep("WT", colnames(imputed_shift.rf)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -4937,7 +4943,8 @@ pvalue_standard <- standard_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df)), 
                   grp2=grep("WT", colnames(standard_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')]) # add a significance column 
 m <- mean(pvalue_standard$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_standard$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -4957,7 +4964,8 @@ pvalue_standard_imp <- standard_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df_imp)), 
                   grp2=grep("WT", colnames(standard_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_standard_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_standard_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -4977,7 +4985,8 @@ pvalue_standard_RF <- standard_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df_RF)), 
                   grp2=grep("WT", colnames(standard_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_standard_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_standard_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -4991,7 +5000,6 @@ hist_p_standard_RF <- ggplot(data = pvalue_standard_RF, aes(x = p_OCIAD1_TOTALS,
 ```{r p-value kNN data standardization}
 # prepare data for t-test
 standard_df_kNN <- data.frame(LFQ_KO_kNN.standard, LFQ_WT_kNN.standard)
-duplicates <- which(lapply(1:nrow(standard_df_kNN), function(i) length(unique(as.numeric(standard_df_kNN[i,])))) != 6)
 standard_df_kNN <- standard_df_kNN
 
 # calculate the p-values for our data
@@ -4999,7 +5007,8 @@ pvalue_standard_kNN <- standard_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df_kNN)), 
                   grp2=grep("WT", colnames(standard_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_standard_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_standard_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5019,7 +5028,8 @@ pvalue_standard_ludovic <- standard_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df_ludovic)), 
                   grp2=grep("WT", colnames(standard_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_standard_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_standard_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5039,7 +5049,8 @@ pvalue_standard_shift.rf <- standard_df_shift.rf |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(standard_df_shift.rf, 1, ttest, 
                   grp1=grep("KO", colnames(standard_df_shift.rf)), 
                   grp2=grep("WT", colnames(standard_df_shift.rf)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_standard_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_standard_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5084,7 +5095,8 @@ pvalue_minmax <- minmax_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df)), 
                   grp2=grep("WT", colnames(minmax_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')]) # add a significance column 
 m <- mean(pvalue_minmax$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_minmax$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5104,7 +5116,8 @@ pvalue_minmax_imp <- minmax_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df_imp)), 
                   grp2=grep("WT", colnames(minmax_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_minmax_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_minmax_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5124,7 +5137,8 @@ pvalue_minmax_RF <- minmax_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df_RF)), 
                   grp2=grep("WT", colnames(minmax_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_minmax_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_minmax_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5144,7 +5158,8 @@ pvalue_minmax_kNN <- minmax_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df_kNN)), 
                   grp2=grep("WT", colnames(minmax_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_minmax_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_minmax_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5164,7 +5179,8 @@ pvalue_minmax_ludovic <- minmax_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df_ludovic)), 
                   grp2=grep("WT", colnames(minmax_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_minmax_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_minmax_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5184,7 +5200,8 @@ pvalue_minmax_shift.rf <- minmax_df_shift.rf |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(minmax_df_shift.rf, 1, ttest, 
                   grp1=grep("KO", colnames(minmax_df_shift.rf)), 
                   grp2=grep("WT", colnames(minmax_df_shift.rf)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_minmax_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_minmax_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5229,7 +5246,8 @@ pvalue_med <- med_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df, 1, ttest, 
                   grp1=grep("KO", colnames(med_df)), 
                   grp2=grep("WT", colnames(med_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')]) # add a significance column 
 m <- mean(pvalue_med$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_med$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5249,7 +5267,8 @@ pvalue_med_imp <- med_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(med_df_imp)), 
                   grp2=grep("WT", colnames(med_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_med_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_med_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5269,7 +5288,8 @@ pvalue_med_RF <- med_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(med_df_RF)), 
                   grp2=grep("WT", colnames(med_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_med_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_med_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5289,7 +5309,8 @@ pvalue_med_kNN <- med_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(med_df_kNN)), 
                   grp2=grep("WT", colnames(med_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_med_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_med_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5309,7 +5330,8 @@ pvalue_med_ludovic <- med_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(med_df_ludovic)), 
                   grp2=grep("WT", colnames(med_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_med_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_med_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5329,7 +5351,8 @@ pvalue_med_shift.rf <- med_df_shift.rf |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(med_df_shift.rf, 1, ttest, 
                   grp1=grep("KO", colnames(med_df_shift.rf)), 
                   grp2=grep("WT", colnames(med_df_shift.rf)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_med_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_med_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5374,7 +5397,8 @@ pvalue_mad <- mad_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df)), 
                   grp2=grep("WT", colnames(mad_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')]) # add a significance column 
 m <- mean(pvalue_mad$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_mad$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5394,7 +5418,8 @@ pvalue_mad_imp <- mad_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df_imp)), 
                   grp2=grep("WT", colnames(mad_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column 
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column 
 m <- mean(pvalue_mad_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_mad_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5414,7 +5439,8 @@ pvalue_mad_RF <- mad_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df_RF)), 
                   grp2=grep("WT", colnames(mad_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_mad_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_mad_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5434,7 +5460,8 @@ pvalue_mad_kNN <- mad_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df_kNN)), 
                   grp2=grep("WT", colnames(mad_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_mad_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_mad_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5454,7 +5481,8 @@ pvalue_mad_ludovic <- mad_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df_ludovic)), 
                   grp2=grep("WT", colnames(mad_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_mad_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_mad_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5474,7 +5502,8 @@ pvalue_mad_shift.rf <- mad_df_shift.rf |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(mad_df_shift.rf, 1, ttest, 
                   grp1=grep("KO", colnames(mad_df_shift.rf)), 
                   grp2=grep("WT", colnames(mad_df_shift.rf)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_mad_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_mad_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5519,7 +5548,8 @@ pvalue_lm <- lm_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df)), 
                   grp2=grep("WT", colnames(lm_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')]) # add a significance column
 m <- mean(pvalue_lm$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_lm$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5539,7 +5569,8 @@ pvalue_lm_imp <- lm_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df_imp)), 
                   grp2=grep("WT", colnames(lm_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_lm_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_lm_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5559,7 +5590,8 @@ pvalue_lm_RF <- lm_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df_RF)), 
                   grp2=grep("WT", colnames(lm_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_lm_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_lm_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5579,7 +5611,8 @@ pvalue_lm_kNN <- lm_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df_kNN)), 
                   grp2=grep("WT", colnames(lm_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_lm_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_lm_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5599,7 +5632,8 @@ pvalue_lm_ludovic <- lm_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df_ludovic)), 
                   grp2=grep("WT", colnames(lm_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_lm_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_lm_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5619,7 +5653,8 @@ pvalue_lm_shift.rf <- lm_df_shift.rf |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(lm_df_shift.rf, 1, ttest, 
                   grp1=grep("KO", colnames(lm_df_shift.rf)), 
                   grp2=grep("WT", colnames(lm_df_shift.rf)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_lm_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_lm_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5664,7 +5699,8 @@ pvalue_vsn <- vsn_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df)), 
                   grp2=grep("WT", colnames(vsn_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')]) # add a significance column
 m <- mean(pvalue_vsn$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_vsn$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5684,7 +5720,8 @@ pvalue_vsn_imp <- vsn_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df_imp)), 
                   grp2=grep("WT", colnames(vsn_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_vsn_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_vsn_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5704,7 +5741,8 @@ pvalue_vsn_RF <- vsn_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df_RF)), 
                   grp2=grep("WT", colnames(vsn_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_vsn_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_vsn_RF$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5724,7 +5762,8 @@ pvalue_vsn_kNN <- vsn_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df_kNN)), 
                   grp2=grep("WT", colnames(vsn_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_vsn_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_vsn_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5744,7 +5783,8 @@ pvalue_vsn_ludovic <- vsn_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df_ludovic)), 
                   grp2=grep("WT", colnames(vsn_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_vsn_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_vsn_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5764,7 +5804,8 @@ pvalue_vsn_shift.rf <- vsn_df_shift.rf |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(vsn_df_shift.rf, 1, ttest, 
                   grp1=grep("KO", colnames(vsn_df_shift.rf)), 
                   grp2=grep("WT", colnames(vsn_df_shift.rf)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_vsn_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_vsn_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5801,7 +5842,7 @@ again has the best results.
 
 ```{r p-value raw data eigen}
 # prepare data for t-test
-eigen_df1 <- data.frame(LFQ_KO.eigen, LFQ_WT.eigen)
+eigen_df1 <- cbind.data.frame(LFQ_KO.eigen, LFQ_WT.eigen)
 eigen_df <- eigen_df1[-which(miss_type$miss == 'MNAR'),]
 
 # calculate the p-values for our data
@@ -5809,7 +5850,8 @@ pvalue_eigen <- eigen_df |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df)), 
                   grp2=grep("WT", colnames(eigen_df)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')]) # add a significance column
 m <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5822,14 +5864,15 @@ hist_p_eigen <- ggplot(data = pvalue_eigen, aes(x = p_OCIAD1_TOTALS, fill=signif
 
 ```{r p-value imputed data eigen}
 # prepare data for t-test
-eigen_df_imp <- data.frame(LFQ_KO_imp.eigen, LFQ_WT_imp.eigen)
+eigen_df_imp <- cbind.data.frame(LFQ_KO_imp.eigen, LFQ_WT_imp.eigen)
 
 # calculate the p-values for our data
 pvalue_eigen_imp <- eigen_df_imp |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_imp, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df_imp)), 
                   grp2=grep("WT", colnames(eigen_df_imp)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_eigen_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_eigen_imp$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5842,14 +5885,15 @@ hist_p_eigen_imp <- ggplot(data = pvalue_eigen_imp, aes(x = p_OCIAD1_TOTALS, fil
 
 ```{r p-value rf data eigen}
 # prepare data for t-test
-eigen_df_RF <- data.frame(LFQ_KO_RF.eigen, LFQ_WT_RF.eigen)
+eigen_df_RF <- cbind.data.frame(LFQ_KO_RF.eigen, LFQ_WT_RF.eigen)
 
 # calculate the p-values for our data
 pvalue_eigen_RF <- eigen_df_RF |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_RF, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df_RF)), 
                   grp2=grep("WT", colnames(eigen_df_RF)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_eigen$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5862,14 +5906,15 @@ hist_p_eigen_RF <- ggplot(data = pvalue_eigen_RF, aes(x = p_OCIAD1_TOTALS, fill=
 
 ```{r p-value kNN data eigen}
 # prepare data for t-test
-eigen_df_kNN <- data.frame(LFQ_KO_kNN.eigen, LFQ_WT_kNN.eigen)
+eigen_df_kNN <- cbind.data.frame(LFQ_KO_kNN.eigen, LFQ_WT_kNN.eigen)
 
 # calculate the p-values for our data
 pvalue_eigen_kNN <- eigen_df_kNN |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_kNN, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df_kNN)), 
                   grp2=grep("WT", colnames(eigen_df_kNN)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_eigen_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_eigen_kNN$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5882,14 +5927,15 @@ hist_p_eigen_kNN <- ggplot(data = pvalue_eigen_kNN, aes(x = p_OCIAD1_TOTALS, fil
 
 ```{r p-value ludovic data eigen}
 # prepare data for t-test
-eigen_df_ludovic <- data.frame(LFQ_KO_ludovic.eigen, LFQ_WT_ludovic.eigen)
+eigen_df_ludovic <- cbind.data.frame(LFQ_KO_ludovic.eigen, LFQ_WT_ludovic.eigen)
 
 # calculate the p-values for our data
 pvalue_eigen_ludovic <- eigen_df_ludovic |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_ludovic, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df_ludovic)), 
                   grp2=grep("WT", colnames(eigen_df_ludovic)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_eigen_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_eigen_ludovic$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5902,14 +5948,15 @@ hist_p_eigen_ludovic <- ggplot(data = pvalue_eigen_ludovic, aes(x = p_OCIAD1_TOT
 
 ```{r p-value shift.rf data eigen}
 # prepare data for t-test
-eigen_df_shift.rf <- data.frame(LFQ_KO_shift.rf.eigen, LFQ_WT_shift.rf.eigen)
+eigen_df_shift.rf <- cbind.data.frame(LFQ_KO_shift.rf.eigen, LFQ_WT_shift.rf.eigen)
 
 # calculate the p-values for our data
 pvalue_eigen_shift.rf <- eigen_df_shift.rf |>
     dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_shift.rf, 1, ttest, 
                   grp1=grep("KO", colnames(eigen_df_shift.rf)), 
                   grp2=grep("WT", colnames(eigen_df_shift.rf)))) |>
-    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE)) # add a significance column
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep]) # add a significance column
 m <- mean(pvalue_eigen_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # mean of p
 me <- median(pvalue_eigen_shift.rf$p_OCIAD1_TOTALS, na.rm=TRUE) # median of p
 
@@ -5938,422 +5985,6 @@ ggarrange(
 hist_p_eigen_shift.rf
 ```
 
-## Q-value {.tabset}
-
-### Raw Data {.tabset}
-
-```{r}
-qvalue <- qvalue::qvalue(pvalue$p_OCIAD1_TOTALS)
-
-qvalue_imp <- qvalue::qvalue(pvalue_imp$p_OCIAD1_TOTALS)
-
-qvalue_RF <- qvalue::qvalue(pvalue_RF$p_OCIAD1_TOTALS)
-
-qvalue_kNN <- qvalue::qvalue(pvalue_kNN$p_OCIAD1_TOTALS)
-
-qvalue_ludovic <- qvalue::qvalue(pvalue_ludovic$p_OCIAD1_TOTALS)
-
-qvalue_shift.rf <- qvalue::qvalue(pvalue_shift.rf$p_OCIAD1_TOTALS)
-```
-
-#### Non-Imputed
-
-```{r}
-plot(qvalue)
-```
-
-#### Shift Dist
-
-```{r}
-plot(qvalue_imp)
-```
-
-#### Random Forest
-
-```{r}
-plot(qvalue_RF)
-```
-
-#### k-Nearest Neighbors
-
-```{r}
-plot(qvalue_kNN)
-```
-
-#### Ludovic
-
-```{r}
-plot(qvalue_ludovic)
-```
-
-#### Shift Dist & RF
-
-```{r}
-plot(qvalue_shift.rf)
-```
-
-### Z-Score {.tabset}
-
-```{r}
-qvalue.standard <- qvalue::qvalue(pvalue_standard$p_OCIAD1_TOTALS)
-
-qvalue_imp.standard <- qvalue::qvalue(pvalue_standard_imp$p_OCIAD1_TOTALS)
-
-qvalue_RF.standard <- qvalue::qvalue(pvalue_standard_RF$p_OCIAD1_TOTALS)
-
-qvalue_kNN.standard <- qvalue::qvalue(pvalue_standard_kNN$p_OCIAD1_TOTALS)
-
-qvalue_ludovic.standard <- qvalue::qvalue(pvalue_standard_ludovic$p_OCIAD1_TOTALS)
-
-qvalue_shift.rf.standard <- qvalue::qvalue(pvalue_standard_shift.rf$p_OCIAD1_TOTALS)
-```
-#### Non-Imputed
-
-```{r}
-plot(qvalue.standard)
-```
-
-#### Shift Dist
-
-```{r}
-plot(qvalue_imp.standard)
-```
-
-#### Random Forest
-
-```{r}
-plot(qvalue_RF.standard)
-```
-
-#### k-Nearest Neighbors
-
-```{r}
-plot(qvalue_kNN.standard)
-```
-
-#### Ludovic
-
-```{r}
-plot(qvalue_ludovic.standard)
-```
-
-#### Shift Dist & RF
-
-```{r}
-plot(qvalue_shift.rf.standard)
-```
-
-### Min-Max {.tabset}
-
-```{r}
-qvalue.minmax <- qvalue::qvalue(pvalue_minmax$p_OCIAD1_TOTALS)
-
-qvalue_imp.minmax <- qvalue::qvalue(pvalue_minmax_imp$p_OCIAD1_TOTALS)
-
-qvalue_RF.minmax <- qvalue::qvalue(pvalue_minmax_RF$p_OCIAD1_TOTALS)
-
-qvalue_kNN.minmax <- qvalue::qvalue(pvalue_minmax_kNN$p_OCIAD1_TOTALS)
-
-qvalue_ludovic.minmax <- qvalue::qvalue(pvalue_minmax_ludovic$p_OCIAD1_TOTALS)
-
-qvalue_shift.rf.minmax <- qvalue::qvalue(pvalue_minmax_shift.rf$p_OCIAD1_TOTALS)
-```
-
-#### Non-Imputed
-
-```{r}
-plot(qvalue.minmax)
-```
-
-#### Shift Dist
-
-```{r}
-plot(qvalue_imp.minmax)
-```
-
-#### Random Forest
-
-```{r}
-plot(qvalue_RF.minmax)
-```
-
-#### k-Nearest Neighbors
-
-```{r}
-plot(qvalue_kNN.minmax)
-```
-
-#### Ludovic
-
-```{r}
-plot(qvalue_ludovic.minmax)
-```
-
-#### Shift Dist & RF
-
-```{r}
-plot(qvalue_shift.rf.minmax)
-```
-
-### Median Scaling {.tabset}
-
-```{r}
-qvalue.med <- qvalue::qvalue(pvalue_med$p_OCIAD1_TOTALS)
-
-qvalue_imp.med <- qvalue::qvalue(pvalue_med_imp$p_OCIAD1_TOTALS)
-
-qvalue_RF.med <- qvalue::qvalue(pvalue_med_RF$p_OCIAD1_TOTALS)
-
-qvalue_kNN.med <- qvalue::qvalue(pvalue_med_kNN$p_OCIAD1_TOTALS)
-
-qvalue_ludovic.med <- qvalue::qvalue(pvalue_med_ludovic$p_OCIAD1_TOTALS)
-
-qvalue_shift.rf.med <- qvalue::qvalue(pvalue_med_shift.rf$p_OCIAD1_TOTALS)
-```
-
-#### Non-Imputed
-
-```{r}
-plot(qvalue.med)
-```
-
-#### Shift Dist
-
-```{r}
-plot(qvalue_imp.med)
-```
-
-#### Random Forest
-
-```{r}
-plot(qvalue_RF.med)
-```
-
-#### k-Nearest Neighbors
-
-```{r}
-plot(qvalue_kNN.med)
-```
-
-#### Ludovic
-
-```{r}
-plot(qvalue_ludovic.med)
-```
-
-#### Shift Dist & RF
-
-```{r}
-plot(qvalue_shift.rf.med)
-```
-
-### MAD Scaling {.tabset}
-
-```{r}
-qvalue.mad <- qvalue::qvalue(pvalue_mad$p_OCIAD1_TOTALS)
-
-qvalue_imp.mad <- qvalue::qvalue(pvalue_mad_imp$p_OCIAD1_TOTALS)
-
-qvalue_RF.mad <- qvalue::qvalue(pvalue_mad_RF$p_OCIAD1_TOTALS)
-
-qvalue_kNN.mad <- qvalue::qvalue(pvalue_mad_kNN$p_OCIAD1_TOTALS)
-
-qvalue_ludovic.mad <- qvalue::qvalue(pvalue_mad_ludovic$p_OCIAD1_TOTALS)
-
-qvalue_shift.rf.mad <- qvalue::qvalue(pvalue_mad_shift.rf$p_OCIAD1_TOTALS)
-```
-
-#### Non-Imputed
-
-```{r}
-plot(qvalue.mad)
-```
-
-#### Shift Dist
-
-```{r}
-plot(qvalue_imp.mad)
-```
-
-#### Random Forest
-
-```{r}
-plot(qvalue_RF.mad)
-```
-
-#### k-Nearest Neighbors
-
-```{r}
-plot(qvalue_kNN.mad)
-```
-
-#### Ludovic
-
-```{r}
-plot(qvalue_ludovic.mad)
-```
-
-#### Shift Dist & RF
-
-```{r}
-plot(qvalue_shift.rf.mad)
-```
-
-### Linear Regression {.tabset}
-
-```{r}
-qvalue.lm <- qvalue::qvalue(pvalue_lm$p_OCIAD1_TOTALS)
-
-qvalue_imp.lm <- qvalue::qvalue(pvalue_lm_imp$p_OCIAD1_TOTALS)
-
-qvalue_RF.lm <- qvalue::qvalue(pvalue_lm_RF$p_OCIAD1_TOTALS)
-
-qvalue_kNN.lm <- qvalue::qvalue(pvalue_lm_kNN$p_OCIAD1_TOTALS)
-
-qvalue_ludovic.lm <- qvalue::qvalue(pvalue_lm_ludovic$p_OCIAD1_TOTALS)
-
-qvalue_shift.rf.lm <- qvalue::qvalue(pvalue_lm_shift.rf$p_OCIAD1_TOTALS)
-```
-
-#### Non-Imputed
-
-```{r}
-plot(qvalue.lm)
-```
-
-#### Shift Dist
-
-```{r}
-plot(qvalue_imp.lm)
-```
-
-#### Random Forest
-
-```{r}
-plot(qvalue_RF.lm)
-```
-
-#### k-Nearest Neighbors
-
-```{r}
-plot(qvalue_kNN.lm)
-```
-
-#### Ludovic
-
-```{r}
-plot(qvalue_ludovic.lm)
-```
-
-#### Shift Dist & RF
-
-```{r}
-plot(qvalue_shift.rf.lm)
-```
-
-### VSN {.tabset}
-
-```{r}
-qvalue.vsn <- qvalue::qvalue(pvalue_vsn$p_OCIAD1_TOTALS)
-
-qvalue_imp.vsn <- qvalue::qvalue(pvalue_vsn_imp$p_OCIAD1_TOTALS)
-
-qvalue_RF.vsn <- qvalue::qvalue(pvalue_vsn_RF$p_OCIAD1_TOTALS)
-
-qvalue_kNN.vsn <- qvalue::qvalue(pvalue_vsn_kNN$p_OCIAD1_TOTALS)
-
-qvalue_ludovic.vsn <- qvalue::qvalue(pvalue_vsn_ludovic$p_OCIAD1_TOTALS)
-
-qvalue_shift.rf.vsn <- qvalue::qvalue(pvalue_vsn_shift.rf$p_OCIAD1_TOTALS)
-```
-
-#### Non-Imputed
-
-```{r}
-plot(qvalue.vsn)
-```
-
-#### Shift Dist
-
-```{r}
-plot(qvalue_imp.vsn)
-```
-
-#### Random Forest
-
-```{r}
-plot(qvalue_RF.vsn)
-```
-
-#### k-Nearest Neighbors
-
-```{r}
-plot(qvalue_kNN.vsn)
-```
-
-#### Ludovic
-
-```{r}
-plot(qvalue_ludovic.vsn)
-```
-
-#### Shift Dist & RF
-
-```{r}
-plot(qvalue_shift.rf.vsn)
-```
-
-### EigenMS {.tabset}
-
-```{r}
-qvalue.eigen <- qvalue::qvalue(pvalue_eigen$p_OCIAD1_TOTALS)
-
-qvalue_imp.eigen <- qvalue::qvalue(pvalue_eigen_imp$p_OCIAD1_TOTALS)
-
-qvalue_RF.eigen <- qvalue::qvalue(pvalue_eigen_RF$p_OCIAD1_TOTALS)
-
-qvalue_kNN.eigen <- qvalue::qvalue(pvalue_eigen_kNN$p_OCIAD1_TOTALS)
-
-qvalue_ludovic.eigen <- qvalue::qvalue(pvalue_eigen_ludovic$p_OCIAD1_TOTALS)
-
-qvalue_shift.rf.eigen <- qvalue::qvalue(pvalue_eigen_shift.rf$p_OCIAD1_TOTALS)
-```
-
-#### Non-Imputed
-
-```{r}
-plot(qvalue.eigen)
-```
-
-#### Shift Dist
-
-```{r}
-plot(qvalue_imp.eigen)
-```
-
-#### Random Forest
-
-```{r}
-plot(qvalue_RF.eigen)
-```
-
-#### k-Nearest Neighbors
-
-```{r}
-plot(qvalue_kNN.eigen)
-```
-
-#### Ludovic
-
-```{r}
-plot(qvalue_ludovic.eigen)
-```
-
-#### Shift Dist & RF
-
-```{r}
-plot(qvalue_shift.rf.eigen)
-```
 # Raw VS Normalized     
 
 ```{r}
@@ -6472,6 +6103,7 @@ plotlyOutput("genePlotunlogged")
 ```
 
 # Fold Change
+
 <div style="display: flex;">
 
 <div style="flex: 33%;">
@@ -6511,8 +6143,9 @@ miss_type$protein.ids <- protein.groups$`Protein IDs`[rows.to.keep]
 
 ```{r fc raw data}
 # Preparing data for calculations
-lfq <- cbind.data.frame(lfq, protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
-lfq_long <- lfq |>
+lfq5 <- cbind.data.frame(lfq, protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                         gene = protein.groups$`Gene names`[rows.to.keep])
+lfq_long <- lfq5 |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
 
 # Add a new column with groups KO or WT
@@ -6521,19 +6154,19 @@ lfq_long$group[grep('WT',lfq_long$sample)] <- 'TOTALS_OCIAD1_WT'
 
 # Calculation of means for groups KO and WT
 means <- lfq_long |>
-  dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, lfq)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, lfq5, by = 'protein.ids')
 
-to_volcano1 <- merge(FC,pvalue)
+to_volcano1 <- merge(FC,pvalue, by = 'protein.ids')
 to_volcano1$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano1$FC_OCIAD1)>FC.cutoff&
                                            to_volcano1$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -6612,7 +6245,8 @@ plotlyOutput('V1')
 
 ```{r fc imp data}
 # Preparing data for calculations
-lfq_imp <- cbind.data.frame(lfq_imp, protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
+lfq_imp <- cbind.data.frame(lfq_imp, protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                            gene = protein.groups$`Gene names`[rows.to.keep])
 lfq_long_imp <- lfq_imp |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
 
@@ -6623,18 +6257,18 @@ lfq_long_imp$group[grep('WT',lfq_long_imp$sample)] <- 'TOTALS_OCIAD1_WT'
 # Calculation of means for groups KO and WT
 means <- lfq_long_imp |>
     dplyr::group_by(group, protein.ids) |>
-    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, lfq_imp)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, lfq_imp, by = 'protein.ids')
 
-to_volcano2 <- merge(FC,pvalue_imp)
+to_volcano2 <- merge(FC,pvalue_imp, by = 'protein.ids')
 to_volcano2$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano2$FC_OCIAD1)>FC.cutoff&
                                            to_volcano2$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -6712,7 +6346,8 @@ plotlyOutput('V2')
 
 ```{r fc RF data}
 # Preparing data for calculations
-imputed_RF <- cbind.data.frame(imputed_RF, protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
+imputed_RF <- cbind.data.frame(imputed_RF, protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                               gene = protein.groups$`Gene names`[rows.to.keep])
 imputed_long_RF <- imputed_RF |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
 
@@ -6723,19 +6358,19 @@ imputed_long_RF$group[grep('WT',imputed_long_RF$sample)] <- 'TOTALS_OCIAD1_WT'
 # Calculation of means for groups KO and WT
 means <- imputed_long_RF |>
     dplyr::group_by(group, protein.ids) |>
-    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
 # Add a type of missing to the data frame with means for groups KO and WT 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, imputed_RF)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, imputed_RF, by = 'protein.ids')
 
-to_volcano3 <- merge(FC, pvalue_RF)
+to_volcano3 <- merge(FC, pvalue_RF, by = 'protein.ids')
 to_volcano3$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano3$FC_OCIAD1)>FC.cutoff&
                                            to_volcano3$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -6813,7 +6448,8 @@ plotlyOutput('V3')
 
 ```{r fc kNN data}
 # Preparing data for calculations
-imputed_kNN <- cbind.data.frame(imputed_kNN, protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
+imputed_kNN <- cbind.data.frame(imputed_kNN, protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                                gene = protein.groups$`Gene names`[rows.to.keep])
 
 imputed_long_kNN <- imputed_kNN |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
@@ -6825,18 +6461,18 @@ imputed_long_kNN$group[grep('WT',imputed_long_kNN$sample)] <- 'TOTALS_OCIAD1_WT'
 # Calculation of means for groups KO and WT
 means <- imputed_long_kNN |>
     dplyr::group_by(group, protein.ids) |>
-    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
-means <- merge(means,miss_type)
+means <- merge(means,miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, imputed_kNN)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, imputed_kNN, by = 'protein.ids')
 
-to_volcano4 <- merge(FC, pvalue_kNN)
+to_volcano4 <- merge(FC, pvalue_kNN, by = 'protein.ids')
 to_volcano4$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano4$FC_OCIAD1)>FC.cutoff&
                                            to_volcano4$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -6915,7 +6551,8 @@ plotlyOutput('V4')
 ```{r fc ludovic data}
 # Preparing data for calculations
 imputed_ludovic <- cbind.data.frame(imputed_ludovic, 
-                                    protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
+                                    protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                                    gene = protein.groups$`Gene names`[rows.to.keep])
 imputed_long_ludovic <- imputed_ludovic |>
     tidyr::pivot_longer(3:8, names_to = 'sample', values_to = 'LFQvalue')
 
@@ -6926,16 +6563,16 @@ imputed_long_ludovic$group[grep('WT',imputed_long_ludovic$sample)] <- 'TOTALS_OC
 # Calculation of means for groups KO and WT
 means <- imputed_long_ludovic |>
     dplyr::group_by(group, protein.ids) |>
-    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, imputed_ludovic)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, imputed_ludovic, by = 'protein.ids')
 
 to_volcano5 <- merge(FC, pvalue_ludovic, by='Protein IDs')
 to_volcano5$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano5$FC_OCIAD1)>FC.cutoff&
@@ -7014,9 +6651,10 @@ plotlyOutput('V5')
 
 ```{r fc shift.rf data}
 # Preparing data for calculations
-imputed_shift.rf <- cbind.data.frame(imputed_shift.rf[,1:6], 
-                                    protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
-imputed_long_shift.rf <- imputed_shift.rf |>
+imputed_shift.rf0 <- cbind.data.frame(imputed_shift.rf[,1:6], 
+                                    protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                                    gene = protein.groups$`Gene names`[rows.to.keep])
+imputed_long_shift.rf <- imputed_shift.rf0 |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
 
 # Add a new column with groups KO or WT
@@ -7026,18 +6664,18 @@ imputed_long_shift.rf$group[grep('WT',imputed_long_shift.rf$sample)] <- 'TOTALS_
 # Calculation of means for groups KO and WT
 means <- imputed_long_shift.rf |>
     dplyr::group_by(group, protein.ids) |>
-    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, imputed_shift.rf)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, imputed_shift.rf0, by = 'protein.ids')
 
-to_volcano6 <- merge(FC, pvalue_shift.rf)
+to_volcano6 <- merge(FC, pvalue_shift.rf, by = 'protein.ids')
 to_volcano6$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano6$FC_OCIAD1)>FC.cutoff&
                                            to_volcano6$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -7115,10 +6753,9 @@ plotlyOutput('V6')
 ### Non-Imputed
 
 ```{r fc eigen raw data}
-# extract protein ids, to be sure that we get good rows
-
 # Preparing data for calculations
-eigen_df <- cbind.data.frame(eigen_df1, protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
+eigen_df <- cbind.data.frame(eigen_df1, protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                             gene = protein.groups$`Gene names`[rows.to.keep])
 eigen_df_long <- eigen_df |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
 
@@ -7129,18 +6766,18 @@ eigen_df_long$group[grep('WT',eigen_df_long$sample)] <- 'TOTALS_OCIAD1_WT'
 # Calculation of means for groups KO and WT
 means <- eigen_df_long |>
   dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, eigen_df)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, eigen_df, by = 'protein.ids')
 
-to_volcano7 <- merge(FC,pvalue_eigen)
+to_volcano7 <- merge(FC,pvalue_eigen, by = 'protein.ids')
 to_volcano7$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano7$FC_OCIAD1)>FC.cutoff&
                                            to_volcano7$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -7218,7 +6855,8 @@ plotlyOutput('V1eig')
 
 ```{r fc eigen imp data}
 # Preparing data for calculations
-eigen_df_imp <- cbind.data.frame(eigen_df_imp, protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
+eigen_df_imp <- cbind.data.frame(eigen_df_imp, protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                                 gene = protein.groups$`Gene names`[rows.to.keep])
 eigen_df_long_imp <- eigen_df_imp |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
 
@@ -7229,18 +6867,18 @@ eigen_df_long_imp$group[grep('WT',eigen_df_long_imp$sample)] <- 'TOTALS_OCIAD1_W
 # Calculation of means for groups KO and WT
 means <- eigen_df_long_imp |>
   dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, eigen_df_imp)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, eigen_df_imp, by = 'protein.ids')
 
-to_volcano8 <- merge(FC, pvalue_eigen_imp)
+to_volcano8 <- merge(FC, pvalue_eigen_imp, by = 'protein.ids')
 to_volcano8$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano8$FC_OCIAD1)>FC.cutoff&
                                            to_volcano8$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -7318,7 +6956,8 @@ plotlyOutput('V2eig')
 
 ```{r fc eigen RF data}
 # Preparing data for calculations
-eigen_df_RF <- cbind.data.frame(eigen_df_RF, protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
+eigen_df_RF <- cbind.data.frame(eigen_df_RF, protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                                gene = protein.groups$`Gene names`[rows.to.keep])
 eigen_df_long_RF <- eigen_df_RF |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
 
@@ -7329,19 +6968,19 @@ eigen_df_long_RF$group[grep('WT',eigen_df_long_RF$sample)] <- 'TOTALS_OCIAD1_WT'
 # Calculation of means for groups KO and WT
 means <- eigen_df_long_RF |>
   dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
 # Add a type of missing to the data frame with means for groups KO and WT 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, eigen_df_RF)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, eigen_df_RF, by = 'protein.ids')
 
-to_volcano9 <- merge(FC, pvalue_eigen_RF)
+to_volcano9 <- merge(FC, pvalue_eigen_RF, by = 'protein.ids')
 to_volcano9$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano9$FC_OCIAD1)>FC.cutoff&
                                            to_volcano9$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -7419,7 +7058,8 @@ plotlyOutput('V3eig')
 
 ```{r fc eigen kNN data}
 # Preparing data for calculations
-eigen_df_kNN <- cbind.data.frame(eigen_df_kNN, protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
+eigen_df_kNN <- cbind.data.frame(eigen_df_kNN, protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                                 gene = protein.groups$`Gene names`[rows.to.keep])
 eigen_df_long_kNN <- eigen_df_kNN |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
 
@@ -7430,19 +7070,19 @@ eigen_df_long_kNN$group[grep('WT',eigen_df_long_kNN$sample)] <- 'TOTALS_OCIAD1_W
 # Calculation of means for groups KO and WT
 means <- eigen_df_long_kNN |>
   dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
 # Add a type of missing to the data frame with means for groups KO and WT 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, eigen_df_kNN)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, eigen_df_kNN, by = 'protein.ids')
 
-to_volcano10 <- merge(FC, pvalue_eigen_kNN)
+to_volcano10 <- merge(FC, pvalue_eigen_kNN, by = 'protein.ids')
 to_volcano10$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano10$FC_OCIAD1)>FC.cutoff&
                                            to_volcano10$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -7521,7 +7161,8 @@ plotlyOutput('V4eig')
 ```{r fc eigen ludovic data}
 # Preparing data for calculations
 eigen_df_ludovic <- cbind.data.frame(eigen_df_ludovic, 
-                                     protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
+                                     protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                                     gene = protein.groups$`Gene names`[rows.to.keep])
 eigen_df_long_ludovic <- eigen_df_ludovic |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
 
@@ -7532,18 +7173,18 @@ eigen_df_long_ludovic$group[grep('WT',eigen_df_long_ludovic$sample)] <- 'TOTALS_
 # Calculation of means for groups KO and WT
 means <- eigen_df_long_ludovic |>
   dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, eigen_df_ludovic)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, eigen_df_ludovic, by = 'protein.ids')
 
-to_volcano11 <- merge(FC, pvalue_eigen_ludovic)
+to_volcano11 <- merge(FC, pvalue_eigen_ludovic, by = 'protein.ids')
 to_volcano11$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano11$FC_OCIAD1)>FC.cutoff&
                                            to_volcano11$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -7621,9 +7262,10 @@ plotlyOutput('V5eig')
 
 ```{r fc eigen shift.rf data}
 # Preparing data for calculations
-eigen_df_shift.rf <- cbind.data.frame(eigen_df_shift.rf, 
-                                     protein.ids=protein.groups$`Protein IDs`[rows.to.keep])
-eigen_df_long_shift.rf <- eigen_df_shift.rf |>
+eigen_df_shift.rf1 <- cbind.data.frame(eigen_df_shift.rf, 
+                                     protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
+                                     gene = protein.groups$`Gene names`[rows.to.keep])
+eigen_df_long_shift.rf <- eigen_df_shift.rf1 |>
     tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
 
 # Add a new column with groups KO or WT
@@ -7633,18 +7275,18 @@ eigen_df_long_shift.rf$group[grep('WT',eigen_df_long_shift.rf$sample)] <- 'TOTAL
 # Calculation of means for groups KO and WT
 means <- eigen_df_long_shift.rf |>
   dplyr::group_by(group, protein.ids) |>
-  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE))
+  dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
 
-means <- merge(means, miss_type)
+means <- merge(means, miss_type, by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, eigen_df_shift.rf)
-FC <- FC |> dplyr::mutate(gene = protein.groups$`Gene names`[rows.to.keep])
+FC <- merge(means, eigen_df_shift.rf1, by = 'protein.ids')
 
-to_volcano12 <- merge(FC, pvalue_eigen_shift.rf)
+to_volcano12 <- merge(FC, pvalue_eigen_shift.rf, by = 'protein.ids')
 to_volcano12$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano12$FC_OCIAD1)>FC.cutoff&
                                            to_volcano12$p_OCIAD1_TOTALS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -7716,6 +7358,468 @@ output$V6eig <- renderPlotly({
 })
 
 plotlyOutput('V6eig')
+```
+
+## New Plots
+
+### Raw Data {.tabset}
+
+```{r}
+df <- lfq[which(miss_type$miss == 'complete'),-c(3,6)]
+
+# calculate the p-values for our data
+pvalue2 <- df |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(df, 1, ttest, 
+                  grp1=grep("KO", colnames(df)), 
+                  grp2=grep("WT", colnames(df)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][which(miss_type$miss == 'complete')])
+
+# calculate the p-values for our data
+imputed_shift.rf3 <- imputed_shift.rf[which(miss_type$miss == 'complete'),-c(3,6)]
+
+pvalue_shift.rf2 <- imputed_shift.rf3 |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(imputed_shift.rf3, 1, ttest, 
+                  grp1=grep("KO", colnames(imputed_shift.rf3)), 
+                  grp2=grep("WT", colnames(imputed_shift.rf3)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][which(miss_type$miss == 'complete')])
+```
+
+#### Non-Imputed
+
+```{r}
+# Preparing data for calculations
+lfq2 <- cbind.data.frame(lfq[which(miss_type$miss == 'complete'),-c(3,6)], 
+                        protein.ids=protein.groups$`Protein IDs`[rows.to.keep][which(miss_type$miss == 'complete')],
+                        gene = protein.groups$`Gene names`[rows.to.keep][which(miss_type$miss == 'complete')])
+lfq_long2 <- lfq2 |>
+    tidyr::pivot_longer(1:4, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+lfq_long2$group <- 'TOTALS_OCIAD1_KO'
+lfq_long2$group[grep('WT',lfq_long2$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- lfq_long2 |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+means <- merge(means, miss_type[which(miss_type$miss == 'complete'),], by = 'protein.ids')
+
+# Preparing data for volcano plot
+FC <- merge(means, lfq2[which(miss_type$miss == 'complete'),], by = 'protein.ids')
+
+to_volcano15 <- merge(FC,pvalue2, by = 'protein.ids')
+to_volcano15$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano15$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano15$p_OCIAD1_TOTALS<p.cutoff,
+                                         yes = TRUE, no = FALSE)
+```
+
+```{r}
+# plotting the volcano plot
+output$V15 <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
+    selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
+    selected_row <- which(to_volcano15$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano15 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano15[-selected_row,]
+    } else {
+        to_volcano <- to_volcano15
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    }
+
+    
+    # Base plot
+    v <- plotly::plot_ly(data = to_volcano, 
+                         x = ~FC_OCIAD1, 
+                         y = ~-log10(p_OCIAD1_TOTALS), 
+                         type = 'scatter', 
+                         mode = 'markers', 
+                         color = ~miss, 
+                         text = ~gene,
+                         symbol = ~sig_TOTALS_OCIAD1,
+                         hoverinfo = list('text', 'symbol'), # Show label on hover
+                         marker = list(size = 5)) |>  # Adjust marker size as needed
+        layout(title = paste('Volcano plot for Non-Imputed Data -', p.type),
+               xaxis = list(title = 'log2(fold change)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
+               shapes = list(
+                   list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
+                   list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
+                   list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
+               ))
+    
+    # Add selected genes if any are selected
+    if (length(selected_row) != 0) {
+        v <- v |> add_markers(data = sel_gene_data, 
+                               x = ~FC_OCIAD1, 
+                               y = ~-log10(p_OCIAD1_TOTALS), 
+                               marker = list(color = 'brown', size = 10),
+                               inherit = FALSE, # Make sure these points stand out
+                               name = selected_gene)  
+    }
+    
+    # Display the plot
+    v
+})
+
+plotlyOutput('V15')
+```
+
+#### Shift Dist & RF
+
+```{r 111 fc shift.rf data}
+# Preparing data for calculations
+imputed_shift.rf2 <- cbind.data.frame(imputed_shift.rf[which(miss_type$miss == 'complete'),-c(3,6,7)],
+                                      protein.ids=protein.groups$`Protein IDs`[rows.to.keep][which(miss_type$miss == 'complete')],
+                                      gene = protein.groups$`Gene names`[rows.to.keep][which(miss_type$miss == 'complete')])
+
+imputed_long_shift.rf2 <- imputed_shift.rf2 |>
+    tidyr::pivot_longer(1:4, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+imputed_long_shift.rf2$group <- 'TOTALS_OCIAD1_KO'
+imputed_long_shift.rf2$group[grep('WT',imputed_long_shift.rf2$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- imputed_long_shift.rf2 |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+means <- merge(means, miss_type[which(miss_type$miss == 'complete'),], by = 'protein.ids')
+
+# Preparing data for volcano plot
+FC <- merge(means, imputed_shift.rf2, by = 'protein.ids')
+
+to_volcano16 <- merge(FC, pvalue_shift.rf2, by = 'protein.ids')
+to_volcano16$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano16$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano16$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v16}
+# Plotting the volcano plot
+output$V16 <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
+    selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
+    selected_row <- which(to_volcano16$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano16 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano16[-selected_row,]
+    } else {
+        to_volcano <- to_volcano16
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    }
+    
+    # Base plot
+    v <- plotly::plot_ly(data = to_volcano, 
+                         x = ~FC_OCIAD1, 
+                         y = ~-log10(p_OCIAD1_TOTALS), 
+                         type = 'scatter', 
+                         mode = 'markers', 
+                         color = ~miss, 
+                         text = ~gene,
+                         symbol = ~sig_TOTALS_OCIAD1,
+                         hoverinfo = list('text', 'symbol'),  # Show labels on hover
+                         marker = list(size = 5)) |>  # Adjust marker size as needed
+        layout(title = paste('Volcano plot for Imputed Data Shift Dist & RF -', p.type),
+               xaxis = list(title = 'log2(fold change)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
+               shapes = list(
+                   list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
+                   list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
+                   list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
+               ))
+    
+    # Add selected genes if any are selected
+    if (length(selected_row) != 0) {
+        v <- v |> add_markers(data = sel_gene_data, 
+                               x = ~FC_OCIAD1, 
+                               y = ~-log10(p_OCIAD1_TOTALS), 
+                               marker = list(color = 'brown', size = 10),
+                               inherit = FALSE, # Make sure these points stand out
+                               name = selected_gene) 
+    }
+    
+    # Display the plot
+    v
+})
+plotlyOutput('V16')
+```
+
+### EigenMS {.tabset}
+
+```{r}
+# prepare data for t-test
+eigen_df2 <- data.frame(LFQ_KO.eigen, LFQ_WT.eigen)[which(miss_type$miss == 'complete'),-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_eigen2 <- eigen_df2 |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df2, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df2)), 
+                  grp2=grep("WT", colnames(eigen_df2)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][which(miss_type$miss == 'complete')])
+
+# prepare data for t-test
+eigen_df_shift.rf2 <- cbind.data.frame(LFQ_KO_shift.rf.eigen, LFQ_WT_shift.rf.eigen)[which(miss_type$miss == 'complete'),-c(3,6)]
+
+# calculate the p-values for our data
+pvalue_eigen_shift.rf2 <- eigen_df_shift.rf2 |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(eigen_df_shift.rf2, 1, ttest, 
+                  grp1=grep("KO", colnames(eigen_df_shift.rf2)), 
+                  grp2=grep("WT", colnames(eigen_df_shift.rf2)))) |>
+    dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][which(miss_type$miss == 'complete')])
+```
+
+#### Non-Imputed
+
+```{r}
+# Preparing data for calculations
+lfq4 <- cbind.data.frame(eigen_df2[which(miss_type$miss == 'complete'),], 
+                        protein.ids=protein.groups$`Protein IDs`[rows.to.keep][which(miss_type$miss == 'complete')],
+                        gene = protein.groups$`Gene names`[rows.to.keep][which(miss_type$miss == 'complete')])
+lfq4_long <- lfq4 |>
+    tidyr::pivot_longer(1:4, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+lfq4_long$group <- 'TOTALS_OCIAD1_KO'
+lfq4_long$group[grep('WT',lfq4_long$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- lfq4_long |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+means <- merge(means, miss_type[which(miss_type$miss == 'complete'),], by = 'protein.ids')
+
+# Preparing data for volcano plot
+FC <- merge(means, lfq4[which(miss_type$miss == 'complete'),], by = 'protein.ids')
+
+to_volcano17 <- merge(FC,pvalue_eigen2, by = 'protein.ids')
+to_volcano17$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano17$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano17$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r}
+# plotting the volcano plot
+output$V17 <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
+    selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
+    selected_row <- which(to_volcano17$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano17 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano17[-selected_row,]
+    } else {
+        to_volcano <- to_volcano17
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    }
+
+    
+    # Base plot
+    v <- plotly::plot_ly(data = to_volcano, 
+                         x = ~FC_OCIAD1, 
+                         y = ~-log10(p_OCIAD1_TOTALS), 
+                         type = 'scatter', 
+                         mode = 'markers', 
+                         color = ~miss, 
+                         text = ~gene,
+                         symbol = ~sig_TOTALS_OCIAD1,
+                         hoverinfo = list('text', 'symbol'), # Show label on hover
+                         marker = list(size = 5)) |>  # Adjust marker size as needed
+        layout(title = paste('Volcano plot for Non-Imputed Data -', p.type),
+               xaxis = list(title = 'log2(fold change)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
+               shapes = list(
+                   list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
+                   list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
+                   list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
+               ))
+    
+    # Add selected genes if any are selected
+    if (length(selected_row) != 0) {
+        v <- v |> add_markers(data = sel_gene_data, 
+                               x = ~FC_OCIAD1, 
+                               y = ~-log10(p_OCIAD1_TOTALS), 
+                               marker = list(color = 'brown', size = 10),
+                               inherit = FALSE, # Make sure these points stand out
+                               name = selected_gene)  
+    }
+    
+    # Display the plot
+    v
+})
+
+plotlyOutput('V17')
+```
+
+#### Shift Dist & RF
+
+```{r 233 fc shift.rf data}
+# Preparing data for calculations
+imputed_shift.rf3 <- cbind.data.frame(eigen_df_shift.rf[which(miss_type$miss == 'complete'),-c(3,6,7)],
+                                      protein.ids=protein.groups$`Protein IDs`[rows.to.keep][which(miss_type$miss == 'complete')],
+                                      gene = protein.groups$`Gene names`[rows.to.keep][which(miss_type$miss == 'complete')])
+
+imputed_long_shift.rf3 <- imputed_shift.rf3 |>
+    tidyr::pivot_longer(1:4, names_to = 'sample', values_to = 'LFQvalue')
+
+# Add a new column with groups KO or WT
+imputed_long_shift.rf3$group <- 'TOTALS_OCIAD1_KO'
+imputed_long_shift.rf3$group[grep('WT',imputed_long_shift.rf3$sample)] <- 'TOTALS_OCIAD1_WT'
+
+# Calculation of means for groups KO and WT
+means <- imputed_long_shift.rf3 |>
+    dplyr::group_by(group, protein.ids) |>
+    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::ungroup()
+
+means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
+    dplyr::mutate(FC_OCIAD1 = TOTALS_OCIAD1_KO - TOTALS_OCIAD1_WT)
+
+means <- merge(means, miss_type[which(miss_type$miss == 'complete'),])
+
+# Preparing data for volcano plot
+FC <- merge(means, imputed_shift.rf3)
+
+to_volcano18 <- merge(FC, pvalue_eigen_shift.rf2)
+to_volcano18$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano18$FC_OCIAD1)>FC.cutoff&
+                                           to_volcano18$p_OCIAD1_TOTALS<p.cutoff,
+                                       yes = TRUE, no = FALSE)
+```
+
+```{r v18}
+# Plotting the volcano plot
+output$V18 <- renderPlotly({
+    p.cutoff_sel <- as.numeric(input$p.cutoff)
+    p.type <- input$p.type
+    selected_gene <- input$gene
+    adj_method <- input$adj.method
+    
+    selected_row <- which(to_volcano18$gene == selected_gene)
+    if (length(selected_row) != 0) {
+        sel_gene_data <- to_volcano18 |> dplyr::filter(gene == selected_gene)
+        to_volcano <- to_volcano18[-selected_row,]
+    } else {
+        to_volcano <- to_volcano18
+    }
+    
+    if (p.type == 'adj p-value') {
+        to_volcano$p_OCIAD1_TOTALS <- p.adjust(to_volcano$p_OCIAD1_TOTALS, adj_method)
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    } else {
+        to_volcano$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
+                                                   to_volcano$p_OCIAD1_TOTALS<p.cutoff_sel,
+                                               yes = TRUE, no = FALSE)
+    }
+    
+    # Base plot
+    v <- plotly::plot_ly(data = to_volcano, 
+                         x = ~FC_OCIAD1, 
+                         y = ~-log10(p_OCIAD1_TOTALS), 
+                         type = 'scatter', 
+                         mode = 'markers', 
+                         color = ~miss, 
+                         text = ~gene,
+                         symbol = ~sig_TOTALS_OCIAD1,
+                         hoverinfo = list('text', 'symbol'),  # Show labels on hover
+                         marker = list(size = 5)) |>  # Adjust marker size as needed
+        layout(title = paste('Volcano plot for Imputed Data Shift Dist & RF -', p.type),
+               xaxis = list(title = 'log2(fold change)'),
+               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
+               shapes = list(
+                   list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
+                   list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_TOTALS)), 
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
+                   list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
+                        y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
+                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
+               ))
+    
+    # Add selected genes if any are selected
+    if (length(selected_row) != 0) {
+        v <- v |> add_markers(data = sel_gene_data, 
+                               x = ~FC_OCIAD1, 
+                               y = ~-log10(p_OCIAD1_TOTALS), 
+                               marker = list(color = 'brown', size = 10),
+                               inherit = FALSE, # Make sure these points stand out
+                               name = selected_gene) 
+    }
+    
+    # Display the plot
+    v
+})
+plotlyOutput('V18')
 ```
 
 ## Table
