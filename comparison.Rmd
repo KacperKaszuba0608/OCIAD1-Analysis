@@ -7365,13 +7365,13 @@ plotlyOutput('V6eig')
 ### Raw Data {.tabset}
 
 ```{r}
-df <- lfq[which(miss_type$miss == 'complete'),-c(3,6)]
+df2 <- lfq[which(miss_type$miss == 'complete'),-c(3,6)]
 
 # calculate the p-values for our data
-pvalue2 <- df |>
-    dplyr::mutate("p_OCIAD1_TOTALS" = apply(df, 1, ttest, 
-                  grp1=grep("KO", colnames(df)), 
-                  grp2=grep("WT", colnames(df)))) |>
+pvalue2 <- df2 |>
+    dplyr::mutate("p_OCIAD1_TOTALS" = apply(df2, 1, ttest, 
+                  grp1=grep("KO", colnames(df2)), 
+                  grp2=grep("WT", colnames(df2)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_TOTALS < p.cutoff, TRUE, FALSE),
                   protein.ids = protein.groups$`Protein IDs`[rows.to.keep][which(miss_type$miss == 'complete')])
 
@@ -7403,7 +7403,7 @@ lfq_long2$group[grep('WT',lfq_long2$sample)] <- 'TOTALS_OCIAD1_WT'
 # Calculation of means for groups KO and WT
 means <- lfq_long2 |>
     dplyr::group_by(group, protein.ids) |>
-    dplyr::summarise(mean=mean(LFQvalue, na.rm=TRUE)) |>
+    dplyr::summarise(mean=mean(LFQvalue)) |>
     dplyr::ungroup()
 
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
@@ -7412,7 +7412,7 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
 means <- merge(means, miss_type[which(miss_type$miss == 'complete'),], by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, lfq2[which(miss_type$miss == 'complete'),], by = 'protein.ids')
+FC <- merge(means, lfq2, by = 'protein.ids')
 
 to_volcano15 <- merge(FC,pvalue2, by = 'protein.ids')
 to_volcano15$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano15$FC_OCIAD1)>FC.cutoff&
@@ -7454,9 +7454,9 @@ output$V15 <- renderPlotly({
                          y = ~-log10(p_OCIAD1_TOTALS), 
                          type = 'scatter', 
                          mode = 'markers', 
-                         color = ~miss, 
+                         color = ~sig_TOTALS_OCIAD1, 
                          text = ~gene,
-                         symbol = ~sig_TOTALS_OCIAD1,
+                         symbol = ~miss,
                          hoverinfo = list('text', 'symbol'), # Show label on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
         layout(title = paste('Volcano plot for Non-Imputed Data -', p.type),
@@ -7557,9 +7557,9 @@ output$V16 <- renderPlotly({
                          y = ~-log10(p_OCIAD1_TOTALS), 
                          type = 'scatter', 
                          mode = 'markers', 
-                         color = ~miss, 
+                         color = ~sig_TOTALS_OCIAD1, 
                          text = ~gene,
-                         symbol = ~sig_TOTALS_OCIAD1,
+                         symbol = ~miss,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
         layout(title = paste('Volcano plot for Imputed Data Shift Dist & RF -', p.type),
@@ -7621,7 +7621,7 @@ pvalue_eigen_shift.rf2 <- eigen_df_shift.rf2 |>
 
 ```{r}
 # Preparing data for calculations
-lfq4 <- cbind.data.frame(eigen_df2[which(miss_type$miss == 'complete'),], 
+lfq4 <- cbind.data.frame(eigen_df2, 
                         protein.ids=protein.groups$`Protein IDs`[rows.to.keep][which(miss_type$miss == 'complete')],
                         gene = protein.groups$`Gene names`[rows.to.keep][which(miss_type$miss == 'complete')])
 lfq4_long <- lfq4 |>
@@ -7643,7 +7643,7 @@ means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
 means <- merge(means, miss_type[which(miss_type$miss == 'complete'),], by = 'protein.ids')
 
 # Preparing data for volcano plot
-FC <- merge(means, lfq4[which(miss_type$miss == 'complete'),], by = 'protein.ids')
+FC <- merge(means, lfq4, by = 'protein.ids')
 
 to_volcano17 <- merge(FC,pvalue_eigen2, by = 'protein.ids')
 to_volcano17$sig_TOTALS_OCIAD1 <- ifelse(abs(to_volcano17$FC_OCIAD1)>FC.cutoff&
@@ -7685,9 +7685,9 @@ output$V17 <- renderPlotly({
                          y = ~-log10(p_OCIAD1_TOTALS), 
                          type = 'scatter', 
                          mode = 'markers', 
-                         color = ~miss, 
+                         color = ~sig_TOTALS_OCIAD1, 
                          text = ~gene,
-                         symbol = ~sig_TOTALS_OCIAD1,
+                         symbol = ~miss,
                          hoverinfo = list('text', 'symbol'), # Show label on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
         layout(title = paste('Volcano plot for Non-Imputed Data -', p.type),
@@ -7788,9 +7788,9 @@ output$V18 <- renderPlotly({
                          y = ~-log10(p_OCIAD1_TOTALS), 
                          type = 'scatter', 
                          mode = 'markers', 
-                         color = ~miss, 
+                         color = ~sig_TOTALS_OCIAD1, 
                          text = ~gene,
-                         symbol = ~sig_TOTALS_OCIAD1,
+                         symbol = ~miss,
                          hoverinfo = list('text', 'symbol'),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
         layout(title = paste('Volcano plot for Imputed Data Shift Dist & RF -', p.type),
@@ -7842,6 +7842,37 @@ DT::datatable(
           Shift.RF.Eigen = table(to_volcano12$sig_TOTALS_OCIAD1)),
     options=list(searching=FALSE, paging=FALSE, info=FALSE)
 )
+```
+
+```{r}
+protein.groups_ludovic_raw <- protein.groups
+nas <- rep(NA,nrow(protein.groups))
+imputed_ludovic_correct <- data.frame(KO.22=nas, KO.23=nas, KO.24=nas, WT.22=nas, WT.23=nas, WT.24=nas)
+imputed_ludovic_correct[as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`)),] <- imputed_ludovic[,3:8]
+protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_22` <- imputed_ludovic_correct$KO.22
+protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_23` <- imputed_ludovic_correct$KO.23
+protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_24` <- imputed_ludovic_correct$KO.24
+protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_22` <- imputed_ludovic_correct$WT.22
+protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_23` <- imputed_ludovic_correct$WT.23
+protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_24` <- imputed_ludovic_correct$WT.24
+
+protein.groups_ludovic_eigenms <- protein.groups
+eigen_ludovic <- LFQ_ludovic.eig_norm$norm_m
+eigen_ludovic_clean <- data.frame(KO.22=nas, KO.23=nas, KO.24=nas, WT.22=nas, WT.23=nas, WT.24=nas)
+eigen_ludovic_clean[as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`)),] <- eigen_ludovic
+
+protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_22` <- eigen_ludovic_clean$KO.22
+protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_23` <- eigen_ludovic_clean$KO.23
+protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_24` <- eigen_ludovic_clean$KO.24
+protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_22` <- eigen_ludovic_clean$WT.22
+protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_23` <- eigen_ludovic_clean$WT.23
+protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_24` <- eigen_ludovic_clean$WT.24
+```
+
+```{r}
+write.table(protein.groups_ludovic_raw, file='proteingroups_ludovic_raw.txt', sep='\t', row.names = FALSE)
+
+write.table(protein.groups_ludovic_eigenms, file='proteingroups_ludovic_eigenms.txt', sep='\t', row.name=FALSE)
 ```
 
 # Conclusion
