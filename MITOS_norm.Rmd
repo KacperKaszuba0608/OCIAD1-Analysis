@@ -14,9 +14,9 @@ css: document_style.css
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", fig.keep = "all", echo=FALSE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", fig.keep = "all", echo = FALSE)
 
-shift_dist_impute = function(df, width = 0.5, downshift = 1, seed = 7694) {
+shift_dist_impute <- function(df, width = 0.5, downshift = 1, seed = 7694) {
     # df = data frame containing filtered data
     # Assumes missing data (in df) follows a narrowed and downshifted normal distribution
     
@@ -28,12 +28,13 @@ shift_dist_impute = function(df, width = 0.5, downshift = 1, seed = 7694) {
     
     # Imputation
     temp <- df
-    temp[!is.finite(temp)] = NA #make sure all non-finite values are really NA
-    temp.sd = width * sd(temp, na.rm = TRUE) #shrink sd width
-    temp.mean = mean(temp, na.rm = TRUE) - 
+    temp[!is.finite(temp)] <- NA #make sure all non-finite values are really NA
+    temp.sd <- width * sd(temp, na.rm = TRUE) #shrink sd width
+    temp.mean <- mean(temp, na.rm = TRUE) - 
         downshift * sd(temp, na.rm = TRUE) #shift mean of imputed values
-    n.missing = sum(is.na(temp))
-    temp[is.na(temp)] = rnorm(n.missing, mean = temp.mean, sd = temp.sd) #replace NA with values from the new distribution
+    n.missing <- sum(is.na(temp))
+    #replace NA with values from the new distribution
+    temp[is.na(temp)] <- rnorm(n.missing, mean = temp.mean, sd = temp.sd) 
     
     df <- temp
     
@@ -42,24 +43,24 @@ shift_dist_impute = function(df, width = 0.5, downshift = 1, seed = 7694) {
 
 imputation <- function(rf_model, df_to_model, df_ml) {
     
-    mar_prots <- which(df_ml$missingness == 'MAR')
-    mnar_prots_long <- which(df_ml$missingness == 'MNAR')
+    mar_prots <- which(df_ml$missingness == "MAR")
+    mnar_prots_long <- which(df_ml$missingness == "MNAR")
     
     mar_impute <- predict(rf_model, df_to_model[mar_prots,-ncol(df_to_model)])$predictions
     
     lfq_wide <- df_ml |>
         dplyr::select(celltype, rep, LFQvalue) |>
-        dplyr::mutate(batch = paste(celltype, rep, sep='.')) |>
+        dplyr::mutate(batch = paste(celltype, rep, sep=".")) |>
         dplyr::select(batch, LFQvalue) |>
         tidyr::pivot_wider(id_cols = dplyr::everything(), names_from = batch, values_from = LFQvalue, values_fn = list) |>
-        tidyr::unnest(c('KO.22', 'KO.23', 'KO.24', 'WT.22', 'WT.23', 'WT.24')) |>
+        tidyr::unnest(c("KO.22", "KO.23", "KO.24", "WT.22", "WT.23", "WT.24")) |>
         dplyr::mutate(missingness = df_ml$missingness[seq(1,nrow(df_ml), by=6)])
     
-    mnar_prots <- which(lfq_wide$missingness == 'MNAR')
+    mnar_prots <- which(lfq_wide$missingness == "MNAR")
     
-    lfq.KO <- lfq_wide |> dplyr::select(dplyr::contains('KO'))
+    lfq.KO <- lfq_wide |> dplyr::select(dplyr::contains("KO"))
     lfq.KO <- log2(lfq.KO)
-    lfq.WT <- lfq_wide |> dplyr::select(dplyr::contains('WT'))
+    lfq.WT <- lfq_wide |> dplyr::select(dplyr::contains("WT"))
     lfq.WT <- log2(lfq.WT)
     
     mnar_impute.KO <- apply(lfq.KO, 2, shift_dist_impute) # function wrote by Mateusz
@@ -69,7 +70,7 @@ imputation <- function(rf_model, df_to_model, df_ml) {
     lfq.WT[mnar_prots,] <- mnar_impute.WT[mnar_prots,]
     
     lfq_imp <- cbind.data.frame(lfq.KO, lfq.WT) |>
-        tidyr::pivot_longer(cols = dplyr::everything(), names_to = 'batch', values_to = 'LFQ')
+        tidyr::pivot_longer(cols = dplyr::everything(), names_to = "batch", values_to = "LFQ")
     
     df_final <- df_ml
     
@@ -79,10 +80,10 @@ imputation <- function(rf_model, df_to_model, df_ml) {
     
     df_final <- df_final |>
         dplyr::select(celltype, rep, missingness, LFQvalue) |>
-        dplyr::mutate(batch = paste(celltype, rep, sep='.')) |>
+        dplyr::mutate(batch = paste(celltype, rep, sep=".")) |>
         dplyr::select(batch, LFQvalue) |>
         tidyr::pivot_wider(id_cols = everything(), names_from = batch, values_from = LFQvalue, values_fn = list) |>
-        tidyr::unnest(c('KO.22', 'KO.23', 'KO.24', 'WT.22', 'WT.23', 'WT.24')) |>
+        tidyr::unnest(c("KO.22", "KO.23", "KO.24", "WT.22", "WT.23", "WT.24")) |>
         dplyr::mutate(missingness = df_ml$missingness[seq(1,nrow(df_ml), by=6)])
     
     return(df_final)
@@ -91,14 +92,14 @@ imputation <- function(rf_model, df_to_model, df_ml) {
 show_cv_table <- function(df) {
     DT::datatable(df, rownames = FALSE, 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
-    DT::formatStyle(columns = c('mean_KO', 'mean_WT', 'median_KO', 'median_WT'), 
-                    background = DT::styleInterval(c(15, 25), c('white','lightgreen', 'white'))) |>
-    DT::formatStyle(columns = 'method', fontWeight = 'bold')
+    DT::formatStyle(columns = c("mean_KO", "mean_WT", "median_KO", "median_WT"), 
+                    background = DT::styleInterval(c(15, 25), c("white","lightgreen", "white"))) |>
+    DT::formatStyle(columns = "method", fontWeight = "bold")
 }
 
 assign_missing <- function(protein.ids, condition, lfq_intensity) {
     # verification of the fxn assumptions
-    if (!is.factor(condition)) {rlang::abort('The condition are not factor!')}
+    if (!is.factor(condition)) {rlang::abort("The condition are not factor!")}
 
     # occurences of protein IDs per condition
     occur <- dplyr::tibble(protein.ids) |>
@@ -112,10 +113,10 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
         dplyr::summarise(len = length(protein.ids))
     occur_per_cond <- unique(occur_per_cond$len)
 
-    if (length(protein.ids)/occur != length(unique(protein.ids))) {rlang::abort('The protein IDs are not unique!')}
-    if (!is.numeric(lfq_intensity)) {rlang::abort('The lfq intensities are not numeric!')}
+    if (length(protein.ids)/occur != length(unique(protein.ids))) {rlang::abort("The protein IDs are not unique!")}
+    if (!is.numeric(lfq_intensity)) {rlang::abort("The lfq intensities are not numeric!")}
 
-    df <- data.frame('prot.IDs'=protein.ids, 'condition'=condition, 'lfq'=lfq_intensity)
+    df <- data.frame("prot.IDs"=protein.ids, "condition"=condition, "lfq"=lfq_intensity)
 
     # Calculating number of missing values for each protein for each condition
     number_missing1 <- df |>
@@ -124,13 +125,13 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
 
     missingness_per_cond <- purrr::map(number_missing1$no_NAs, function(no) {
             if (no == occur_per_cond) {
-              rep('all_NA', occur_per_cond)
+              rep("all_NA", occur_per_cond)
             } else if (no == occur_per_cond-1) {
-              rep('MNAR', occur_per_cond)
+              rep("MNAR", occur_per_cond)
             } else if (no < occur_per_cond-1 & no != 0) {
-              rep('MAR', occur_per_cond)
+              rep("MAR", occur_per_cond)
             } else if (no == 0){
-              rep('complete', occur_per_cond)
+              rep("complete", occur_per_cond)
             }
         })
     missingness_per_cond <- data.frame(do.call(c,missingness_per_cond))
@@ -142,13 +143,13 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
     
     missingness_per_prot <- purrr::map(number_missing2$no_NAs, function(no) {
             if (no == occur) {
-              rep('all_NA', occur)
+              rep("all_NA", occur)
             }else if (no == occur-1) {
-              rep('MNAR', occur)
+              rep("MNAR", occur)
             } else if (no < occur-1 & no != 0) {
-              rep('MAR', occur)
+              rep("MAR", occur)
             } else if (no == 0){
-              rep('complete', occur)
+              rep("complete", occur)
             }
         }) 
     missingness_per_prot <- data.frame(do.call(c, missingness_per_prot))
@@ -157,40 +158,40 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
     prot.id.miss <- data.frame(do.call(c,prot.id.miss))
 
     df_miss <- data.frame(prot.id.miss, missingness_per_cond, missingness_per_prot)
-    colnames(df_miss) <- c('prot.IDs', 'missingness_per_cond', 'missingness_per_prot')
+    colnames(df_miss) <- c("prot.IDs", "missingness_per_cond", "missingness_per_prot")
 
-    missingness_per_cond <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),'missingness_per_cond'])
+    missingness_per_cond <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),"missingness_per_cond"])
     df$missingness_per_cond <- do.call(c,missingness_per_cond)
     
-    missingness_per_prot <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),'missingness_per_prot'])
+    missingness_per_prot <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),"missingness_per_prot"])
     df$missingness_per_prot <- do.call(c,missingness_per_prot)
     
     # Testing new missing assigning
     missingness_final <- df |>
         dplyr::select(condition, missingness_per_cond) |>
-        tidyr::pivot_wider(id_cols=everything(), names_from = 'condition', 
-                           values_from='missingness_per_cond', values_fn = list) |> 
+        tidyr::pivot_wider(id_cols=everything(), names_from = "condition", 
+                           values_from="missingness_per_cond", values_fn = list) |> 
         tidyr::unnest(cols = everything())
     
     cond_id <- seq(1,nrow(missingness_final), by=3)
     missingness_final <- missingness_final[cond_id,]
     
     missingness_final2 <- purrr::map(1:nrow(missingness_final), function(i) {
-        if (all(missingness_final[i,] == 'all_NA')) {
+        if (all(missingness_final[i,] == "all_NA")) {
             rep(NA, occur)
-        } else if ((missingness_final[i,1] == 'complete' & missingness_final[i,2] == 'all_NA') | (missingness_final[i,2] == 'complete' & missingness_final[i,1] == 'all_NA')) {
-            rep('MNAR', occur)
-        } else if ((missingness_final[i,1] == 'MAR' & missingness_final[i,2] == 'MNAR') | (missingness_final[i,2] == 'MAR' & missingness_final[i,1] == 'MNAR')) {
+        } else if ((missingness_final[i,1] == "complete" & missingness_final[i,2] == "all_NA") | (missingness_final[i,2] == "complete" & missingness_final[i,1] == "all_NA")) {
+            rep("MNAR", occur)
+        } else if ((missingness_final[i,1] == "MAR" & missingness_final[i,2] == "MNAR") | (missingness_final[i,2] == "MAR" & missingness_final[i,1] == "MNAR")) {
             rep(NA, occur)
-        } else if (all(missingness_final[i,] == 'MAR')) {
-            rep('MAR', occur)
-        } else if (all(missingness_final[i,] == 'MNAR')) {
+        } else if (all(missingness_final[i,] == "MAR")) {
+            rep("MAR", occur)
+        } else if (all(missingness_final[i,] == "MNAR")) {
             rep(NA, occur)
-        } else if (all(missingness_final[i,] == 'complete')) {
-            rep('complete', occur)
-        } else if ((missingness_final[i,1] == 'complete' & missingness_final[i,2] =='MNAR') | (missingness_final[i,2] == 'complete' & missingness_final[i,1] =='MNAR')) {
-            rep('MNAR', occur)
-        } else if ((missingness_final[i,1] == 'complete' & missingness_final[i,2] =='MAR') | (missingness_final[i,2] == 'complete' & missingness_final[i,1] =='MAR')) {
+        } else if (all(missingness_final[i,] == "complete")) {
+            rep("complete", occur)
+        } else if ((missingness_final[i,1] == "complete" & missingness_final[i,2] =="MNAR") | (missingness_final[i,2] == "complete" & missingness_final[i,1] =="MNAR")) {
+            rep("MNAR", occur)
+        } else if ((missingness_final[i,1] == "complete" & missingness_final[i,2] =="MAR") | (missingness_final[i,2] == "complete" & missingness_final[i,1] =="MAR")) {
             rep(NA, occur)  # zostawić NA i policzyć p-value dla mniejszej ilości danych
         } else {
             rep(NA, occur)
@@ -212,13 +213,13 @@ ttest <- function(df, grp1, grp2){
   x = as.numeric((x))
   y = as.numeric((y))
   results = t.test(x,y, 
-                   alternative = 'two.sided', #one-sided: 'greater' is x > y
+                   alternative = "two.sided", #one-sided: "greater" is x > y
                    paired = F,
                    na.action=na.omit)
   results$p.value
 }
 
-plothist <- function(df, title='', plot.title.and.legend=TRUE) {
+plothist <- function(df, title="", plot.title.and.legend=TRUE) {
     if (!is.data.frame(df)) { df <- as.data.frame(df)}
     
     # Assuming LFQ_KO is our data frame with at least 3 columns
@@ -236,22 +237,22 @@ plothist <- function(df, title='', plot.title.and.legend=TRUE) {
         ret_plot <- ggplot(df, aes(x = LFQValue, fill = Rep)) +
             geom_histogram(alpha = 0.4, position = "identity", bins = 30) +
             labs(x = "Values", y = "Frequency") +
-            theme(legend.title = element_blank(), legend.position = 'none')
+            theme(legend.title = element_blank(), legend.position = "none")
     }
     return(ret_plot)
 }
 
-plotoneviolin <- function(object, title='') {
+plotoneviolin <- function(object, title="") {
     object <- as.data.frame(object) |>
-        pivot_longer(everything(), names_to = 'Sample', values_to = 'LFQ_CV')
+        pivot_longer(everything(), names_to = "Sample", values_to = "LFQ_CV")
     
     ggplot(data=object, aes(x=Sample, y=LFQ_CV, fill=Sample))+
         geom_boxplot(width=0.2, na.rm = TRUE)+
         geom_violin(alpha=0.4, na.rm = TRUE)+
-        labs(title=title,x=NULL,y='LFQ CV[%]')+
-        theme(legend.position = 'none',
-              panel.background = element_rect(fill='white', colour = 'grey'),
-              panel.grid = element_line(colour = 'grey'))
+        labs(title=title,x=NULL,y="LFQ CV[%]")+
+        theme(legend.position = "none",
+              panel.background = element_rect(fill="white", colour = "grey"),
+              panel.grid = element_line(colour = "grey"))
 }
 
 library(ggplot2)
@@ -261,9 +262,9 @@ library(tidyr)
 library(vsn)
 library(protti)
 library(plotly)
-source('EigenMS/EigenMS/EigenMS.R')
+source("EigenMS/EigenMS/EigenMS.R")
 
-writeLines('table {
+writeLines("table {
   width: 100%;
   border-collapse: collapse;
 }
@@ -279,23 +280,23 @@ th {
 }
 body {
     text-align: justify
-}', con = 'document_style.css')
+}", con = "document_style.css")
 ```
 
-# Introduction
+# LOAD DATA
 
 ```{r load data}
 # load raw data
-protein.groups <- readr::read_tsv('./data/proteinGroups.txt', show_col_types = FALSE)
+protein.groups <- readr::read_tsv("./data/proteinGroups.txt", show_col_types = FALSE)
 
 protein.groups <- protein.groups |> filter(is.na(`Only identified by site`),
                          is.na(Reverse),
                          is.na(`Potential contaminant`))
 
 lfq <- protein.groups |>
-    dplyr::select(dplyr::starts_with('LFQ Intensity') & (ends_with('22') | ends_with('23') | ends_with('24')) & dplyr::contains('MITOS'))
+    dplyr::select(dplyr::starts_with("LFQ Intensity") & (ends_with("22") | ends_with("23") | ends_with("24")) & dplyr::contains("MITOS"))
 
-colnames(lfq) <- gsub('_MITOS_', '.', gsub('LFQ intensity ', '', colnames(lfq)))
+colnames(lfq) <- gsub("_MITOS_", ".", gsub("LFQ intensity ", "", colnames(lfq)))
 lfq[lfq == 0] <- NA
 lfq <- log2(lfq)
 ```
@@ -305,15 +306,15 @@ lfq <- log2(lfq)
 df_ml <- protein.groups |>
     dplyr::select(`Number of proteins`, Peptides, `Sequence coverage [%]`, `Sequence length`, 
                   `Mol. weight [kDa]`, `Q-value`, Score, `MS/MS count`, 
-                  dplyr::starts_with('LFQ Intensity') & (ends_with('22') | ends_with('23') | ends_with('24')) & dplyr::contains('MITOS'))
+                  dplyr::starts_with("LFQ Intensity") & (ends_with("22") | ends_with("23") | ends_with("24")) & dplyr::contains("MITOS"))
 
 # changing the colnames
-colnames(df_ml)[9:14] <- gsub('LFQ intensity ', '', colnames(df_ml)[9:14])
+colnames(df_ml)[9:14] <- gsub("LFQ intensity ", "", colnames(df_ml)[9:14])
 
 # making longer data frame with one column containing all LFQ values
 df_ml <- df_ml |>
-    dplyr::mutate(prot.id = paste('prot',1:nrow(df_ml),sep='_')) |>
-    tidyr::pivot_longer(9:14, names_to = 'Sample', values_to = 'LFQvalue') |>
+    dplyr::mutate(prot.id = paste("prot",1:nrow(df_ml),sep="_")) |>
+    tidyr::pivot_longer(9:14, names_to = "Sample", values_to = "LFQvalue") |>
     tidyr::separate(col=Sample, into=c("celltype","sampletype","rep"), sep = "_", remove = FALSE) |>
     dplyr::mutate(celltype = as.factor(celltype), sampletype = as.factor(sampletype),
                   rep = as.factor(rep))
@@ -326,11 +327,11 @@ df_ml$missingness_per_cond <- missingness$missingness_per_cond
 df_ml$missingness_per_prot <- missingness$missingness_per_prot
 df_ml$missingness <- missingness$missingness
 
-df_ml$missingness[is.na(df_ml$missingness)] <- 'all_NA'
+df_ml$missingness[is.na(df_ml$missingness)] <- "all_NA"
 
 # removing blank spaces and all separators from colnames
-colnames(df_ml)[1:8] <- c('no.proteins', 'peptides','seq.coverage','seq.len',
-                                      'mol.weight.kDa','q.value','score','ms.count')
+colnames(df_ml)[1:8] <- c("no.proteins", "peptides","seq.coverage","seq.len",
+                          "mol.weight.kDa","q.value","score","ms.count")
 
 
 # Remove unnecessary columns and reordering columns
@@ -349,16 +350,18 @@ df_ml <- df_ml |>
                   missingness = as.factor(missingness))
 ```
 
+# IMPUTATION
+
 ```{r protti}
 df_to_protti <- protein.groups |>
     dplyr::select(`Protein IDs`, `Peptide sequences`, 
-           contains('LFQ intensity') & contains('MITOS') & (ends_with('22') | ends_with('23') | ends_with('24'))) |>
-    dplyr::mutate(`Protein IDs`= paste('prot_', 1:nrow(protein.groups), sep='')) |>
-    tidyr::pivot_longer(3:8, names_to = 'Sample', values_to = 'Intensity')|>
-    dplyr::mutate(Sample = gsub('LFQ intensity ', '', Sample)) |>
-    dplyr::mutate(Sample = gsub('_MITOS_', '_', Sample)) |>
+           contains("LFQ intensity") & contains("MITOS") & (ends_with("22") | ends_with("23") | ends_with("24"))) |>
+    dplyr::mutate(`Protein IDs`= paste("prot_", 1:nrow(protein.groups), sep="")) |>
+    tidyr::pivot_longer(3:8, names_to = "Sample", values_to = "Intensity")|>
+    dplyr::mutate(Sample = gsub("LFQ intensity ", "", Sample)) |>
+    dplyr::mutate(Sample = gsub("_MITOS_", "_", Sample)) |>
     tidyr::separate(col =  Sample, into = c("celltype","rep"), sep = "_", remove = F) |>
-    dplyr::mutate(Condition = ifelse(celltype == 'KO', 'treated', 'control'),
+    dplyr::mutate(Condition = ifelse(celltype == "KO", "treated", "control"),
            Intensity = ifelse(Intensity == 0, NA, log2(Intensity))) |> 
     dplyr::select(Sample, `Protein IDs`, `Peptide sequences`, Condition, Intensity) 
 ```
@@ -370,10 +373,10 @@ data_missing <- df_to_protti |>
                        condition = Condition,
                        grouping = `Protein IDs`,
                        intensity = Intensity,
-                       ref_condition = 'all')
+                       ref_condition = "all")
 
 temp <- df_ml$missingness
-temp[which(temp == 'all_NA')] <- NA
+temp[which(temp == "all_NA")] <- NA
 data_missing$missingness <- temp
 
 # impute data with protti fxn using ludovic method
@@ -385,7 +388,7 @@ imputed_ludovic <- impute(
     condition = Condition,
     comparison = comparison,
     missingness = missingness,
-    method = 'ludovic',
+    method = "ludovic",
     skip_log2_transform_error = TRUE
 )
 rm(data_missing, temp)
@@ -396,31 +399,29 @@ imputed_ludovic <- imputed_ludovic |>
     tidyr::pivot_wider(id_cols = everything(), names_from = Sample, values_from = imputed_intensity)
 ```
 
-
-
 ```{r rows.to.keep}
-tempKO <- apply(lfq[grep('KO', colnames(lfq))], 1, function(row) sum(is.na(row)))
-tempWT <- apply(lfq[grep('WT', colnames(lfq))], 1, function(row) sum(is.na(row)))
+tempKO <- apply(lfq[grep("KO", colnames(lfq))], 1, function(row) sum(is.na(row)))
+tempWT <- apply(lfq[grep("WT", colnames(lfq))], 1, function(row) sum(is.na(row)))
 temp <- cbind.data.frame(KO=tempKO, WT=tempWT)
 temp$sum <- temp[,1] + temp[,2]
 
 rows.to.keep <- which((temp[,1] == 3 & temp[,2] == 0) | (temp[,1] == 0 & temp[,2] == 3) |
-                          (temp[,1] == 1 & temp[,2] == 0) | (temp[,1] == 0 & temp[,2] == 1) |
-                          (temp[,1] == 0 & temp[,2] == 0) | (temp[,1] == 1 & temp[,2] == 1) |
-                          (temp[,1] == 2 & temp[,2] == 0) | (temp[,1] == 0 & temp[,2] == 2))
+                      (temp[,1] == 1 & temp[,2] == 0) | (temp[,1] == 0 & temp[,2] == 1) |
+                      (temp[,1] == 0 & temp[,2] == 0) | (temp[,1] == 1 & temp[,2] == 1) |
+                      (temp[,1] == 2 & temp[,2] == 0) | (temp[,1] == 0 & temp[,2] == 2))
 
 temp <- temp |>
-    pivot_longer(cols = 1:2, names_to = 'cell', values_to = 'no_miss') |>
+    pivot_longer(cols = 1:2, names_to = "cell", values_to = "no_miss") |>
     mutate(sum = as.factor(sum)) |>
     dplyr::group_by(cell, no_miss, sum) |>
     dplyr::summarise(count = n(), .groups = "drop")
 
 ggplot(data = temp, aes(x = no_miss, y = count, fill=sum, color=cell)) +
-    geom_bar(stat = 'identity', position = position_dodge()) + 
+    geom_bar(stat = "identity", position = position_dodge()) + 
     geom_text(aes(label = count), position = position_dodge(width = 0.9),
               vjust = -0.4, size = 3)+
-    labs(title='Count of the number of missing values for cell type', 
-         xlab='Number of Missing Values per Condition', fill='No. miss.\nper row')
+    labs(title="Count of the number of missing values for cell type", 
+         xlab="Number of Missing Values per Condition", fill="No. miss.\nper row")
 ```
 
 ```{r clean data}
@@ -428,21 +429,21 @@ ggplot(data = temp, aes(x = no_miss, y = count, fill=sum, color=cell)) +
 lfq <- lfq[rows.to.keep,]
 
 # Extracting only MITOS data for knockout
-LFQ_KO <- lfq |> select(contains('KO'))
+LFQ_KO <- lfq |> select(contains("KO"))
 
 # Extracting only MITOS data for wild type
-LFQ_WT <- lfq |> select(contains('WT'))
+LFQ_WT <- lfq |> select(contains("WT"))
 
 # Ludovic
 imputed_ludovic <- imputed_ludovic[rows.to.keep,]
 
 # extracting KO and WT
-LFQ_KO_ludovic <- imputed_ludovic |> dplyr::select(contains('KO'))
-LFQ_WT_ludovic <- imputed_ludovic |> dplyr::select(contains('WT'))
+LFQ_KO_ludovic <- imputed_ludovic |> dplyr::select(contains("KO"))
+LFQ_WT_ludovic <- imputed_ludovic |> dplyr::select(contains("WT"))
 
 miss_type <-  data.frame(miss = as.character(imputed_ludovic$missingness),
                          protein.ids = protein.groups$`Protein IDs`[rows.to.keep])
-miss_type[is.na(miss_type$miss),1] <- 'one_NA'
+miss_type[is.na(miss_type$miss),1] <- "one_NA"
 ```
 
 # Distributions
@@ -451,10 +452,10 @@ miss_type[is.na(miss_type$miss),1] <- 'one_NA'
 
 ```{r distribution ludovic}
 ggarrange(
-    plothist(LFQ_KO, '', FALSE) + xlab('KO') + ggtitle('Non-Imputed'), 
-    plothist(LFQ_WT, '', FALSE) + xlab('WT') + ggtitle(''),
-    plothist(LFQ_KO_ludovic, '', FALSE) + xlab('KO') + ggtitle('Imputed - Ludovic'), 
-    plothist(LFQ_WT_ludovic, '', FALSE) + xlab('WT') + ggtitle(''),
+    plothist(LFQ_KO, "", FALSE) + xlab("KO") + ggtitle("Non-Imputed"), 
+    plothist(LFQ_WT, "", FALSE) + xlab("WT") + ggtitle(""),
+    plothist(LFQ_KO_ludovic, "", FALSE) + xlab("KO") + ggtitle("Imputed - Ludovic"), 
+    plothist(LFQ_WT_ludovic, "", FALSE) + xlab("WT") + ggtitle(""),
     nrow=2,ncol=2
 )
 ```
@@ -470,7 +471,7 @@ skew <- data.frame(raw_data = moments::skewness(2^lfq,na.rm=T),
                    log10 = moments::skewness(log10(2^lfq),na.rm=T),
                    `frac` = moments::skewness(1/(2^lfq),na.rm=T))
 DT::datatable(t(round(skew,4)), options=list(paging=F, info=F, searching=F)) |>
-    DT::formatStyle(3, backgroundColor ='lightgreen')
+    DT::formatStyle(3, backgroundColor ="lightgreen")
 ```
 
 ## Ludovic
@@ -482,33 +483,32 @@ skew_ludovic <- data.frame(raw_data = moments::skewness(2^imputed_ludovic[,3:8],
                    log10 = moments::skewness(log10(2^imputed_ludovic[,3:8]),na.rm=T),
                    `frac` = moments::skewness(1/(2^imputed_ludovic[,3:8]),na.rm=T))
 DT::datatable(t(round(skew_ludovic,4)), options=list(paging=F, info=F, searching=F)) |>
-    DT::formatStyle(3, backgroundColor ='lightgreen')
+    DT::formatStyle(3, backgroundColor ="lightgreen")
 ```
 
 # Normalization
 
 ## EigenMS
 
-```{r eigen norm, fig.keep='none', results='hide'}
-treatment = as.factor(c('KO', 'KO', 'KO', 'WT', 'WT', 'WT'))
+```{r eigen norm, fig.keep="none", results="hide"}
+treatment = as.factor(c("KO", "KO", "KO", "WT", "WT", "WT"))
 
 # Non-Imputed
-prot.info <- data.frame(prot_ID = paste('prot_', 1:nrow(lfq), sep = '')) # add info about LFQ value
+prot.info <- data.frame(prot_ID = paste("prot_", 1:nrow(lfq), sep = "")) # add info about LFQ value
 LFQ.eig1 <- eig_norm1(lfq, 
                       treatment = treatment, 
                       prot.info = prot.info)
 # Performing eig normalization
 LFQ.eig_norm <- eig_norm2(LFQ.eig1)
 
-
 LFQ_KO.eigen <- LFQ.eig_norm$norm_m[,1:3] # Non-Imputed
-eigen_raw_ids <- as.numeric(gsub('prot_', '', rownames(LFQ_KO.eigen)))
+eigen_raw_ids <- as.numeric(gsub("prot_", "", rownames(LFQ_KO.eigen)))
 temp <- LFQ_KO.eigen
 LFQ_KO.eigen <- as.matrix(lfq[,1:3])
 LFQ_KO.eigen[eigen_raw_ids,] <- temp
 
 LFQ_WT.eigen <- LFQ.eig_norm$norm_m[,4:6] # Non-Imputed
-eigen_raw_ids <- as.numeric(gsub('prot_', '', rownames(LFQ_WT.eigen)))
+eigen_raw_ids <- as.numeric(gsub("prot_", "", rownames(LFQ_WT.eigen)))
 temp <- LFQ_WT.eigen
 LFQ_WT.eigen <- as.matrix(lfq[,4:6])
 LFQ_WT.eigen[eigen_raw_ids,] <- temp
@@ -527,10 +527,10 @@ LFQ_WT_ludovic.eigen <- LFQ_ludovic.eig_norm$norm_m[,4:6] # Imputed ludovic
 
 ```{r plot dist eigen}
 ggarrange(
-    plothist(LFQ_KO.eigen, '', FALSE) + xlab('KO') + ggtitle('Non-Imputed'), 
-    plothist(LFQ_WT.eigen, '', FALSE) + xlab('WT') + ggtitle(''),
-    plothist(LFQ_KO_ludovic.eigen, '', FALSE) + xlab('KO') + ggtitle('Imputed - Ludovic'), 
-    plothist(LFQ_WT_ludovic.eigen, '', FALSE) + xlab('WT') + ggtitle(''),
+    plothist(LFQ_KO.eigen, "", FALSE) + xlab("KO") + ggtitle("Non-Imputed"), 
+    plothist(LFQ_WT.eigen, "", FALSE) + xlab("WT") + ggtitle(""),
+    plothist(LFQ_KO_ludovic.eigen, "", FALSE) + xlab("KO") + ggtitle("Imputed - Ludovic"), 
+    plothist(LFQ_WT_ludovic.eigen, "", FALSE) + xlab("WT") + ggtitle(""),
     nrow=2,ncol=2
 )
 ```
@@ -553,13 +553,13 @@ ggarrange(
     plotoneviolin(data.frame(
         Original = cv.before$KO,
         EigenMS = cv.eig$KO
-        ), 'LFQ CV [%] for KO Samples') + 
-        ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7)),
+        ), "LFQ CV [%] for KO Samples") + 
+        ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c("red","red"), alpha=c(0.7,0.7)),
     plotoneviolin(data.frame(
         Original = cv.before$WT,
         EigenMS = cv.eig$WT
-        ), 'LFQ CV [%] for WT Samples') + 
-        ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7)),
+        ), "LFQ CV [%] for WT Samples") + 
+        ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c("red","red"), alpha=c(0.7,0.7)),
     nrow=2,ncol=1
 )
 ```
@@ -576,13 +576,13 @@ ggarrange(
     plotoneviolin(data.frame(
         Original = cv_ludovic.before$KO,
         EigenMS = cv_ludovic.eig$KO
-        ), 'LFQ CV [%] for KO Samples') + 
-        ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7)),
+        ), "LFQ CV [%] for KO Samples") + 
+        ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c("red","red"), alpha=c(0.7,0.7)),
     plotoneviolin(data.frame(
         Original = cv_ludovic.before$WT,
         EigenMS = cv_ludovic.eig$WT
-        ), 'LFQ CV [%] for WT Samples') + 
-        ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c('red','red'), alpha=c(0.7,0.7)),
+        ), "LFQ CV [%] for WT Samples") + 
+        ggplot2::geom_hline(yintercept = c(15,25), linetype=c(2,2), color=c("red","red"), alpha=c(0.7,0.7)),
     nrow=2, ncol=1
 )
 ```
@@ -591,57 +591,57 @@ ggarrange(
 
 ```{r cv all}
 cv_all <- data.frame(cv.before, cv.eig)
-colnames(cv_all) <- c('Before_KO', 'Before_WT', 'EigenMS_KO', 'EigenMS_WT')
+colnames(cv_all) <- c("Before_KO", "Before_WT", "EigenMS_KO", "EigenMS_WT")
 
 cv_ludovic_all <- data.frame(cv_ludovic.before, cv_ludovic.eig)
-colnames(cv_ludovic_all) <- c('Before_KO', 'Before_WT', 'EigenMS_KO', 'EigenMS_WT')
+colnames(cv_ludovic_all) <- c("Before_KO", "Before_WT", "EigenMS_KO", "EigenMS_WT")
 ```
 
 ```{r cv summary}
 #### NON-IMPUTED ####
 cv_summary_KO <- cv_all |>   # calculating basic statistics for KO
-    select(contains('KO')) |>
-    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') |>
+    select(contains("KO")) |>
+    pivot_longer(everything(), names_to = "method KO", values_to = "LFQ_CV") |>
     group_by(`method KO`) |>
-    summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
-              'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
-              'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
+    summarise("mean_KO"=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              "median_KO"=round(median(LFQ_CV, na.rm=TRUE),5), 
+              "sd_KO"=round(sd(LFQ_CV, na.rm=TRUE),5))
 
 cv_summary_WT <- cv_all |>   # calculating basic statistics for WT 
-    select(contains('WT')) |>
-    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') |>
+    select(contains("WT")) |>
+    pivot_longer(everything(), names_to = "method WT", values_to = "LFQ_CV") |>
     group_by(`method WT`) |>
-    summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
-              'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
-              'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
+    summarise("mean_WT"=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              "median_WT"=round(median(LFQ_CV, na.rm=TRUE),5), 
+              "sd_WT"=round(sd(LFQ_CV, na.rm=TRUE),5))
 
 #### LUDOVIC ####
 cv_ludovic_summary_KO <- cv_ludovic_all |>   # calculating basic statistics for KO
-    select(contains('KO')) |>
-    pivot_longer(everything(), names_to = 'method KO', values_to = 'LFQ_CV') |>
+    select(contains("KO")) |>
+    pivot_longer(everything(), names_to = "method KO", values_to = "LFQ_CV") |>
     group_by(`method KO`) |>
-    summarise('mean_KO'=round(mean(LFQ_CV, na.rm=TRUE),5), 
-              'median_KO'=round(median(LFQ_CV, na.rm=TRUE),5), 
-              'sd_KO'=round(sd(LFQ_CV, na.rm=TRUE),5))
+    summarise("mean_KO"=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              "median_KO"=round(median(LFQ_CV, na.rm=TRUE),5), 
+              "sd_KO"=round(sd(LFQ_CV, na.rm=TRUE),5))
 
 cv_ludovic_summary_WT <- cv_ludovic_all |>   # calculating basic statistics for WT
-    select(contains('WT')) |>
-    pivot_longer(everything(), names_to = 'method WT', values_to = 'LFQ_CV') |>
+    select(contains("WT")) |>
+    pivot_longer(everything(), names_to = "method WT", values_to = "LFQ_CV") |>
     group_by(`method WT`) |>
-    summarise('mean_WT'=round(mean(LFQ_CV, na.rm=TRUE),5), 
-              'median_WT'=round(median(LFQ_CV, na.rm=TRUE),5), 
-              'sd_WT'=round(sd(LFQ_CV, na.rm=TRUE),5))
+    summarise("mean_WT"=round(mean(LFQ_CV, na.rm=TRUE),5), 
+              "median_WT"=round(median(LFQ_CV, na.rm=TRUE),5), 
+              "sd_WT"=round(sd(LFQ_CV, na.rm=TRUE),5))
 
 #### SUMMARY #### 
 # prepare more readable output - Non-Ipmuted
 cv_summary <- as.data.frame(cbind(cv_summary_KO, cv_summary_WT[-1]))
-colnames(cv_summary)[1] <- 'method'
-cv_summary$method <- gsub('_KO', '', cv_summary$method)
+colnames(cv_summary)[1] <- "method"
+cv_summary$method <- gsub("_KO", "", cv_summary$method)
 
 # prepare more readable output - Ludovic
 cv_ludovic_summary <- as.data.frame(cbind(cv_ludovic_summary_KO, cv_ludovic_summary_WT[-1]))
-colnames(cv_ludovic_summary)[1] <- 'method'
-cv_ludovic_summary$method <- gsub('_KO', '', cv_ludovic_summary$method)
+colnames(cv_ludovic_summary)[1] <- "method"
+cv_ludovic_summary$method <- gsub("_KO", "", cv_ludovic_summary$method)
 ```
 
 #### Non-Imputed 
@@ -691,7 +691,7 @@ icc.KO.eig <- irr::icc(2^LFQ_KO.eigen)$value
 
 # Bind all calculated ICCs to a data frame
 icc.KO.all <- data.frame(`ICC KO`=c(icc.KO.before,icc.KO.eig))
-rownames(icc.KO.all) <- c('Before', 'EigenMS')
+rownames(icc.KO.all) <- c("Before", "EigenMS")
 
 # Calculate ICC for Non-Imputed WT data
 icc.WT.before <- irr::icc(2^LFQ_WT)$value
@@ -699,13 +699,13 @@ icc.WT.eig <- irr::icc(2^LFQ_WT.eigen)$value
 
 # Bind all calculated ICCs to a data frame
 icc.WT.all <- data.frame(`ICC WT`=c(icc.WT.before,icc.WT.eig))
-rownames(icc.WT.all) <- c('Before','EigenMS')
+rownames(icc.WT.all) <- c("Before","EigenMS")
 
 # Show the table in a nice format
 DT::datatable(cbind(icc.KO.all, icc.WT.all), 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
-    DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
-                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
+    DT::formatStyle(columns = c("ICC.KO", "ICC.WT"), 
+                    background = DT::styleInterval(c(0.5,0.75,0.9), c("#D3D3D3", "#aefda1", "#6dff54", "#1bb400")))
 ```
 
 ### Ludovic
@@ -717,7 +717,7 @@ icc_ludovic.KO.eig <- irr::icc(2^LFQ_KO_ludovic.eigen)$value
 
 # Bind all calculated ICCs to a data frame
 icc_ludovic.KO.all <- data.frame(`ICC KO`=c(icc_ludovic.KO.before,icc_ludovic.KO.eig))
-rownames(icc_ludovic.KO.all) <- c('Before','EigenMS')
+rownames(icc_ludovic.KO.all) <- c("Before","EigenMS")
 
 # Calculate ICC for Imputed KO data using ludovic
 icc_ludovic.WT.before <- irr::icc(2^LFQ_WT_ludovic)$value
@@ -725,13 +725,13 @@ icc_ludovic.WT.eig <- irr::icc(2^LFQ_WT_ludovic.eigen)$value
 
 # Bind all calculated ICCs to a data frame
 icc_ludovic.WT.all <- data.frame(`ICC WT`=c(icc_ludovic.WT.before,icc_ludovic.WT.eig))
-rownames(icc_ludovic.WT.all) <- c('Before','EigenMS')
+rownames(icc_ludovic.WT.all) <- c("Before","EigenMS")
 
 # Show the table in a nice format
 DT::datatable(cbind(icc_ludovic.KO.all, icc_ludovic.WT.all), 
               options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
-    DT::formatStyle(columns = c('ICC.KO', 'ICC.WT'), 
-                    background = DT::styleInterval(c(0.5,0.75,0.9), c('#D3D3D3', '#aefda1', '#6dff54', '#1bb400')))
+    DT::formatStyle(columns = c("ICC.KO", "ICC.WT"), 
+                    background = DT::styleInterval(c(0.5,0.75,0.9), c("#D3D3D3", "#aefda1", "#6dff54", "#1bb400")))
 ```
 
 ## t-test 0.05 {.tabset}
@@ -759,13 +759,9 @@ FC.cutoff = 1 # set fold change cutoff
 
 ### Raw Data
 
-**Summary** <br>
-The p-value plots show us that we had to normalize the data, because the output
-below doesn't show strong differences between KO and WT cells.
-
 ```{r p-value raw data}
 # prepare data for t-test
-df <- lfq[-which(miss_type$miss == 'MNAR'),]
+df <- lfq[-which(miss_type$miss == "MNAR"),]
 
 # calculate the p-values for our data
 pvalue <- df |>
@@ -773,14 +769,14 @@ pvalue <- df |>
                   grp1=grep("KO", colnames(df)), 
                   grp2=grep("WT", colnames(df)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_MITOS < p.cutoff, TRUE, FALSE),
-                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')]) # add a significance column 
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == "MNAR")]) # add a significance column 
 m <- mean(pvalue$p_OCIAD1_MITOS, na.rm=TRUE) # mean of p
 me <- median(pvalue$p_OCIAD1_MITOS, na.rm=TRUE) # median of p
 
 # Plotting the histogram of the p-values filled with a significance info
 hist_p <- ggplot(data = pvalue, aes(x = p_OCIAD1_MITOS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
-    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+    geom_histogram(bins = 100) + ggtitle("Non-Imputed - p.value") +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), "\nmed(p) =", round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
@@ -797,9 +793,9 @@ me <- median(pvalue_ludovic$p_OCIAD1_MITOS, na.rm=TRUE) # median of p
 
 # Plotting the histogram of the p-values filled with a significance info
 hist_p_ludovic <- ggplot(data = pvalue_ludovic, aes(x = p_OCIAD1_MITOS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
-             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+    geom_histogram(bins = 100) + ggtitle("Imputed ludovic - p.value") + theme(legend.position = "none") +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), "\nmed(p) =", round(me,3)), 
+             hjust = 2.1, vjust = 1.3, size = 3.5, color = "black")
 ```
 
 ```{r show raw p-value}
@@ -815,7 +811,7 @@ ggarrange(
 ```{r p-value raw data eigen}
 # prepare data for t-test
 eigen_df1 <- cbind.data.frame(LFQ_KO.eigen, LFQ_WT.eigen)
-eigen_df <- eigen_df1[-which(miss_type$miss == 'MNAR'),]
+eigen_df <- eigen_df1[-which(miss_type$miss == "MNAR"),]
 
 # calculate the p-values for our data
 pvalue_eigen <- eigen_df |>
@@ -823,14 +819,14 @@ pvalue_eigen <- eigen_df |>
                   grp1=grep("KO", colnames(eigen_df)), 
                   grp2=grep("WT", colnames(eigen_df)))) |>
     dplyr::mutate(significant = ifelse(p_OCIAD1_MITOS < p.cutoff, TRUE, FALSE),
-                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')]) # add a significance column
+                  protein.ids = protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == "MNAR")]) # add a significance column
 m <- mean(pvalue_eigen$p_OCIAD1_MITOS, na.rm=TRUE) # mean of p
 me <- median(pvalue_eigen$p_OCIAD1_MITOS, na.rm=TRUE) # median of p
 
 # Plotting the histogram of the p-values filled with a significance info
 hist_p_eigen <- ggplot(data = pvalue_eigen, aes(x = p_OCIAD1_MITOS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Non-Imputed - p.value') +
-    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
+    geom_histogram(bins = 100) + ggtitle("Non-Imputed - p.value") +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), "\nmed(p) =", round(me,3)), 
              hjust = 1.1, vjust = 1.3, size = 4, color = "black")
 ```
 
@@ -850,9 +846,9 @@ me <- median(pvalue_eigen_ludovic$p_OCIAD1_MITOS, na.rm=TRUE) # median of p
 
 # Plotting the histogram of the p-values filled with a significance info
 hist_p_eigen_ludovic <- ggplot(data = pvalue_eigen_ludovic, aes(x = p_OCIAD1_MITOS, fill=significant)) + 
-    geom_histogram(bins = 100) + ggtitle('Imputed ludovic - p.value') + theme(legend.position = 'none') +
-    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), '\nmed(p) =', round(me,3)), 
-             hjust = 1.1, vjust = 1.3, size = 3.5, color = "black")
+    geom_histogram(bins = 100) + ggtitle("Imputed ludovic - p.value") + theme(legend.position = "none") +
+    annotate("text", x = Inf, y = Inf, label = paste("μ(p) =", round(m, 3), "\nmed(p) =", round(me,3)), 
+             hjust = 2.1, vjust = 1.3, size = 4, color = "black")
 ```
 
 ```{r show eigen p-value}
@@ -870,13 +866,13 @@ ggarrange(
 data <- data.frame(
     Gene_Name = rep(protein.groups$`Gene names`[rows.to.keep], each=6),
     lfq[,1:6] |> 
-        tidyr::pivot_longer(cols=everything(), names_to = 'Batch', values_to = 'Raw'),
+        tidyr::pivot_longer(cols=everything(), names_to = "Batch", values_to = "Raw"),
     eigen_df1 |> 
-        tidyr::pivot_longer(cols=everything(), names_to = 'Batch2', values_to = 'Eigen.Raw'),
+        tidyr::pivot_longer(cols=everything(), names_to = "Batch2", values_to = "Eigen.Raw"),
     imputed_ludovic[,3:8] |> 
-        tidyr::pivot_longer(cols=everything(), names_to = 'Batch5', values_to = 'Ludovic'),
+        tidyr::pivot_longer(cols=everything(), names_to = "Batch5", values_to = "Ludovic"),
     as_tibble(LFQ_ludovic.eig_norm$norm_m) |> 
-        tidyr::pivot_longer(cols=everything(), names_to = 'Batch6', values_to = 'Eigen.Ludovic')
+        tidyr::pivot_longer(cols=everything(), names_to = "Batch6", values_to = "Eigen.Ludovic")
 )|>
     dplyr::select(Gene_Name, Batch, Raw, Eigen.Raw, Ludovic, Eigen.Ludovic)
 
@@ -898,8 +894,8 @@ shiny::selectInput("gene", "Select Gene:", choices = unique(data$Gene_Name))
 
 ```{r input2}
 # Define the user input of the Y lims
-shiny::sliderInput('bottom_y', "Select the bottom level of the Y axis:", 0, 40, 15)
-shiny::sliderInput('upper_y', "Select the upper level of the Y axis:", 0, 40, 30)
+shiny::sliderInput("bottom_y", "Select the bottom level of the Y axis:", 0, 40, 15)
+shiny::sliderInput("upper_y", "Select the upper level of the Y axis:", 0, 40, 30)
 ```
 
 </div>
@@ -919,10 +915,10 @@ output$genePlot <- renderPlotly({
   
   # Create the plot
   plot_ly(data = filtered_data, type = "bar") |>
-      add_trace(x = ~Batch, y = ~Raw, name = 'Raw') |>
-      add_trace(x = ~Batch, y = ~Eigen.Raw, name = 'Eigen Raw') |>
-      add_trace(x = ~Batch, y = ~Ludovic, name = 'Ludovic') |>
-      add_trace(x = ~Batch, y = ~Eigen.Ludovic, name = 'Eigen Ludovic') |>
+      add_trace(x = ~Batch, y = ~Raw, name = "Raw") |>
+      add_trace(x = ~Batch, y = ~Eigen.Raw, name = "Eigen Raw") |>
+      add_trace(x = ~Batch, y = ~Ludovic, name = "Ludovic") |>
+      add_trace(x = ~Batch, y = ~Eigen.Ludovic, name = "Eigen Ludovic") |>
       layout(
       title = paste("Bar Plot for Gene:", selected_gene),
       xaxis = list(title = NULL),
@@ -942,7 +938,7 @@ plotlyOutput("genePlot")
 <div style="flex: 33%;">
 
 ```{r input3}
-shiny::selectInput('p.cutoff', 'Select the p-value cut off:', c(0.05, 0.06))
+shiny::selectInput("p.cutoff", "Select the p-value cut off:", c(0.05, 0.06))
 ```
 
 </div>
@@ -950,7 +946,7 @@ shiny::selectInput('p.cutoff', 'Select the p-value cut off:', c(0.05, 0.06))
 <div style="flex: 33%;">
 
 ```{r input4}
-shiny::selectInput('p.type', 'Select the type of p-value:', c('p-value', 'adj p-value'))
+shiny::selectInput("p.type", "Select the type of p-value:", c("p-value", "adj p-value"))
 ```
 
 </div>
@@ -958,7 +954,7 @@ shiny::selectInput('p.type', 'Select the type of p-value:', c('p-value', 'adj p-
 <div style="flex: 33%;">
 
 ```{r input5}
-shiny::selectInput('adj.method', 'Select the p-value adjustment method:', 
+shiny::selectInput("adj.method", "Select the p-value adjustment method:", 
                    c("holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none"))
 ```
 
@@ -972,15 +968,15 @@ shiny::selectInput('adj.method', 'Select the p-value adjustment method:',
 
 ```{r fc raw data}
 # Preparing data for calculations
-lfq5 <- cbind.data.frame(lfq[-which(miss_type$miss == 'MNAR'),], 
-                         protein.ids=protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == 'MNAR')],
-                         gene = protein.groups$`Gene names`[rows.to.keep][-which(miss_type$miss == 'MNAR')])
+lfq5 <- cbind.data.frame(lfq[-which(miss_type$miss == "MNAR"),], 
+                         protein.ids=protein.groups$`Protein IDs`[rows.to.keep][-which(miss_type$miss == "MNAR")],
+                         gene = protein.groups$`Gene names`[rows.to.keep][-which(miss_type$miss == "MNAR")])
 lfq_long <- lfq5 |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+    tidyr::pivot_longer(1:6, names_to = "sample", values_to = "LFQvalue")
 
 # Add a new column with groups KO or WT
-lfq_long$group <- 'MITOS_OCIAD1_KO'
-lfq_long$group[grep('WT',lfq_long$sample)] <- 'MITOS_OCIAD1_WT'
+lfq_long$group <- "MITOS_OCIAD1_KO"
+lfq_long$group[grep("WT",lfq_long$sample)] <- "MITOS_OCIAD1_WT"
 
 # Calculation of means for groups KO and WT
 means <- lfq_long |>
@@ -991,12 +987,12 @@ means <- lfq_long |>
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = MITOS_OCIAD1_KO - MITOS_OCIAD1_WT)
 
-means <- merge(means, miss_type[-which(miss_type$miss == 'MNAR'),], by = 'protein.ids')
+means <- merge(means, miss_type[-which(miss_type$miss == "MNAR"),], by = "protein.ids")
 
 # Preparing data for volcano plot
-FC <- merge(means, lfq5, by = 'protein.ids')
+FC <- merge(means, lfq5, by = "protein.ids")
 
-to_volcano1 <- merge(FC, pvalue, by = 'protein.ids')
+to_volcano1 <- merge(FC, pvalue, by = "protein.ids")
 to_volcano1$sig_MITOS_OCIAD1 <- ifelse(abs(to_volcano1$FC_OCIAD1)>FC.cutoff&
                                            to_volcano1$p_OCIAD1_MITOS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -1018,7 +1014,7 @@ output$V1 <- renderPlotly({
         to_volcano <- to_volcano1
     }
     
-    if (p.type == 'adj p-value') {
+    if (p.type == "adj p-value") {
         to_volcano$p_OCIAD1_MITOS <- p.adjust(to_volcano$p_OCIAD1_MITOS, adj_method)
         to_volcano$sig_MITOS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
                                                    to_volcano$p_OCIAD1_MITOS<p.cutoff_sel,
@@ -1034,24 +1030,24 @@ output$V1 <- renderPlotly({
     v <- plotly::plot_ly(data = to_volcano, 
                          x = ~FC_OCIAD1, 
                          y = ~-log10(p_OCIAD1_MITOS), 
-                         type = 'scatter', 
-                         mode = 'markers', 
+                         type = "scatter", 
+                         mode = "markers", 
                          color = ~miss, 
                          text = ~gene,
                          symbol = ~sig_MITOS_OCIAD1,
-                         hoverinfo = list('text', 'symbol'), # Show label on hover
+                         hoverinfo = list("text", "symbol"), # Show label on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = paste('Volcano plot for Non-Imputed Data -', p.type),
-               xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
+        layout(title = paste("Volcano plot for Non-Imputed Data -", p.type),
+               xaxis = list(title = "log2(fold change)"),
+               yaxis = list(title = paste("-log10(",p.type,")", sep="")),
                shapes = list(
-                   list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
-                   list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
-                   list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
+                   list(type = "line", x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7),
+                   list(type = "line", x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7),
+                   list(type = "line", x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
                         y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7)
                ))
     
     # Add selected genes if any are selected
@@ -1059,7 +1055,7 @@ output$V1 <- renderPlotly({
         v <- v |> add_markers(data = sel_gene_data, 
                                x = ~FC_OCIAD1, 
                                y = ~-log10(p_OCIAD1_MITOS), 
-                               marker = list(color = 'brown', size = 10),
+                               marker = list(color = "brown", size = 10),
                                inherit = FALSE, # Make sure these points stand out
                                name = selected_gene)  
     }
@@ -1068,7 +1064,7 @@ output$V1 <- renderPlotly({
     v
 })
 
-plotlyOutput('V1')
+plotlyOutput("V1")
 ```
 
 ### Ludovic
@@ -1079,11 +1075,11 @@ imputed_ludovic <- cbind.data.frame(imputed_ludovic,
                                     protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
                                     gene = protein.groups$`Gene names`[rows.to.keep])
 imputed_long_ludovic <- imputed_ludovic |>
-    tidyr::pivot_longer(3:8, names_to = 'sample', values_to = 'LFQvalue')
+    tidyr::pivot_longer(3:8, names_to = "sample", values_to = "LFQvalue")
 
 # Add a new column with groups KO or WT
-imputed_long_ludovic$group <- 'MITOS_OCIAD1_KO'
-imputed_long_ludovic$group[grep('WT',imputed_long_ludovic$sample)] <- 'MITOS_OCIAD1_WT'
+imputed_long_ludovic$group <- "MITOS_OCIAD1_KO"
+imputed_long_ludovic$group[grep("WT",imputed_long_ludovic$sample)] <- "MITOS_OCIAD1_WT"
 
 # Calculation of means for groups KO and WT
 means <- imputed_long_ludovic |>
@@ -1094,12 +1090,12 @@ means <- imputed_long_ludovic |>
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = MITOS_OCIAD1_KO - MITOS_OCIAD1_WT)
 
-means <- merge(means, miss_type, by = 'protein.ids')
+means <- merge(means, miss_type, by = "protein.ids")
 
 # Preparing data for volcano plot
-FC <- merge(means, imputed_ludovic, by = 'protein.ids')
+FC <- merge(means, imputed_ludovic, by = "protein.ids")
 
-to_volcano5 <- merge(FC, pvalue_ludovic, by='Protein IDs')
+to_volcano5 <- merge(FC, pvalue_ludovic, by="Protein IDs")
 to_volcano5$sig_MITOS_OCIAD1 <- ifelse(abs(to_volcano5$FC_OCIAD1)>FC.cutoff&
                                            to_volcano5$p_OCIAD1_MITOS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -1121,7 +1117,7 @@ output$V5 <- renderPlotly({
         to_volcano <- to_volcano5
     }
     
-    if (p.type == 'adj p-value') {
+    if (p.type == "adj p-value") {
         to_volcano$p_OCIAD1_MITOS <- p.adjust(to_volcano$p_OCIAD1_MITOS, adj_method)
         to_volcano$sig_MITOS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
                                                    to_volcano$p_OCIAD1_MITOS<p.cutoff_sel,
@@ -1136,24 +1132,24 @@ output$V5 <- renderPlotly({
     v <- plotly::plot_ly(data = to_volcano, 
                          x = ~FC_OCIAD1, 
                          y = ~-log10(p_OCIAD1_MITOS), 
-                         type = 'scatter', 
-                         mode = 'markers', 
+                         type = "scatter", 
+                         mode = "markers", 
                          color = ~miss, 
                          text = ~gene,
                          symbol = ~sig_MITOS_OCIAD1,
-                         hoverinfo = list('text', 'symbol'),  # Show gene labels on hover
+                         hoverinfo = list("text", "symbol"),  # Show gene labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = paste('Volcano plot for Imputed Data Ludovic -', p.type),
-               xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
+        layout(title = paste("Volcano plot for Imputed Data Ludovic -", p.type),
+               xaxis = list(title = "log2(fold change)"),
+               yaxis = list(title = paste("-log10(",p.type,")", sep="")),
                shapes = list(
-                   list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
-                   list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
-                   list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
+                   list(type = "line", x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7),
+                   list(type = "line", x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7),
+                   list(type = "line", x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
                         y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7)
                ))
     
     # Add selected genes if any are selected
@@ -1161,7 +1157,7 @@ output$V5 <- renderPlotly({
         v <- v |> add_markers(data = sel_gene_data, 
                                x = ~FC_OCIAD1, 
                                y = ~-log10(p_OCIAD1_MITOS), 
-                               marker = list(color = 'brown', size = 10),
+                               marker = list(color = "brown", size = 10),
                                inherit = FALSE, # Make sure these points stand out
                                name = selected_gene) 
     }
@@ -1169,7 +1165,7 @@ output$V5 <- renderPlotly({
     # Display the plot
     v
 })
-plotlyOutput('V5')
+plotlyOutput("V5")
 ```
 
 ## EigenMS {.tabset}
@@ -1181,11 +1177,11 @@ plotlyOutput('V5')
 eigen_df <- cbind.data.frame(eigen_df1, protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
                              gene = protein.groups$`Gene names`[rows.to.keep])
 eigen_df_long <- eigen_df |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+    tidyr::pivot_longer(1:6, names_to = "sample", values_to = "LFQvalue")
 
 # Add a new column with groups KO or WT
-eigen_df_long$group <- 'MITOS_OCIAD1_KO'
-eigen_df_long$group[grep('WT',eigen_df_long$sample)] <- 'MITOS_OCIAD1_WT'
+eigen_df_long$group <- "MITOS_OCIAD1_KO"
+eigen_df_long$group[grep("WT",eigen_df_long$sample)] <- "MITOS_OCIAD1_WT"
 
 # Calculation of means for groups KO and WT
 means <- eigen_df_long |>
@@ -1196,12 +1192,12 @@ means <- eigen_df_long |>
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = MITOS_OCIAD1_KO - MITOS_OCIAD1_WT)
 
-means <- merge(means, miss_type, by = 'protein.ids')
+means <- merge(means, miss_type, by = "protein.ids")
 
 # Preparing data for volcano plot
-FC <- merge(means, eigen_df, by = 'protein.ids')
+FC <- merge(means, eigen_df, by = "protein.ids")
 
-to_volcano7 <- merge(FC,pvalue_eigen, by = 'protein.ids')
+to_volcano7 <- merge(FC,pvalue_eigen, by = "protein.ids")
 to_volcano7$sig_MITOS_OCIAD1 <- ifelse(abs(to_volcano7$FC_OCIAD1)>FC.cutoff&
                                            to_volcano7$p_OCIAD1_MITOS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -1223,7 +1219,7 @@ output$V1eig <- renderPlotly({
         to_volcano <- to_volcano7
     }
     
-    if (p.type == 'adj p-value') {
+    if (p.type == "adj p-value") {
         to_volcano$p_OCIAD1_MITOS <- p.adjust(to_volcano$p_OCIAD1_MITOS, adj_method)
         to_volcano$sig_MITOS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
                                                    to_volcano$p_OCIAD1_MITOS<p.cutoff_sel,
@@ -1238,24 +1234,24 @@ output$V1eig <- renderPlotly({
     v <- plotly::plot_ly(data = to_volcano, 
                          x = ~FC_OCIAD1, 
                          y = ~-log10(p_OCIAD1_MITOS), 
-                         type = 'scatter', 
-                         mode = 'markers', 
+                         type = "scatter", 
+                         mode = "markers", 
                          color = ~miss, 
                          text = ~gene,
                          symbol = ~sig_MITOS_OCIAD1,
-                         hoverinfo = list('text', 'symbol'),  # Show labels on hover
+                         hoverinfo = list("text", "symbol"),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = paste('Volcano plot for Non-Imputed Data -', p.type),
-               xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
+        layout(title = paste("Volcano plot for Non-Imputed Data -", p.type),
+               xaxis = list(title = "log2(fold change)"),
+               yaxis = list(title = paste("-log10(",p.type,")", sep="")),
                shapes = list(
-                   list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
-                   list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
-                   list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
+                   list(type = "line", x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7),
+                   list(type = "line", x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7),
+                   list(type = "line", x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
                         y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7)
                ))
     
     # Add selected genes if any are selected
@@ -1263,7 +1259,7 @@ output$V1eig <- renderPlotly({
         v <- v |> add_markers(data = sel_gene_data, 
                                x = ~FC_OCIAD1, 
                                y = ~-log10(p_OCIAD1_MITOS), 
-                               marker = list(color = 'brown', size = 10),
+                               marker = list(color = "brown", size = 10),
                                inherit = FALSE, # Make sure these points stand out
                                name = selected_gene) 
     }
@@ -1272,7 +1268,7 @@ output$V1eig <- renderPlotly({
     v
 })
 
-plotlyOutput('V1eig')
+plotlyOutput("V1eig")
 ```
 
 ### Ludovic
@@ -1283,11 +1279,11 @@ eigen_df_ludovic <- cbind.data.frame(eigen_df_ludovic,
                                      protein.ids=protein.groups$`Protein IDs`[rows.to.keep],
                                      gene = protein.groups$`Gene names`[rows.to.keep])
 eigen_df_long_ludovic <- eigen_df_ludovic |>
-    tidyr::pivot_longer(1:6, names_to = 'sample', values_to = 'LFQvalue')
+    tidyr::pivot_longer(1:6, names_to = "sample", values_to = "LFQvalue")
 
 # Add a new column with groups KO or WT
-eigen_df_long_ludovic$group <- 'MITOS_OCIAD1_KO'
-eigen_df_long_ludovic$group[grep('WT',eigen_df_long_ludovic$sample)] <- 'MITOS_OCIAD1_WT'
+eigen_df_long_ludovic$group <- "MITOS_OCIAD1_KO"
+eigen_df_long_ludovic$group[grep("WT",eigen_df_long_ludovic$sample)] <- "MITOS_OCIAD1_WT"
 
 # Calculation of means for groups KO and WT
 means <- eigen_df_long_ludovic |>
@@ -1298,12 +1294,12 @@ means <- eigen_df_long_ludovic |>
 means <- tidyr::pivot_wider(means, names_from = group, values_from = mean) |>
     dplyr::mutate(FC_OCIAD1 = MITOS_OCIAD1_KO - MITOS_OCIAD1_WT)
 
-means <- merge(means, miss_type, by = 'protein.ids')
+means <- merge(means, miss_type, by = "protein.ids")
 
 # Preparing data for volcano plot
-FC <- merge(means, eigen_df_ludovic, by = 'protein.ids')
+FC <- merge(means, eigen_df_ludovic, by = "protein.ids")
 
-to_volcano11 <- merge(FC, pvalue_eigen_ludovic, by = 'protein.ids')
+to_volcano11 <- merge(FC, pvalue_eigen_ludovic, by = "protein.ids")
 to_volcano11$sig_MITOS_OCIAD1 <- ifelse(abs(to_volcano11$FC_OCIAD1)>FC.cutoff&
                                            to_volcano11$p_OCIAD1_MITOS<p.cutoff,
                                        yes = TRUE, no = FALSE)
@@ -1325,7 +1321,7 @@ output$V5eig <- renderPlotly({
         to_volcano <- to_volcano11
     }
     
-    if (p.type == 'adj p-value') {
+    if (p.type == "adj p-value") {
         to_volcano$p_OCIAD1_MITOS <- p.adjust(to_volcano$p_OCIAD1_MITOS, adj_method)
         to_volcano$sig_MITOS_OCIAD1 <- ifelse(abs(to_volcano$FC_OCIAD1)>FC.cutoff &
                                                    to_volcano$p_OCIAD1_MITOS<p.cutoff_sel,
@@ -1340,24 +1336,24 @@ output$V5eig <- renderPlotly({
     v <- plotly::plot_ly(data = to_volcano, 
                          x = ~FC_OCIAD1, 
                          y = ~-log10(p_OCIAD1_MITOS), 
-                         type = 'scatter', 
-                         mode = 'markers', 
+                         type = "scatter", 
+                         mode = "markers", 
                          color = ~miss, 
                          text = ~gene,
                          symbol = ~sig_MITOS_OCIAD1,
-                         hoverinfo = list('text', 'symbol'),  # Show labels on hover
+                         hoverinfo = list("text", "symbol"),  # Show labels on hover
                          marker = list(size = 5)) |>  # Adjust marker size as needed
-        layout(title = paste('Volcano plot for Imputed Data Ludovic -', p.type),
-               xaxis = list(title = 'log2(fold change)'),
-               yaxis = list(title = paste('-log10(',p.type,')', sep='')),
+        layout(title = paste("Volcano plot for Imputed Data Ludovic -", p.type),
+               xaxis = list(title = "log2(fold change)"),
+               yaxis = list(title = paste("-log10(",p.type,")", sep="")),
                shapes = list(
-                   list(type = 'line', x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
-                   list(type = 'line', x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7),
-                   list(type = 'line', x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
+                   list(type = "line", x0 = -1, x1 = -1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7),
+                   list(type = "line", x0 = 1, x1 = 1, y0 = 0, y1 = max(-log10(to_volcano$p_OCIAD1_MITOS)), 
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7),
+                   list(type = "line", x0 = min(to_volcano$FC_OCIAD1), x1 = max(to_volcano$FC_OCIAD1), 
                         y0 = -log10(p.cutoff_sel), y1 = -log10(p.cutoff_sel),
-                        line = list(dash = 'dash', width = 1, color = 'gray'), opacity = 0.7)
+                        line = list(dash = "dash", width = 1, color = "gray"), opacity = 0.7)
                ))
     
     # Add selected genes if any are selected
@@ -1365,7 +1361,7 @@ output$V5eig <- renderPlotly({
         v <- v |> add_markers(data = sel_gene_data, 
                                x = ~FC_OCIAD1, 
                                y = ~-log10(p_OCIAD1_MITOS), 
-                               marker = list(color = 'brown', size = 10),
+                               marker = list(color = "brown", size = 10),
                                inherit = FALSE, # Make sure these points stand out
                                name = selected_gene) 
     }
@@ -1374,7 +1370,7 @@ output$V5eig <- renderPlotly({
     v
 })
 
-plotlyOutput('V5eig')
+plotlyOutput("V5eig")
 ```
 
 ## Table
@@ -1394,7 +1390,7 @@ DT::datatable(
 protein.groups_ludovic_raw <- protein.groups
 nas <- rep(NA,nrow(protein.groups))
 imputed_ludovic_correct <- data.frame(KO.22=nas, KO.23=nas, KO.24=nas, WT.22=nas, WT.23=nas, WT.24=nas)
-imputed_ludovic_correct[as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`)),] <- imputed_ludovic[,3:8]
+imputed_ludovic_correct[as.numeric(gsub("prot_", "", imputed_ludovic$`Protein IDs`)),] <- imputed_ludovic[,3:8]
 protein.groups_ludovic_raw$`LFQ intensity KO_MITOS_22` <- imputed_ludovic_correct$KO.22
 protein.groups_ludovic_raw$`LFQ intensity KO_MITOS_23` <- imputed_ludovic_correct$KO.23
 protein.groups_ludovic_raw$`LFQ intensity KO_MITOS_24` <- imputed_ludovic_correct$KO.24
@@ -1405,7 +1401,7 @@ protein.groups_ludovic_raw$`LFQ intensity WT_MITOS_24` <- imputed_ludovic_correc
 protein.groups_ludovic_eigenms <- protein.groups
 eigen_ludovic <- LFQ_ludovic.eig_norm$norm_m
 eigen_ludovic_clean <- data.frame(KO.22=nas, KO.23=nas, KO.24=nas, WT.22=nas, WT.23=nas, WT.24=nas)
-eigen_ludovic_clean[as.numeric(gsub('prot_', '', imputed_ludovic$`Protein IDs`)),] <- eigen_ludovic
+eigen_ludovic_clean[as.numeric(gsub("prot_", "", imputed_ludovic$`Protein IDs`)),] <- eigen_ludovic
 
 protein.groups_ludovic_eigenms$`LFQ intensity KO_MITOS_22` <- eigen_ludovic_clean$KO.22
 protein.groups_ludovic_eigenms$`LFQ intensity KO_MITOS_23` <- eigen_ludovic_clean$KO.23
@@ -1416,7 +1412,7 @@ protein.groups_ludovic_eigenms$`LFQ intensity WT_MITOS_24` <- eigen_ludovic_clea
 ```
 
 ```{r}
-write.table(protein.groups_ludovic_raw, file='proteingroups_ludovic_raw_MITOS.txt', sep='\t', row.names = FALSE)
+write.table(protein.groups_ludovic_raw, file="proteingroups_ludovic_raw_MITOS.txt", sep="\t", row.names = FALSE)
 
-write.table(protein.groups_ludovic_eigenms, file='proteingroups_ludovic_eigenms_MITOS.txt', sep='\t', row.name=FALSE)
+write.table(protein.groups_ludovic_eigenms, file="proteingroups_ludovic_eigenms_MITOS.txt", sep="\t", row.name=FALSE)
 ```
