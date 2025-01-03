@@ -209,8 +209,6 @@ body {
 }", con = "document_style.css")
 ```
 
-# LOAD DATA
-
 ```{r load data}
 # load raw data
 protein.groups <- readr::read_tsv("./data/proteinGroups.txt", show_col_types = FALSE)
@@ -276,8 +274,6 @@ df_ml <- df_ml |>
                   missingness = as.factor(missingness))
 ```
 
-# IMPUTATION
-
 ```{r protti}
 df_to_protti <- protein.groups |>
     dplyr::select(`Protein IDs`, `Peptide sequences`, 
@@ -324,6 +320,8 @@ imputed_ludovic <- imputed_ludovic |>
     dplyr::select(Sample, imputed_intensity, `Protein IDs`, missingness) |>
     tidyr::pivot_wider(id_cols = everything(), names_from = Sample, values_from = imputed_intensity)
 ```
+
+# Number of Missing Values per Condition
 
 ```{r rows.to.keep}
 tempKO <- apply(lfq[grep("KO", colnames(lfq))], 1, function(row) sum(is.na(row)))
