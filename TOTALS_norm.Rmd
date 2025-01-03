@@ -1311,32 +1311,46 @@ DT::datatable(
 ```
 
 ```{r}
-# protein.groups_ludovic_raw <- protein.groups
-# nas <- rep(NA,nrow(protein.groups))
-# imputed_ludovic_correct <- data.frame(KO.22=nas, KO.23=nas, KO.24=nas, WT.22=nas, WT.23=nas, WT.24=nas)
-# imputed_ludovic_correct[as.numeric(gsub("prot_", "", imputed_ludovic$`Protein IDs`)),] <- imputed_ludovic[,3:8]
-# protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_22` <- imputed_ludovic_correct$KO.22
-# protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_23` <- imputed_ludovic_correct$KO.23
-# protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_24` <- imputed_ludovic_correct$KO.24
-# protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_22` <- imputed_ludovic_correct$WT.22
-# protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_23` <- imputed_ludovic_correct$WT.23
-# protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_24` <- imputed_ludovic_correct$WT.24
+protein.groups_ludovic_raw <- protein.groups[rows.to.keep, ]
 
-# protein.groups_ludovic_eigenms <- protein.groups
-# eigen_ludovic <- LFQ_ludovic.eig_norm$norm_m
-# eigen_ludovic_clean <- data.frame(KO.22=nas, KO.23=nas, KO.24=nas, WT.22=nas, WT.23=nas, WT.24=nas)
-# eigen_ludovic_clean[as.numeric(gsub("prot_", "", imputed_ludovic$`Protein IDs`)),] <- eigen_ludovic
+imputed_ludovic_correct <- data.frame(KO.22=protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_22`, 
+                                      KO.23=protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_23`,
+                                      KO.24=protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_24`, 
+                                      WT.22=protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_22`, 
+                                      WT.23=protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_23`,
+                                      WT.24=protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_24`)
 
-# protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_22` <- eigen_ludovic_clean$KO.22
-# protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_23` <- eigen_ludovic_clean$KO.23
-# protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_24` <- eigen_ludovic_clean$KO.24
-# protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_22` <- eigen_ludovic_clean$WT.22
-# protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_23` <- eigen_ludovic_clean$WT.23
-# protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_24` <- eigen_ludovic_clean$WT.24
+imputed_ludovic_correct <- imputed_ludovic[,3:8]
+protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_22` <- imputed_ludovic_correct$KO_22
+protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_23` <- imputed_ludovic_correct$KO_23
+protein.groups_ludovic_raw$`LFQ intensity KO_TOTALS_24` <- imputed_ludovic_correct$KO_24
+protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_22` <- imputed_ludovic_correct$WT_22
+protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_23` <- imputed_ludovic_correct$WT_23
+protein.groups_ludovic_raw$`LFQ intensity WT_TOTALS_24` <- imputed_ludovic_correct$WT_24
+protein.groups_ludovic_raw$missingness <- miss_type$miss
+
+protein.groups_ludovic_eigenms <- protein.groups[rows.to.keep,]
+eigen_ludovic <- cbind.data.frame(LFQ_KO_ludovic.eigen, LFQ_WT_ludovic.eigen)
+eigen_ludovic_clean <- data.frame(KO_22=protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_22`, 
+                                  KO_23=protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_23`,
+                                  KO_24=protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_24`, 
+                                  WT_22=protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_22`, 
+                                  WT_23=protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_23`,
+                                  WT_24=protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_24`)
+
+eigen_ludovic_clean[,1:6] <- eigen_ludovic
+
+protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_22` <- eigen_ludovic_clean[,1]
+protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_23` <- eigen_ludovic_clean[,2]
+protein.groups_ludovic_eigenms$`LFQ intensity KO_TOTALS_24` <- eigen_ludovic_clean[,3]
+protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_22` <- eigen_ludovic_clean[,4]
+protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_23` <- eigen_ludovic_clean[,5]
+protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_24` <- eigen_ludovic_clean[,6]
+protein.groups_ludovic_eigenms$missingness <- miss_type$miss
 ```
 
 ```{r}
-# write.table(protein.groups_ludovic_raw, file="proteingroups_ludovic_raw_TOTALS.txt", sep="\t", row.names = FALSE)
+write.table(protein.groups_ludovic_raw, file='proteingroups_ludovic_raw_TOTALS.txt', sep='\t', row.names = FALSE)
 
-# write.table(protein.groups_ludovic_eigenms, file="proteingroups_ludovic_eigenms_TOTALS.txt", sep="\t", row.name=FALSE)
+write.table(protein.groups_ludovic_eigenms, file='proteingroups_ludovic_eigenms_TOTALS.txt', sep='\t', row.name=FALSE)
 ```
