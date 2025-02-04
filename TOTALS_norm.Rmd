@@ -1,5 +1,5 @@
 ---
-title: "Comparison"
+title: "TOTALS data analysis"
 author: "Kacper Kaszuba"
 date: "`r Sys.Date()`"
 runtime: shiny
@@ -10,177 +10,10 @@ output:
             collapsed: false
         code_download: true
 fontsize: 14pt
-css: document_style.css
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", fig.keep = "all", echo = FALSE)
-
-show_cv_table <- function(df) {
-    DT::datatable(df, rownames = FALSE, 
-              options=list(searching=FALSE, paging=FALSE, info=FALSE)) |>
-    DT::formatStyle(columns = c("mean_KO", "mean_WT", "median_KO", "median_WT"), 
-                    background = DT::styleInterval(c(15, 25), c("white","lightgreen", "white"))) |>
-    DT::formatStyle(columns = "method", fontWeight = "bold")
-}
-
-assign_missing <- function(protein.ids, condition, lfq_intensity) {
-    # verification of the fxn assumptions
-    if (!is.factor(condition)) {rlang::abort("The condition are not factor!")}
-
-    # occurences of protein IDs per condition
-    occur <- dplyr::tibble(protein.ids) |>
-        dplyr::group_by(protein.ids) |>
-        dplyr::summarise(len = length(protein.ids)) |>
-        dplyr::distinct(len)
-
-    # occurences of condition
-    occur_per_cond <- dplyr::tibble(protein.ids, condition) |>
-        dplyr::group_by(protein.ids, condition) |>
-        dplyr::summarise(len = length(protein.ids))
-    occur_per_cond <- unique(occur_per_cond$len)
-
-    if (length(protein.ids)/occur != length(unique(protein.ids))) {rlang::abort("The protein IDs are not unique!")}
-    if (!is.numeric(lfq_intensity)) {rlang::abort("The lfq intensities are not numeric!")}
-
-    df <- data.frame("prot.IDs"=protein.ids, "condition"=condition, "lfq"=lfq_intensity)
-
-    # Calculating number of missing values for each protein for each condition
-    number_missing1 <- df |>
-        dplyr::group_by(prot.IDs, condition) |>
-        dplyr::summarise(no_NAs = sum(is.na(lfq)))
-
-    missingness_per_cond <- purrr::map(number_missing1$no_NAs, function(no) {
-            if (no == occur_per_cond) {
-              rep("all_NA", occur_per_cond)
-            } else if (no == occur_per_cond-1) {
-              rep("MNAR", occur_per_cond)
-            } else if (no < occur_per_cond-1 & no != 0) {
-              rep("MAR", occur_per_cond)
-            } else if (no == 0){
-              rep("complete", occur_per_cond)
-            }
-        })
-    missingness_per_cond <- data.frame(do.call(c,missingness_per_cond))
-    
-    # Calculating number of missing values for each protein
-    number_missing2 <- df |>
-        dplyr::group_by(prot.IDs) |>
-        dplyr::summarise(no_NAs = sum(is.na(lfq)))
-    
-    missingness_per_prot <- purrr::map(number_missing2$no_NAs, function(no) {
-            if (no == occur) {
-              rep("all_NA", occur)
-            }else if (no == occur-1) {
-              rep("MNAR", occur)
-            } else if (no < occur-1 & no != 0) {
-              rep("MAR", occur)
-            } else if (no == 0){
-              rep("complete", occur)
-            }
-        }) 
-    missingness_per_prot <- data.frame(do.call(c, missingness_per_prot))
-
-    prot.id.miss <- purrr::map(unique(number_missing2$prot.IDs), function(id) rep(id, occur))
-    prot.id.miss <- data.frame(do.call(c,prot.id.miss))
-
-    df_miss <- data.frame(prot.id.miss, missingness_per_cond, missingness_per_prot)
-    colnames(df_miss) <- c("prot.IDs", "missingness_per_cond", "missingness_per_prot")
-
-    missingness_per_cond <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),"missingness_per_cond"])
-    df$missingness_per_cond <- do.call(c,missingness_per_cond)
-    
-    missingness_per_prot <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),"missingness_per_prot"])
-    df$missingness_per_prot <- do.call(c,missingness_per_prot)
-    
-    # Testing new missing assigning
-    missingness_final <- df |>
-        dplyr::select(condition, missingness_per_cond) |>
-        tidyr::pivot_wider(id_cols=everything(), names_from = "condition", 
-                           values_from="missingness_per_cond", values_fn = list) |> 
-        tidyr::unnest(cols = everything())
-    
-    cond_id <- seq(1,nrow(missingness_final), by=3)
-    missingness_final <- missingness_final[cond_id,]
-    
-    missingness_final2 <- purrr::map(1:nrow(missingness_final), function(i) {
-        if (all(missingness_final[i,] == "all_NA")) {
-            rep(NA, occur)
-        } else if ((missingness_final[i,1] == "complete" & missingness_final[i,2] == "all_NA") | (missingness_final[i,2] == "complete" & missingness_final[i,1] == "all_NA")) {
-            rep("MNAR", occur)
-        } else if ((missingness_final[i,1] == "MAR" & missingness_final[i,2] == "MNAR") | (missingness_final[i,2] == "MAR" & missingness_final[i,1] == "MNAR")) {
-            rep(NA, occur)
-        } else if (all(missingness_final[i,] == "MAR")) {
-            rep("MAR", occur)
-        } else if (all(missingness_final[i,] == "MNAR")) {
-            rep(NA, occur)
-        } else if (all(missingness_final[i,] == "complete")) {
-            rep("complete", occur)
-        } else if ((missingness_final[i,1] == "complete" & missingness_final[i,2] =="MNAR") | (missingness_final[i,2] == "complete" & missingness_final[i,1] =="MNAR")) {
-            rep("MNAR", occur)
-        } else if ((missingness_final[i,1] == "complete" & missingness_final[i,2] =="MAR") | (missingness_final[i,2] == "complete" & missingness_final[i,1] =="MAR")) {
-            rep(NA, occur)  # zostawić NA i policzyć p-value dla mniejszej ilości danych
-        } else {
-            rep(NA, occur)
-        }
-    })
-
-    df$missingness = do.call(c,missingness_final2)
-    
-    # return
-    ret_list <- list(df = df, missingness_per_cond=df$missingness_per_cond,
-                     missingness_per_prot = df$missingness_per_prot,
-                     missingness = df$missingness,
-                     test = missingness_final)
-}
-
-ttest <- function(df, grp1, grp2){ 
-  x = df[grp1]
-  y = df[grp2]
-  x = as.numeric((x))
-  y = as.numeric((y))
-  results = t.test(x,y, 
-                   alternative = "two.sided", #one-sided: "greater" is x > y
-                   paired = F,
-                   na.action=na.omit)
-  results$p.value
-}
-
-plothist <- function(df, title="", plot.title.and.legend=TRUE) {
-    if (!is.data.frame(df)) { df <- as.data.frame(df)}
-    
-    # Assuming LFQ_KO is our data frame with at least 3 columns
-    # Reshape the data to a long format
-    df <- df |>
-        pivot_longer(cols = 1:ncol(df), names_to = "Rep", values_to = "LFQValue")
-    
-    # Plot all histograms on the same plot using ggplot
-    if (plot.title.and.legend) {
-        ret_plot <- ggplot(df, aes(x = LFQValue, fill = Rep)) +
-            geom_histogram(alpha = 0.4, position = "identity", bins = 30) +
-            labs(title = paste(title), x = "Values", y = "Frequency") +
-            theme(legend.title = element_blank())
-    } else {
-        ret_plot <- ggplot(df, aes(x = LFQValue, fill = Rep)) +
-            geom_histogram(alpha = 0.4, position = "identity", bins = 30) +
-            labs(x = "Values", y = "Frequency") +
-            theme(legend.title = element_blank(), legend.position = "none")
-    }
-    return(ret_plot)
-}
-
-plotoneviolin <- function(object, title="") {
-    object <- as.data.frame(object) |>
-        pivot_longer(everything(), names_to = "Sample", values_to = "LFQ_CV")
-    
-    ggplot(data=object, aes(x=Sample, y=LFQ_CV, fill=Sample))+
-        geom_boxplot(width=0.2, na.rm = TRUE)+
-        geom_violin(alpha=0.4, na.rm = TRUE)+
-        labs(title=title,x=NULL,y="LFQ CV[%]")+
-        theme(legend.position = "none",
-              panel.background = element_rect(fill="white", colour = "grey"),
-              panel.grid = element_line(colour = "grey"))
-}
 
 library(ggplot2)
 library(ggpubr)
@@ -189,25 +22,10 @@ library(tidyr)
 library(protti)
 library(plotly)
 source("EigenMS/EigenMS/EigenMS.R")
-
-writeLines("table {
-  width: 100%;
-  border-collapse: collapse;
-}
-th, td {
-  width: 14.28%; /* Distribute width equally (100% / 7 columns) */
-  border: 1px #f2f2f2;
-  text-align: center; /* Center the text */
-  padding: 8px;
-}
-th {
-  background-color: #f2f2f2;
-  border: 0px;
-}
-body {
-    text-align: justify
-}", con = "document_style.css")
+source("fxn.R")
 ```
+
+# Load Data
 
 ```{r load data}
 # load raw data
@@ -225,54 +43,45 @@ lfq[lfq == 0] <- NA
 lfq <- log2(lfq)
 ```
 
-```{r data to ML models}
+# Assign Missingness
+
+```{r assign missingness}
 # extracting columns to machine learning models
-df_ml <- protein.groups |>
-    dplyr::select(`Number of proteins`, Peptides, `Sequence coverage [%]`, `Sequence length`, 
-                  `Mol. weight [kDa]`, `Q-value`, Score, `MS/MS count`, 
-                  dplyr::starts_with("LFQ Intensity") & (ends_with("22") | ends_with("23") | ends_with("24")) & dplyr::contains("TOTALS"))
+df_miss <- protein.groups |>
+    select(starts_with("LFQ Intensity") 
+           & (ends_with("22") | ends_with("23") | ends_with("24")) 
+           & contains("TOTALS"))
 
 # changing the colnames
-colnames(df_ml)[9:14] <- gsub("LFQ intensity ", "", colnames(df_ml)[9:14])
+colnames(df_miss) <- gsub("LFQ intensity ", "", colnames(df_miss))
 
 # making longer data frame with one column containing all LFQ values
-df_ml <- df_ml |>
-    dplyr::mutate(prot.id = paste("prot",1:nrow(df_ml),sep="_")) |>
-    tidyr::pivot_longer(9:14, names_to = "Sample", values_to = "LFQvalue") |>
-    tidyr::separate(col=Sample, into=c("celltype","sampletype","rep"), sep = "_", remove = FALSE) |>
-    dplyr::mutate(celltype = as.factor(celltype), sampletype = as.factor(sampletype),
+df_miss <- df_miss |>
+    mutate(prot.id = paste("prot",1:nrow(df_miss),sep="_")) |>
+    pivot_longer(1:6, names_to = "Sample", values_to = "LFQvalue") |>
+    separate(col=Sample, into=c("celltype","sampletype","rep"), sep = "_", remove = FALSE) |>
+    mutate(celltype = as.factor(celltype), sampletype = as.factor(sampletype),
                   rep = as.factor(rep))
 
 # changing values with 0 to NA
-df_ml$LFQvalue[df_ml$LFQvalue==0] <- NA
+df_miss$LFQvalue[df_miss$LFQvalue==0] <- NA
 
-missingness <- assign_missing(df_ml$prot.id, df_ml$celltype, df_ml$LFQvalue)
-df_ml$missingness_per_cond <- missingness$missingness_per_cond
-df_ml$missingness_per_prot <- missingness$missingness_per_prot
-df_ml$missingness <- missingness$missingness
+missingness <- assign_missing(df_miss$prot.id, df_miss$celltype, df_miss$LFQvalue)
+df_miss$missingness_per_cond <- missingness$missingness_per_cond
+df_miss$missingness_per_prot <- missingness$missingness_per_prot
+df_miss$missingness <- missingness$missingness
 
-df_ml$missingness[is.na(df_ml$missingness)] <- "all_NA"
-
-# removing blank spaces and all separators from colnames
-colnames(df_ml)[1:8] <- c("no.proteins", "peptides","seq.coverage","seq.len",
-                          "mol.weight.kDa","q.value","score","ms.count")
-
+df_miss$missingness[is.na(df_miss$missingness)] <- "all_NA"
 
 # Remove unnecessary columns and reordering columns
-df_ml.to.models <- df_ml |>
-    dplyr::select(-prot.id, -Sample, -sampletype) |> dplyr::select(1:10, 12:14, 11) |>
-    dplyr::mutate(missingness_per_prot = as.numeric(as.factor(missingness_per_prot)),
-                  missingness_per_cond = as.numeric(as.factor(missingness_per_cond)),
-                  celltype = as.numeric(celltype),
-                  rep = as.numeric(rep),
-                  missingness = as.numeric(as.factor(missingness)))
-
-df_ml <- df_ml |>
-    dplyr::select(-prot.id, -Sample) |> dplyr::select(1:11, 13:15, 12) |>
-    dplyr::mutate(missingness_per_prot = as.factor(missingness_per_prot),
+df_miss <- df_miss |>
+    select(-prot.id, -Sample) |>
+    mutate(missingness_per_prot = as.factor(missingness_per_prot),
                   missingness_per_cond = as.factor(missingness_per_cond),
                   missingness = as.factor(missingness))
 ```
+
+# Imputation
 
 ```{r protti}
 df_to_protti <- protein.groups |>
@@ -297,7 +106,7 @@ data_missing <- df_to_protti |>
                        intensity = Intensity,
                        ref_condition = "all")
 
-temp <- df_ml$missingness
+temp <- df_miss$missingness
 temp[which(temp == "all_NA")] <- NA
 data_missing$missingness <- temp
 
@@ -340,10 +149,11 @@ temp <- temp |>
     dplyr::group_by(cell, no_miss, sum) |>
     dplyr::summarise(count = n(), .groups = "drop")
 
-ggplot(data = temp, aes(x = no_miss, y = count, fill=sum, color=cell)) +
+ggplot(data = temp, aes(x = no_miss, y = count, fill=sum)) +
     geom_bar(stat = "identity", position = position_dodge()) + 
     geom_text(aes(label = count), position = position_dodge(width = 0.9),
               vjust = -0.4, size = 3)+
+    facet_grid('cell') +
     labs(title="Count of the number of missing values for cell type", 
          xlab="Number of Missing Values per Condition", fill="No. miss.\nper row")
 ```
@@ -362,8 +172,8 @@ LFQ_WT <- lfq |> select(contains("WT"))
 imputed_ludovic <- imputed_ludovic[rows.to.keep,]
 
 # extracting KO and WT
-LFQ_KO_ludovic <- imputed_ludovic |> dplyr::select(contains("KO"))
-LFQ_WT_ludovic <- imputed_ludovic |> dplyr::select(contains("WT"))
+LFQ_KO_ludovic <- imputed_ludovic |> select(contains("KO"))
+LFQ_WT_ludovic <- imputed_ludovic |> select(contains("WT"))
 
 miss_type <-  data.frame(miss = as.character(imputed_ludovic$missingness),
                          protein.ids = protein.groups$`Protein IDs`[rows.to.keep])
@@ -1348,6 +1158,8 @@ protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_23` <- eigen_ludovic_cle
 protein.groups_ludovic_eigenms$`LFQ intensity WT_TOTALS_24` <- eigen_ludovic_clean[,6]
 protein.groups_ludovic_eigenms$missingness <- miss_type$miss
 ```
+
+# Export results
 
 ```{r}
 write.table(protein.groups_ludovic_raw, file='proteingroups_ludovic_raw_TOTALS.txt', sep='\t', row.names = FALSE)
