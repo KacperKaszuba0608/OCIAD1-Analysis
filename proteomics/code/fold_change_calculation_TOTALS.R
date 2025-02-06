@@ -69,5 +69,5 @@ final_table <- merge(metadata, final_table, by.y = 'protein.ids', by.x = 'Protei
            `Protein IDs`, LFQ_KO_TOTALS_22, LFQ_KO_TOTALS_23,	LFQ_KO_TOTALS_24, 
            LFQ_WT_TOTALS_22, LFQ_WT_TOTALS_23, LFQ_WT_TOTALS_24, missingness)
 
-write.csv(final_table, file = './data/cleaned/OCIAD1_proteomics_TOTALS_process.csv',
+write.csv(final_table, file = './data/cleaned/OCIAD1_proteomics_totals_process.csv',
           row.names = FALSE)

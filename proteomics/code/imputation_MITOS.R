@@ -5,10 +5,11 @@
 # import libraries and fxns
 library(tidyverse)
 library(protti)
-source('./code/fxn.R')
+source('./proteomics/code/fxn.R')
 
 # import data
-protein.groups <- readr::read_tsv('./data/proteinGroups.txt', show_col_types = F) # 5561 proteins
+# protein.groups <- read_tsv('./data/proteinGroups.txt', show_col_types = F) # 5561 proteins
+protein.groups <- read_tsv(file.choose(), show_col_types=F)
 
 # filtering the data
 protein.groups <- protein.groups |> filter(is.na(`Only identified by site`), # 5432 proteins left
@@ -82,7 +83,7 @@ df_to_protti <- protein.groups |>
     mutate(Sample = gsub("_MITOS_", "_", Sample)) |>
     separate(col =  Sample, into = c("celltype","rep"), sep = "_", remove = F) |>
     mutate(Condition = ifelse(celltype == "KO", "treated", "control"),
-           Intensity = ifelse(Intensity == 0, NA, log2(Intensity))) |> 
+           Intensity = ifelse(Intensity == 0, NA, Intensity)) |> 
     select(Sample, `Protein IDs`, `Peptide sequences`, Condition, Intensity)
 
 # assign missingness with protti fxn
@@ -122,21 +123,23 @@ imputed_MITOS <- imputed_MITOS |>
 duplicates <- imputed_MITOS[duplicated(imputed_MITOS$`Protein IDs`), 'Protein IDs']
 # imputed_MITOS[imputed_MITOS$`Protein IDs` %in% duplicates$`Protein IDs`,] |> View()
 
-correct_dup_rows <- as.data.frame(t(sapply(1:nrow(duplicates),function(i) {
-    false_row = imputed_MITOS[imputed_MITOS$`Protein IDs` == duplicates$`Protein IDs`[i]
-                              & imputed_MITOS$imputed == FALSE,]
-    true_row = imputed_MITOS[imputed_MITOS$`Protein IDs` == duplicates$`Protein IDs`[i]
-                             & imputed_MITOS$imputed == TRUE,]
-    true_row[which(is.na(true_row))] = false_row[which(is.na(true_row))]
-    true_row
-    })))
-
-correct_dup_rows <- lapply(correct_dup_rows, unlist) |> as.data.frame()
-
-rows_to_drop <- which(imputed_MITOS$`Protein IDs` %in% duplicates$`Protein IDs` & imputed_MITOS$imputed == FALSE)
-imputed_MITOS <- imputed_MITOS[-rows_to_drop,]
-
-imputed_MITOS[imputed_MITOS$`Protein IDs` %in% duplicates$`Protein IDs`, 4:9] <- correct_dup_rows[,4:9]
+if (nrow(duplicates) != 0) {
+    correct_dup_rows <- as.data.frame(t(sapply(1:nrow(duplicates),function(i) {
+        false_row = imputed_MITOS[imputed_MITOS$`Protein IDs` == duplicates$`Protein IDs`[i]
+                                  & imputed_MITOS$imputed == FALSE,]
+        true_row = imputed_MITOS[imputed_MITOS$`Protein IDs` == duplicates$`Protein IDs`[i]
+                                 & imputed_MITOS$imputed == TRUE,]
+        true_row[which(is.na(true_row))] = false_row[which(is.na(true_row))]
+        true_row
+        })))
+    
+    correct_dup_rows <- lapply(correct_dup_rows, unlist) |> as.data.frame()
+    
+    rows_to_drop <- which(imputed_MITOS$`Protein IDs` %in% duplicates$`Protein IDs` & imputed_MITOS$imputed == FALSE)
+    imputed_MITOS <- imputed_MITOS[-rows_to_drop,]
+    
+    imputed_MITOS[imputed_MITOS$`Protein IDs` %in% duplicates$`Protein IDs`, 4:9] <- correct_dup_rows[,4:9]
+}
 
 # Exporting results
 protein.groups.export <- protein.groups

@@ -1,0 +1,426 @@
+---
+title: "Lipidomics Analysis"
+author: "Vanessa Linke"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+based on "Final Results" output from LipiDex (Hutchins et al.)
+
+Data is read in and analyzed in Python and then visualized in R.
+
+Python Code was prepared by Mateusz Chodkowski (August and September 2023) and adapted by Vanessa Linke.
+
+small change
+
+# Load packages and data
+
+```{r rsetup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(reticulate)
+library(plotly)
+library(ggrepel)
+library(patchwork)
+```
+
+```{python pysetup, include=FALSE}
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy.stats as st
+import warnings
+import functions_v as f
+```
+
+```{python load, echo = FALSE}
+df_ociad1_all = pd.read_csv('Copy of Final_Results_VL_22_23_24.csv').sort_values(by = ['Identification'])
+df_ociad1_all['Lipid Class'] = df_ociad1_all['Lipid Class'].fillna('Unidentified')
+
+_, _, _, df_ociad1_mitos, df_ociad1_totals = f.get_sets(df_ociad1_all, 'MITO', 'TOT')
+
+#df_ociad1_mitos = np.log2(df_ociad1_mitos)
+_, ociad1_mitos_ko, ociad1_mitos_wt, _, _ = f.get_sets(df_ociad1_mitos, 'KO', 'WT')
+df_ociad1_mitos = df_ociad1_mitos.reindex(columns = ociad1_mitos_ko + ociad1_mitos_wt)
+
+#df_ociad1_totals = np.log2(df_ociad1_totals)
+_, ociad1_totals_ko, ociad1_totals_wt, _, _ = f.get_sets(df_ociad1_totals, 'KO', 'WT')
+df_ociad1_totals = df_ociad1_totals.reindex(columns = ociad1_totals_ko + ociad1_totals_wt)
+
+
+#####DATA FOR EXPORT
+df_ociad1_raw_export = pd.concat([df_ociad1_mitos, df_ociad1_totals], axis=1)
+df_ociad1_raw_export.insert(0, 'Lipid Class', df_ociad1_all['Lipid Class'], True)
+df_ociad1_raw_export.insert(0, 'Identification', df_ociad1_all['Identification'], True)
+```
+
+## Analysis based on quantitative data
+### Normalize data
+
+```{r normalize, echo = FALSE}
+normalise <- function(df){
+
+row_mean <- rowMeans(df)
+col_sum_mean <- mean(colSums(head(df, 866)))
+  
+df <- df %>% 
+  scale(center = FALSE, scale = colSums(head(., 866))) %>%
+  as.data.frame(.) %>%
+  mutate(across(everything(), function(x) x * col_sum_mean)) %>%
+  log2(.) %>%
+  as.data.frame(.)
+}
+
+
+df_ociad1_mitos_raw <- py$df_ociad1_mitos
+df_ociad1_mitos <- normalise(py$df_ociad1_mitos)
+
+df_ociad1_totals_raw <- py$df_ociad1_totals
+df_ociad1_totals <- normalise(py$df_ociad1_totals)
+
+```
+
+### Volcano plots
+
+```{python statistics, echo = FALSE}
+
+df_ociad1_mitos = f.fc(r['df_ociad1_mitos'])
+df_ociad1_totals = f.fc(r['df_ociad1_totals'])
+
+df_ociad1_mitos = df_ociad1_mitos.reset_index(drop=True)
+df_ociad1_totals = df_ociad1_totals.reset_index(drop=True)
+
+df_ociad1_mitos = f.ttest(df_ociad1_mitos)
+df_ociad1_totals = f.ttest(df_ociad1_totals)
+
+df_ociad1_mitos.insert(0, 'Identification', df_ociad1_all['Identification'], True)
+df_ociad1_totals.insert(0, 'Identification', df_ociad1_all['Identification'], True)
+df_ociad1_totals_raw.insert(0, 'Identification', df_ociad1_all['Identification'], True)
+
+df_ociad1_mitos.insert(0, 'Lipid Class', df_ociad1_all['Lipid Class'], True)
+df_ociad1_totals.insert(0, 'Lipid Class', df_ociad1_all['Lipid Class'], True)
+
+```
+
+```{python lipid-categories, echo = FALSE}
+
+fatty_acyls = ["AC"]
+glycerolipids = ["Alkanyl-TG", "Alkenyl-DG", "Alkenyl-TG", "DG", "TG"]
+phospholipids = ["Alkanyl-TG", "CL", "GM3-NANA", "LysoPC", "LysoPE", "LysoPG", "LysoPI", "LysoPS", "PC", "PE", "PE-NMe", "PE-NMe2", "PG", "PI", "Plasmanyl-PC", "Plasmanyl-PE", "Plasmenyl-PC", "Plasmenyl-PE", "PS"]
+sphingolipids = ["Cer[AP]" , "Cer[AS]", "Cer[NP]", "Cer[NS]", "HexCer[NS]", "SHexCer", "SM", "SP"]
+cholesteryl_esters = ["CE"]
+unid = ["Unidentified"]
+
+
+lipid_cat = []
+
+for lipid_class in df_ociad1_mitos['Lipid Class']:
+  if lipid_class in fatty_acyls:
+    lipid_cat.append('Fatty Acyl')
+  elif lipid_class in glycerolipids:
+    lipid_cat.append('Glycerolipid')
+  elif lipid_class in phospholipids:
+    lipid_cat.append('Phospholipid')
+  elif lipid_class in sphingolipids:
+    lipid_cat.append('Sphingolipid')
+  elif lipid_class in cholesteryl_esters:
+    lipid_cat.append('Cholesteryl Ester')
+  elif lipid_class in unid:
+    lipid_cat.append('Unidentified')
+  else:
+    lipid_cat.append('Other')
+
+df_ociad1_mitos.insert(1, 'Lipid Category', lipid_cat, True)
+df_ociad1_totals.insert(1, 'Lipid Category', lipid_cat, True)
+
+palette = {'Cholesteryl Ester': '#48A0CF', 'Fatty Acyl': '#EC6B63', 'Glycerolipid': '#965DA6','Phospholipid': '#62C19B','Sphingolipid': '#FAC812','Unidentified': '#BEBEBE', 'Other': '#7FDFFD'}
+```
+
+```{python lipid-labels, echo = FALSE}
+lbls_mit = []
+lbls_tot = []
+
+for df, lbls in zip([df_ociad1_mitos, df_ociad1_totals], [lbls_mit, lbls_tot]):
+  for p, fc, i in zip(df_ociad1_totals['pval'], df_ociad1_totals['FC'], df_ociad1_totals['Identification']):
+    if (-np.log10(p) > 2) and (abs(fc) > 2.5) and (isinstance(i, str)):
+      lbls.append(i)
+    else:
+      lbls.append('')
+    
+df_ociad1_mitos.insert(1, 'Label', lbls_mit, True)
+df_ociad1_totals.insert(1, 'Label', lbls_tot, True)
+  
+```
+
+TODO: include lipid names as labels (in plotly)
+TODO: include unidentified lipids
+
+```{r volcano, echo = FALSE}
+
+v1 <- ggplot(py$df_ociad1_totals, aes(x = FC, y = -log10(pval), color = `Lipid Category`, shape = Significant&abs(FC)>1)) +
+  geom_hline(yintercept = -log10(0.05), color = 'lightgrey', alpha = 0.6, linetype = 2) +
+  geom_vline(xintercept = 1, color = 'lightgrey', alpha = 0.6, linetype = 2) +
+  geom_vline(xintercept = -1, color = 'lightgrey', alpha = 0.6, linetype = 2) +
+  geom_point(data = filter(py$df_ociad1_totals, `Lipid Class` == 'Unidentified'), stroke = 1.2, alpha = 0.5) +
+  geom_point(data = filter(py$df_ociad1_totals, `Lipid Class` != 'Unidentified'), stroke = 1.2, alpha = 0.6) +
+  #ggtitle("OCIAD1 KO vs WT") +
+  xlab("Fold Change KO/WT") +
+  ylab("-log10(p-value)") +
+  theme_bw() +
+  theme(legend.position = c(0.97, 0.03), legend.justification = c("right", "bottom"), legend.title=element_blank(), legend.text = element_text(size=9), legend.background = element_blank(), legend.key = element_blank(),
+  #theme(legend.justification = c("right", "bottom"), legend.title=element_blank(), legend.text = element_text(size=10), legend.background = element_blank(), legend.key = element_blank(),
+  panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  guides(shape = 'none', alpha = 'none') +
+  scale_shape_manual(values = c(1, 16)) +
+  xlim(-max(abs(py$df_ociad1_totals$FC)), max(abs(py$df_ociad1_totals$FC))) +
+  scale_color_manual(values = py$palette) +
+  geom_text_repel(aes(label = Label), max.overlaps = Inf, verbose = TRUE, min.segment.length = 0, color = '#4B4B4B', box.padding = 1)
+
+v1
+
+```
+
+TODO: include TIMM17B
+
+## Analysis by head group
+
+```{python lipidclass-filter, echo = FALSE}
+classes_filt, df_ociad1_mitos_filt = f.filter_classes(df_ociad1_mitos, 25)
+
+df_ociad1_mitos_filt = df_ociad1_mitos_filt[df_ociad1_mitos_filt['Lipid Class'] != 'Unidentified']
+
+classes_filt, df_ociad1_totals_filt = f.filter_classes(df_ociad1_totals, 25)
+
+df_ociad1_totals_filt = df_ociad1_totals_filt[df_ociad1_totals_filt['Lipid Class'] != 'Unidentified']
+
+```
+
+```{r lipidclass-boxplot-r, echo = FALSE}
+box_class <- ggplot(py$df_ociad1_totals_filt, aes(x = reorder(`Lipid Class`, FC, FUN = function(x) -median(x)), y = FC)) + 
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey') +
+  stat_boxplot(geom ='errorbar') + 
+  geom_boxplot(alpha = 0, col = '#4B4B4B', outlier.shape = NA) +
+  geom_jitter(aes(color = `Lipid Category`, alpha = as.factor(Significant)), width = 0.2, size = 1.5, shape = 16) +
+  ylab('Fold Change KO/WT') +
+  theme_bw() +
+  theme(axis.title.y = element_blank(), legend.position="none", axis.text.x = element_text(size = 10), axis.text.y = element_text(size = 10)) +
+  guides(alpha = FALSE) +
+  scale_alpha_manual(values = c(0.37, 0.8)) +
+  scale_color_manual(values = py$palette) +
+  scale_y_continuous(position="right") +
+  #scale_x_discrete(labels = c('PC*', 'PE*', 'TG*', 'PS', 'PG', 'Plasmenyl-PE', 'CL', 'PI', 'SM*', 'Plasmenyl-PC*', 'Plasmanyl-PC*')) + #xaxis labels for MITOS
+  scale_x_discrete(labels = c("PS*", "Plasmenyl-PE*", "PC*", "PE*", "PI", "PG", "CL*", "SM", "TG", "Plasmenyl-PC*", "Plasmaniyl-PC*")) + #xaxis labels for TOTALS
+  coord_flip()
+
+
+box_class
+```
+
+```{r lipidclass-boxplot-r-significant, echo = FALSE}
+lipid_hg <- c('Plasmanyl-PC', 'Plasmenyl-PC', 'SM', 'PI', 'CL', 'Plasmenyl-PE', 'PG', 'PS', 'TG', 'PE', 'PC')
+
+
+tppval <- c()
+tsig <- c()
+wppval <- c()
+wsig <- c()
+
+for (li in lipid_hg){
+  fc_pc <- py$df_ociad1_totals_filt[py$df_ociad1_totals_filt$`Lipid Class` == li, 'FC']
+  tt <- t.test(fc_pc, mu = 0)
+  ww <- wilcox.test(fc_pc, mu = 0)
+  tpp <- tt$p.value
+  wpp <- ww$p.value
+  wppval <- append(wppval, wpp)
+  tppval <- append(tppval, tpp)
+  tsigg <- ifelse(tpp < 0.05, 1, 0)
+  tsig <- append(tsig, tsigg)
+  wsigg <- ifelse(wpp < 0.05, 1, 0)
+  wsig <- append(wsig, wsigg)
+}
+
+significance_lipid_class <- data.frame(`Lipids` = lipid_hg, `tpval` = tppval, `tsignificant` = tsig, `wpval` = wppval, `wsignificant` = wsig)
+
+```
+
+## Analysis based on fatty acid chains
+
+```{r fatty acid chains, echo = FALSE}
+fatty_acids <- function(df){
+  df_copy <- data.frame(df)
+  
+  chains <- regmatches(df_copy$Identification, gregexpr("\\d\\d:\\d?\\d", df_copy$Identification))
+  ether_info <- regmatches(df_copy$Identification, gregexpr("P-|O-", df_copy$Identification))
+  
+  chain_bonds <- lapply(chains, function(x) strsplit(x, ':'))
+  chain_lengths <- lapply(chain_bonds, function(x) unlist(lapply(x, function (y) as.numeric(y[[1]][1]))))
+  double_bonds <- lapply(chain_bonds, function(x) unlist(lapply(x, function (y) as.numeric(y[[2]][1]))))
+  
+  is_even <- unlist(lapply(chain_lengths, function(x) all(x %% 2 == 0)))
+  
+  saturation <- lapply(double_bonds, function(x) if(length(x) > 1) {
+    ifelse(all(x <= 1), ifelse(all(x == 0), 0, 1), 2)
+  } else {
+    ifelse(x > 2, 2, ifelse(x == 0, 0, 1))
+  })
+  
+  ether <- unlist(lapply(ether_info, function(x) ifelse(length(x), TRUE, FALSE)))
+  
+  df_copy$`Chain Lengths` <- chain_lengths
+  df_copy$`Length Even` <- is_even
+  df_copy$`Double Bonds` <- double_bonds
+  df_copy$`Saturation` <- saturation
+  df_copy$`Ether` <- ether
+  
+  return(df_copy)
+}
+
+df_ociad1_mitos_notna <- py$df_ociad1_mitos %>% drop_na(Identification)
+df_ociad1_totals_notna <- py$df_ociad1_totals %>% drop_na(Identification)
+
+df_ociad1_mitos_notna <- fatty_acids(df_ociad1_mitos_notna)
+df_ociad1_totals_notna <- fatty_acids(df_ociad1_totals_notna)
+
+colnames(df_ociad1_mitos_notna) <- gsub("\\.", " ", colnames(df_ociad1_mitos_notna))
+colnames(df_ociad1_totals_notna) <- gsub("\\.", " ", colnames(df_ociad1_totals_notna))
+
+
+
+
+######EXPORTING DATA
+# to_add <- df_ociad1_mitos_notna[,c(14:18)]
+# to_add$number <- row.names(to_add)
+# 
+# df_ociad1_mitos_copy <- py$df_ociad1_mitos
+# df_ociad1_mitos_copy$number<- row.names(df_ociad1_mitos_copy)
+# 
+# df_ociad1_mitos_processed_export <- merge(df_ociad1_mitos_copy, to_add, by = 'number', all = TRUE)
+# df_ociad1_mitos_processed_export <- df_ociad1_mitos_processed_export[order(df_ociad1_mitos_processed_export$Identification),]
+# rownames(df_ociad1_mitos_processed_export) <- NULL
+# df_ociad1_mitos_processed_export = subset(df_ociad1_mitos_processed_export, select = -c(1) )
+# df_ociad1_mitos_processed_export[] <- lapply(df_ociad1_mitos_processed_export, function(x) {
+#   if (is.list(x)) sapply(x, paste, collapse = ", ") else x
+# })
+# 
+# to_add <- df_ociad1_totals_notna[,c(14:18)]
+# to_add$number <- row.names(to_add)
+# 
+# df_ociad1_totals_copy <- py$df_ociad1_totals
+# df_ociad1_totals_copy$number<- row.names(df_ociad1_totals_copy)
+# 
+# df_ociad1_totals_processed_export <- merge(df_ociad1_totals_copy, to_add, by = 'number', all = TRUE)
+# df_ociad1_totals_processed_export <- df_ociad1_totals_processed_export[order(df_ociad1_totals_processed_export$Identification),]
+# rownames(df_ociad1_totals_processed_export) <- NULL
+# df_ociad1_totals_processed_export = subset(df_ociad1_totals_processed_export, select = -c(1) )
+# df_ociad1_totals_processed_export[] <- lapply(df_ociad1_totals_processed_export, function(x) {
+#   if (is.list(x)) sapply(x, paste, collapse = ", ") else x
+# })
+# 
+# write.csv(py$df_ociad1_raw_export, "OCIAD1_lipidomics_raw_data.csv")
+# write.csv(df_ociad1_mitos_processed_export, "OCIAD1_lipidomics_mitos_processed_data.csv")
+# write.csv(df_ociad1_totals_processed_export, "OCIAD1_lipidomics_totals_processed_data.csv")
+
+
+```
+
+
+## Boxplots
+
+```{r boxplot prep}
+df_ociad1_mitos_notna$Sample <- 'MITOS'
+df_ociad1_totals_notna$Sample <- 'TOTALS'
+
+combined_df_ociad1 <- bind_rows(df_ociad1_mitos_notna, df_ociad1_totals_notna)
+
+```
+
+```{r boxplot ether evenodd lipids, echo = FALSE}
+# JUST MITOS
+combined_df_ociad1_mitos <- filter(combined_df_ociad1, Sample == 'MITOS')
+combined_df_ociad1_mitos$Interaction_Ether_EvenOdd_Sat <- factor(interaction(combined_df_ociad1_mitos$Ether, combined_df_ociad1_mitos$`Length Even`))
+
+combined_df_ociad1_totals <- filter(combined_df_ociad1, Sample == 'TOTALS')
+combined_df_ociad1_totals$Interaction_Ether_EvenOdd_Sat <- factor(interaction(combined_df_ociad1_totals$Ether, combined_df_ociad1_totals$`Length Even`))
+
+
+b6 <- ggplot(filter(combined_df_ociad1_totals, `Lipid Category` == 'Phospholipid'), aes(x = reorder(`Interaction_Ether_EvenOdd_Sat`, FC, FUN = function(x) - median(x)), y = `FC`)) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey') +
+  stat_boxplot(geom ='errorbar', position = position_dodge(width = 0.9)) + 
+  geom_boxplot(mapping = NULL, data = NULL, alpha = 0, col = '#4B4B4B', outlier.shape = NA, position = position_dodge(width = 0.9)) +
+  geom_point(data = filter(combined_df_ociad1_totals, Significant == 0, `Lipid Category` == 'Phospholipid'), aes(color = `Lipid Category`), alpha = 0.2, size = 2, shape = 16, position = position_jitterdodge(jitter.width = 0.5, dodge.width = 0.9)) +
+  geom_point(data = filter(combined_df_ociad1_totals, Significant == 1, `Lipid Category` == 'Phospholipid'), aes(color = `Lipid Category`), alpha = 0.8, size = 2, shape = 16, position = position_jitterdodge(jitter.width = 0.5, dodge.width = 0.9)) +
+  ylab("Fold Change KO/WT") +
+  #scale_x_discrete(labels = c('Non-ether\nEven-chain*', 'Non-ether\nOdd-chain*', 'Ether\nEven-chain*', 'Ether\nOdd-chain*')) + #xaxis labels for MITOS
+  scale_x_discrete(labels = c('Non-ether\nEven-chain*', 'Ether\nEven-chain*', 'Non-ether\nOdd-chain*', 'Ether\nOdd-chain*')) + #xaxis labels for TOTALS
+  scale_color_manual(values = py$palette) +
+  scale_alpha_manual(values = c(0.37, 0.8)) +
+  scale_y_continuous(position="right") +
+  theme_bw() +
+  theme(legend.position="none", axis.title.y = element_blank()) +
+  scale_size(range = c(0.5, 7)) +
+  coord_flip()
+
+b6
+
+```
+
+```{r stats boxplot}
+group_mitos_ether_even <- filter(combined_df_ociad1_mitos, `Lipid Category` == 'Phospholipid', Interaction_Ether_EvenOdd_Sat == 'TRUE.TRUE')$FC
+group_mitos_nonether_even <- filter(combined_df_ociad1_mitos, `Lipid Category` == 'Phospholipid', Interaction_Ether_EvenOdd_Sat == 'FALSE.TRUE')$FC
+group_mitos_ether_odd <- filter(combined_df_ociad1_mitos, `Lipid Category` == 'Phospholipid', Interaction_Ether_EvenOdd_Sat == 'TRUE.FALSE')$FC
+group_mitos_nonether_odd <- filter(combined_df_ociad1_mitos, `Lipid Category` == 'Phospholipid', Interaction_Ether_EvenOdd_Sat == 'FALSE.FALSE')$FC
+
+group_totals_ether_even <- filter(combined_df_ociad1_totals, `Lipid Category` == 'Phospholipid', Interaction_Ether_EvenOdd_Sat == 'TRUE.TRUE')$FC
+group_totals_nonether_even <- filter(combined_df_ociad1_totals, `Lipid Category` == 'Phospholipid', Interaction_Ether_EvenOdd_Sat == 'FALSE.TRUE')$FC
+group_totals_ether_odd <- filter(combined_df_ociad1_totals, `Lipid Category` == 'Phospholipid', Interaction_Ether_EvenOdd_Sat == 'TRUE.FALSE')$FC
+group_totals_nonether_odd <- filter(combined_df_ociad1_totals, `Lipid Category` == 'Phospholipid', Interaction_Ether_EvenOdd_Sat == 'FALSE.FALSE')$FC
+
+set <- c('ethereven', 'nonethereven', 'etherodd', 'nonetherodd')
+tppval <- c()
+tsig <- c()
+wppval <- c()
+wsig <- c()
+tt <- t.test(group_totals_ether_even, mu = 0)$p.value
+ww <- wilcox.test(group_totals_ether_even, mu = 0)$p.value
+wppval <- append(wppval, ww)
+tppval <- append(tppval, tt)
+tsigg <- ifelse(tt < 0.05, 1, 0)
+tsig <- append(tsig, tsigg)
+wsigg <- ifelse(ww < 0.05, 1, 0)
+wsig <- append(wsig, wsigg)
+tt <- t.test(group_totals_nonether_even, mu = 0)$p.value
+ww <- wilcox.test(group_totals_nonether_even, mu = 0)$p.value
+wppval <- append(wppval, ww)
+tppval <- append(tppval, tt)
+tsigg <- ifelse(tt < 0.05, 1, 0)
+tsig <- append(tsig, tsigg)
+wsigg <- ifelse(ww < 0.05, 1, 0)
+wsig <- append(wsig, wsigg)
+tt <- t.test(group_totals_ether_odd, mu = 0)$p.value
+ww <- wilcox.test(group_totals_ether_odd, mu = 0)$p.value
+wppval <- append(wppval, ww)
+tppval <- append(tppval, tt)
+tsigg <- ifelse(tt < 0.05, 1, 0)
+tsig <- append(tsig, tsigg)
+wsigg <- ifelse(ww < 0.05, 1, 0)
+wsig <- append(wsig, wsigg)
+tt <- t.test(group_totals_nonether_odd, mu = 0)$p.value
+ww <- wilcox.test(group_totals_nonether_odd, mu = 0)$p.value
+wppval <- append(wppval, ww)
+tppval <- append(tppval, tt)
+tsigg <- ifelse(tt < 0.05, 1, 0)
+tsig <- append(tsig, tsigg)
+wsigg <- ifelse(ww < 0.05, 1, 0)
+wsig <- append(wsig, wsigg)
+
+
+significance_boxplot <- data.frame(`set` = set, `tpval` = tppval, `tsignificant` = tsig, `wpval` = wppval, `wsignificant` = wsig)
+
+```
+
+```{r gether plots, echo = FALSE}
+v1 / (free(box_class) | b6) +
+  plot_layout(heights = c(1.25, 2)) +
+  plot_annotation(tag_levels = "A") 
+
+```

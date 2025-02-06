@@ -1,7 +1,7 @@
 # Calculating log 2 Fold Change for MITOS
 
 library(tidyverse)
-source('./code/fxn.R')
+source('./proteomics/code/fxn.R')
 
 # load necessarry data
 mitocarta <- read.csv('./data/Human.MitoCarta3.0.csv')

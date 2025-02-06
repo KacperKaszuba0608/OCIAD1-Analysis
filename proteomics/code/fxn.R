@@ -22,7 +22,8 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
     # Calculating number of missing values for each protein for each condition
     number_missing1 <- df |>
         dplyr::group_by(prot.IDs, condition) |>
-        dplyr::summarise(no_NAs = sum(is.na(lfq)))
+        dplyr::summarise(no_NAs = sum(is.na(lfq))) |>
+        dplyr::ungroup()
     
     missingness_per_cond <- purrr::map(number_missing1$no_NAs, function(no) {
         if (no == occur_per_cond) {
@@ -40,7 +41,8 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
     # Calculating number of missing values for each protein
     number_missing2 <- df |>
         dplyr::group_by(prot.IDs) |>
-        dplyr::summarise(no_NAs = sum(is.na(lfq)))
+        dplyr::summarise(no_NAs = sum(is.na(lfq))) |>
+        dplyr::ungroup()
     
     missingness_per_prot <- purrr::map(number_missing2$no_NAs, function(no) {
         if (no == occur) {
