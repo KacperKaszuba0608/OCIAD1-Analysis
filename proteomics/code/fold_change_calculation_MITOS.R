@@ -8,7 +8,7 @@ mitocarta <- read.csv('./data/Human.MitoCarta3.0.csv')
 protein.groups <- read_tsv('./data/cleaned/proteinGroupsNormalized_MITOS.txt',
                            show_col_types = FALSE)
 
-metadata <- merge(protein.groups, mitocarta, by.x = 'Protein IDs', by.y = 'UniProt', all.x = TRUE)
+metadata <- merge(protein.groups, mitocarta, by.x = 'Gene names', by.y = 'Symbol', all.x = TRUE)
 metadata <- metadata |>
     select(`Protein IDs`, `Gene names`, `Protein names`, MitoCarta3.0_SubMitoLocalization, 
            MitoCarta3.0_MitoPathways, missingness)
