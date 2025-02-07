@@ -1,7 +1,7 @@
 # NORMALIZATION with EigenMS for TOTALS
 
 library(tidyverse)
-source('./code/EigenMS/EigenMS/EigenMS.R')
+source('./proteomics/code/EigenMS/EigenMS/EigenMS.R')
 
 # Load imputed data
 protein.groups <- readr::read_tsv('./data/cleaned/proteinGroupsImputed_TOTALS.txt',
