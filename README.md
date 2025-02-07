@@ -47,3 +47,13 @@ Open and run the `Lipid_analysis_final.Rmd` file.
 Enjoy!
 
 Authors of code: [Vanessa Linke](https://github.com/vanilink), [Mateusz Chodkowski](https://github.com/matiich), [Kacper Kaszuba](https://github.com/KacperKaszuba0608)
+
+## References
+
+1) PMID: 19602524. "Normalization of peak intensities in bottom-up MS-based proteomics using singular value decomposition".
+Karpievitch YV, Taverner T, Adkins JN, Callister SJ, Anderson GA, Smith RD, Dabney AR.
+Bioinformatics 2009
+
+2) "Metabolomics data normalization with EigenMS"
+Karpievitch YV, Nikolic SB, Wilson R, Sharman JE, Edwards LM.
+PLoS One 2014
