@@ -29,7 +29,7 @@ Repository content &#x1F333; &#x1F4C1;
 
 In this repository you will find the statistical analysis of the distributions of the
 mass spectrometry samples. To see the result you should clone this repository
-to your own local machine, extract the `EigenMS.zip` folder and then run files.
+to your own local machine, extract the `EigenMS.zip` folder, set the working directory to `OCIAD1-Analysis` and then run files.
 
 ## Proteomics analysis
 
