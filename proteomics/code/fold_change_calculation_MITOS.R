@@ -64,10 +64,10 @@ final_table <- merge(FC, pvalue[,c("protein.ids", "p_OCIAD1_MITOS", "sig_MITOS_O
     mutate(sig_MITOS_OCIAD1 = ifelse(p_OCIAD1_MITOS < cutoff.p & abs(FC_MITOS_OCIAD1) > cutoff.FC, TRUE, FALSE))
 
 final_table <- merge(metadata, final_table, by.y = 'protein.ids', by.x = 'Protein IDs') |>
-    select(`Gene names`, `Protein names`, MitoCarta3.0_SubMitoLocalization, 
+    select(`Protein IDs`, `Gene names`, `Protein names`, MitoCarta3.0_SubMitoLocalization, 
            MitoCarta3.0_MitoPathways, FC_MITOS_OCIAD1, p_OCIAD1_MITOS, sig_MITOS_OCIAD1,
-           `Protein IDs`, LFQ_KO_MITOS_22, LFQ_KO_MITOS_23,	LFQ_KO_MITOS_24, 
-           LFQ_WT_MITOS_22, LFQ_WT_MITOS_23, LFQ_WT_MITOS_24, missingness)
+           LFQ_KO_MITOS_22, LFQ_KO_MITOS_23, LFQ_KO_MITOS_24, LFQ_WT_MITOS_22, 
+           LFQ_WT_MITOS_23, LFQ_WT_MITOS_24, missingness)
 
 write.csv(final_table, file = './data/cleaned/OCIAD1_proteomics_mitos_process.csv',
           row.names = FALSE)
