@@ -6,7 +6,6 @@ library(enrichplot)
 library(patchwork)
 library(ggrepel)
 
-mitocarta <- read.csv("./data/Human.MitoCarta3.0.csv")
 final_tabel_MITOS <- read_csv('./data/cleaned/OCIAD1_proteomics_mitos_process.csv', show_col_types = FALSE)
 final_tabel_TOTALS <- read_csv('./data/cleaned/OCIAD1_proteomics_totals_process.csv', show_col_types = FALSE)
 
@@ -14,19 +13,11 @@ final_tabel_TOTALS <- read_csv('./data/cleaned/OCIAD1_proteomics_totals_process.
 label.FC.cutoff <- 2.5
 label.p.cutoff <- 0.05
 
-cols_to_select <- 
-    c("sig_MITOS_OCIAD1", "FC_MITOS_OCIAD1", "p_OCIAD1_MITOS")
-    # c("sig_TOTALS_OCIAD1", "FC_TOTALS_OCIAD1", "p_OCIAD1_TOTALS")
-    # c("sig_MITOS_TIMM17B", "FC_MITOS_TIMM17B", "p_TIMM17B_MITOS")
-
-sig_col <- cols_to_select[1]
-fc_col <- cols_to_select[2]
-p_col <- cols_to_select[3]
-
 # downloading all annotation
-mart = useMart("ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
+mart <- useMart("ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
 uniprots <- Rkeys(org.Hs.egUNIPROT)
 ENSEMBL_ids <- AnnotationDbi::select(org.Hs.eg.db, uniprots, "ENSEMBL", "UNIPROT")
+Entrez_ids <- AnnotationDbi::select(org.Hs.eg.db, uniprots, "ENTREZID", "UNIPROT")
 
 #########
 # https://www.bioconductor.org/help/course-materials/2014/useR2014/Integration.html
@@ -52,7 +43,7 @@ my.data_M %>% filter(is.na(ENSEMBL)) %>% distinct(`Protein IDs`) %>% dim()
 my.data_M <- my.data_M %>% left_join(res, by=c("ENSEMBL" = "ensembl_gene_id"))
 my.data_M <- my.data_M %>% distinct(`Gene names`, .keep_all = TRUE)
 
-# volcano plot MITOS
+#### volcano plot MITOS ####
 my.data_temp <- my.data_M
 
 my.data_temp$description <- case_when(
@@ -77,7 +68,6 @@ my.data_temp$color <- case_when(
     TRUE ~ 'darkgrey'
 )
 
-
 v1 <- ggplot(my.data_temp, aes(x = FC_MITOS_OCIAD1, y = -log10(p_OCIAD1_MITOS), shape = sig_MITOS_OCIAD1, color = description)) +
     geom_hline(yintercept = -log10(0.05), color = 'lightgrey', alpha = 0.6, linetype = 2) +
     geom_vline(xintercept = 1, color = 'lightgrey', alpha = 0.6, linetype = 2) +
@@ -98,7 +88,7 @@ v1 <- ggplot(my.data_temp, aes(x = FC_MITOS_OCIAD1, y = -log10(p_OCIAD1_MITOS), 
 
 v1
 
-# volcano plot TOTALS
+#### volcano plot TOTALS ####
 my.data_T <- final_tabel_TOTALS %>% 
     mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
     mutate("UNIPROT" = gsub("-.*", "", UNIPROT))
@@ -156,7 +146,6 @@ v1 <- ggplot(my.data_temp, aes(x = FC_TOTALS_OCIAD1, y = -log10(p_OCIAD1_TOTALS)
 v1
 
 #### GO TERM ENRICHMENT ####
-Entrez_ids <- AnnotationDbi::select(org.Hs.eg.db, uniprots, "ENTREZID", "UNIPROT")
 
 my.data_M <- final_tabel_MITOS %>% 
     mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
@@ -172,83 +161,11 @@ my.data_T <- my.data_T %>% left_join(Entrez_ids, by= "UNIPROT")
 # 21 still un-annotated
 my.data_T %>% filter(is.na(ENTREZID)) %>% distinct(`Protein IDs`) %>% dim()
 
-
-# GO MITOS
-# GO enrichment up
-
-this.group.up <- my.data_M %>% filter(sig_MITOS_OCIAD1 & FC_MITOS_OCIAD1 > (1)) %>% select(ENTREZID) %>% pull() #no_sig > 1
-
-this.ont = "ALL"
-
-go_enrich.up <- enrichGO(gene = this.group.up, OrgDb="org.Hs.eg.db", 
-                         #universe = unique(sort(na.omit(my.data_M$ENTREZID))),
-                         pvalueCutoff = 0.05, pAdjustMethod="fdr",
-                         ont=this.ont)
-go_enrichx.up <- setReadable(go_enrich.up, 'org.Hs.eg.db', 'ENTREZID')
-go_enrichx2.up <- pairwise_termsim(go_enrichx.up)
-
-
-# GO enrichment down
-this.group.down <- my.data_M %>% filter(sig_MITOS_OCIAD1 & FC_MITOS_OCIAD1 < (-1)) %>% select(ENTREZID) %>% pull() #no_sig > 1
-
-this.ont = "ALL"
-
-go_enrich.down <- enrichGO(gene = this.group.down, OrgDb="org.Hs.eg.db", 
-                           #universe = unique(sort(na.omit(my.data_M$ENTREZID))),
-                           pvalueCutoff = 0.05, pAdjustMethod="fdr",
-                           ont=this.ont)
-go_enrichx.down <- setReadable(go_enrich.down, 'org.Hs.eg.db', 'ENTREZID')
-go_enrichx2.down <- pairwise_termsim(go_enrichx.down)
-
-go_enrich_df.down <- as.data.frame(go_enrichx2.down)
-
-########DATA TO EXPORT
-#df_go_mitos_up <- go_enrichx2.up@result
-#df_go_mitos_down <- go_enrichx2.down@result
-
-#write.csv(df_go_mitos_up, "OCIAD1_proteomics_mitos_GOterms_up.csv")
-#write.csv(df_go_mitos_down, "OCIAD1_proteomics_mitos_GOterms_down.csv")
-
-
-# GO TOTALS
-# GO enrichment up
-this.group.up <- my.data_T %>% filter(sig_TOTALS_OCIAD1 & FC_TOTALS_OCIAD1 > (1)) %>% select(ENTREZID) %>% pull() #no_sig > 1
-
-this.ont = "ALL"
-
-go_enrich.up <- enrichGO(gene = this.group.up, OrgDb="org.Hs.eg.db", 
-                         #universe = unique(sort(na.omit(my.data_T$ENTREZID))),
-                         pvalueCutoff = 0.05, pAdjustMethod="fdr",
-                         ont=this.ont)
-go_enrichx.up <- setReadable(go_enrich.up, 'org.Hs.eg.db', 'ENTREZID')
-go_enrichx2.up <- pairwise_termsim(go_enrichx.up)
-
-
-# GO enrichment down
-this.group.down <- my.data_T %>% filter(sig_TOTALS_OCIAD1 & FC_TOTALS_OCIAD1 < (-1)) %>% select(ENTREZID) %>% pull() #no_sig > 1
-
-this.ont = "ALL"
-
-go_enrich.down <- enrichGO(gene = this.group.down, OrgDb="org.Hs.eg.db", 
-                           #universe = unique(sort(na.omit(my.data_T$ENTREZID))),
-                           pvalueCutoff = 0.05, pAdjustMethod="fdr",
-                           ont=this.ont)
-go_enrichx.down <- setReadable(go_enrich.down, 'org.Hs.eg.db', 'ENTREZID')
-go_enrichx2.down <- pairwise_termsim(go_enrichx.down)
-
-go_enrich_df.down <- as.data.frame(go_enrichx2.down)
-
-########DATA TO EXPORT
-#df_go_totals_up <- go_enrichx2.up@result
-#df_go_totals_down <- go_enrichx2.down@result
-
-#write.csv(df_go_totals_up, "OCIAD1_proteomics_totals_GOterms_up.csv")
-#write.csv(df_go_totals_down, "OCIAD1_proteomics_totals_GOterms_down.csv")
-
 # GO plot heatmap up MITOS
+go_enrichx2.up <- readRDS("./data/GO_enrichment/OCIAD1_proteomics_mitos_GOterms_up.rds")
+
 geneList <- setNames(my.data_M$FC_MITOS_OCIAD1, my.data_M$`Gene names`)
 color_scale <- scale_fill_gradient2(low = "red", mid = "grey", high = "green", midpoint = 0, limits = c(-5, 5))
-
 
 p_go_heat_up <- heatplot(go_enrichx2.up, foldChange = geneList, showCategory=5) +
     theme_bw() +
@@ -258,9 +175,10 @@ p_go_heat_up <- heatplot(go_enrichx2.up, foldChange = geneList, showCategory=5) 
     coord_flip()
 
 p_go_heat_up
-
 
 # GO plot heatmap down MITOS
+go_enrichx2.down <- readRDS("./data/GO_enrichment/OCIAD1_proteomics_mitos_GOterms_down.rds")
+
 geneList <- setNames(my.data_M$FC_MITOS_OCIAD1, my.data_M$`Gene names`)
 color_scale <- scale_fill_gradient2(low = "red", mid = "grey", high = "green", midpoint = 0, limits = c(-5, 5))
 
@@ -273,8 +191,9 @@ p_go_heat_down <- heatplot(go_enrichx2.down, foldChange = geneList, showCategory
 
 p_go_heat_down
 
-
 # GO plot heatmap up TOTALS
+go_enrichx2.down <- readRDS('./data/GO_enrichment/OCIAD1_proteomics_totals_GOterms_up.rds')
+
 geneList <- setNames(my.data_T$FC_TOTALS_OCIAD1, my.data_T$`Gene names`)
 color_scale <- scale_fill_gradient2(low = "red", mid = "grey", high = "green", midpoint = 0, limits = c(-5, 5))
 
@@ -287,8 +206,9 @@ p_go_heat_up <- heatplot(go_enrichx2.up, foldChange = geneList, showCategory=5) 
 
 p_go_heat_up
 
-
 # GO plot heatmap down TOTALS
+go_enrichx2.down <- readRDS('./data/GO_enrichment/OCIAD1_proteomics_totals_GOterms_down.rds')
+
 geneList <- setNames(my.data_T$FC_TOTALS_OCIAD1, my.data_T$`Gene names`)
 color_scale <- scale_fill_gradient2(low = "red", mid = "grey", high = "green", midpoint = 0, limits = c(-5, 5))
 
@@ -301,45 +221,9 @@ p_go_heat_down <- heatplot(go_enrichx2.down, foldChange = geneList, showCategory
 
 p_go_heat_down
 
+#### one_GO_term ####
 
-# one_GO_term MITOS
-
-this.ont = "CC" 
-
-this.GO.perox = "GO:0005777" #peroxisome (cellular component)
-this.GO.er = "GO:0005783" #ER
-this.GO.mito = "GO:0005739" #mitochondrium
-
-GO_terms <- c(this.GO.perox, this.GO.er, this.GO.mito)
-organelles <- c('Peroxisome', 'Endoplasmatic\nReticulum', 'Mitochondrium')
-
-FC_organ <- data.frame(`Gene names` = my.data_M$`Gene names`, `FC_MITOS_OCIAD1` = my.data_M$`FC_MITOS_OCIAD1`, `FC_TOTALS_OCIAD1` = my.data_M$`FC_TOTALS_OCIAD1`, Organelle = NA)
-
-for (n in 1:length(GO_terms)) {
-    
-    this.GO <- GO_terms[n]
-    organ <- organelles[n]
-    
-    retrieved <- AnnotationDbi::select(org.Hs.eg.db, keytype = "GOALL", keys = this.GO, columns = c("ENSEMBL", "UNIPROT"))
-    
-    my.data_M_organ <- my.data_M %>% 
-        mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
-        mutate("UNIPROT" = gsub("-.*", "", UNIPROT))
-    my.data_M_organ <- my.data_M_organ %>% left_join(retrieved, by= "UNIPROT")
-    
-    my.data_M_organ %>% filter(is.na(ENSEMBL)) %>% distinct(`Protein IDs`) %>% dim()
-    
-    my.list <- my.data_M_organ %>% filter(!is.na(GOALL)) %>% select(`Gene names`) %>% unique()
-    
-    
-    FC_organ$Organelle <- ifelse(my.data_M$`Gene names` %in% my.list$`Gene names` & !is.na(FC_organ$Organelle), paste0(organ, ";", FC_organ$Organelle), ifelse(my.data_M$`Gene names` %in% my.list$`Gene names`, organ, FC_organ$Organelle))
-}
-
-FC_organ$Organelle[is.na(FC_organ$Organelle)] <- 'Unspecified'
-
-
-
-# one_GO_term TOTALS
+my.data <- merge(final_tabel_MITOS, final_tabel_TOTALS, by = 'Protein IDs', all.y = TRUE)
 
 this.ont = "CC"
 
@@ -350,9 +234,7 @@ this.GO.mito = "GO:0005739" #mitochondrium
 GO_terms <- c(this.GO.perox, this.GO.er, this.GO.mito)
 organelles <- c('Peroxisome', 'Endoplasmatic\nReticulum', 'Mitochondrium')
 
-
-
-FC_organ <- data.frame(`Gene names` = my.data_T$`Gene names`, `FC_MITOS_OCIAD1` = my.data_T$`FC_MITOS_OCIAD1`, `FC_TOTALS_OCIAD1` = my.data_T$`FC_TOTALS_OCIAD1`, Organelle = NA)
+FC_organ <- data.frame(`Gene names` = my.data$`Gene names.y`, `FC_MITOS_OCIAD1` = my.data$`FC_MITOS_OCIAD1`, `FC_TOTALS_OCIAD1` = my.data$`FC_TOTALS_OCIAD1`, Organelle = NA)
 
 for (n in 1:length(GO_terms)) {
     
@@ -361,21 +243,22 @@ for (n in 1:length(GO_terms)) {
     
     retrieved <- AnnotationDbi::select(org.Hs.eg.db, keytype = "GOALL", keys = this.GO, columns = c("ENSEMBL", "UNIPROT"))
     
-    my.data_T_organ <- my.data_T %>%
+    my.data_organ <- my.data %>% 
         mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
         mutate("UNIPROT" = gsub("-.*", "", UNIPROT))
-    my.data_T_organ <- my.data_T_organ %>% left_join(retrieved, by= "UNIPROT")
+    my.data_organ <- my.data_organ %>% left_join(retrieved, by= "UNIPROT")
     
-    my.data_T_organ %>% filter(is.na(ENSEMBL)) %>% distinct(`Protein IDs`) %>% dim()
+    my.data_organ %>% filter(is.na(ENSEMBL)) %>% distinct(`Protein IDs`) %>% dim()
     
-    my.list <- my.data_T_organ %>% filter(!is.na(GOALL)) %>% select(`Gene names`) %>% unique()
+    my.list <- my.data_organ %>% filter(!is.na(GOALL)) %>% select(`Gene names.x`) %>% unique()
     
-    FC_organ$Organelle <- ifelse(my.data_T$`Gene names` %in% my.list$`Gene names` & !is.na(FC_organ$Organelle), paste0(organ, ";", FC_organ$Organelle), ifelse(my.data_T$`Gene names` %in% my.list$`Gene names`, organ, FC_organ$Organelle))
+    
+    FC_organ$Organelle <- ifelse(my.data$`Gene names.y` %in% my.list$`Gene names.y` & !is.na(FC_organ$Organelle), paste0(organ, ";", FC_organ$Organelle), ifelse(my.data$`Gene names.y` %in% my.list$`Gene names`, organ, FC_organ$Organelle))
 }
 
 FC_organ$Organelle[is.na(FC_organ$Organelle)] <- 'Unspecified'
 
-
+#### PLOTS ####
 
 # violin split function
 GeomSplitViolin <- ggproto("GeomSplitViolin", GeomViolin,
@@ -430,7 +313,6 @@ geom_split_violin <- function(mapping = NULL, data = NULL, stat = "ydensity", po
           params = list(trim = trim, scale = scale, draw_quantiles = draw_quantiles, na.rm = na.rm, ...))
 }
 
-
 # organelle split violin
 
 FC_organ_copy <- data.frame(FC_organ)
@@ -460,11 +342,10 @@ organelle_plot <- ggplot(FC_organ_copy, aes(x = reorder(`Organelle`, FC, FUN = f
 
 organelle_plot
 
-
 # organelle volcano plot MITOS
-FC_organ$pval <- my.data_M$p_OCIAD1_MITOS
-FC_organ$sig <- my.data_M$sig_MITOS_OCIAD1
-FC_organ$mito <- my.data_M$MitoCarta3.0_SubMitoLocalization
+FC_organ$pval <- my.data$p_OCIAD1_MITOS
+FC_organ$sig <- my.data$sig_MITOS_OCIAD1
+FC_organ$mito <- my.data$MitoCarta3.0_SubMitoLocalization.x
 
 FC_organ$case <- case_when(
     grepl('Peroxisome', FC_organ$Organelle) & !grepl('Endoplasmatic\nReticulum', FC_organ$Organelle) & !grepl('Mitochondrium', FC_organ$Organelle) ~ 1,
@@ -475,7 +356,6 @@ FC_organ$case <- case_when(
 
 FC_organ$case <- factor(FC_organ$case)
 
-
 FC_organ$label <- case_when(
     FC_organ$sig == TRUE & grepl('Peroxisome', FC_organ$Organelle) ~ FC_organ$`Gene.names`,
     FC_organ$sig == TRUE & abs(FC_organ$FC_MITOS_OCIAD1) >= 2 & FC_organ$case == 4 ~ FC_organ$`Gene.names`,
@@ -484,14 +364,12 @@ FC_organ$label <- case_when(
     TRUE ~ ''
 )
 
-
 FC_organ$color <- case_when(
     grepl('Peroxisome', FC_organ$Organelle) & !grepl('Endoplasmatic\nReticulum', FC_organ$Organelle) & !grepl('Mitochondrium', FC_organ$Organelle) ~ 'darkgreen',
     !grepl('Peroxisome', FC_organ$Organelle) & !grepl('Endoplasmatic\nReticulum', FC_organ$Organelle) & grepl('Mitochondrium', FC_organ$Organelle) ~ 'darkorange',
     grepl('Peroxisome', FC_organ$Organelle) & !grepl('Endoplasmatic\nReticulum', FC_organ$Organelle) & grepl('Mitochondrium', FC_organ$Organelle) ~ 'purple',
     TRUE ~ 'darkgrey'
 )
-
 
 v2 <- ggplot(FC_organ, aes(x = FC_MITOS_OCIAD1, y = -log10(pval), shape = sig, color = case)) +
     geom_hline(yintercept = -log10(0.05), color = 'lightgrey', alpha = 0.6, linetype = 2) +
@@ -515,9 +393,9 @@ v2 <- ggplot(FC_organ, aes(x = FC_MITOS_OCIAD1, y = -log10(pval), shape = sig, c
 v2
 
 # organelle volcano plot TOTALS
-FC_organ$pval <- my.data_T$p_OCIAD1_TOTALS
-FC_organ$sig <- my.data_T$sig_TOTALS_OCIAD1
-FC_organ$mito <- my.data_T$MitoCarta3.0_SubMitoLocalization
+FC_organ$pval <- my.data$p_OCIAD1_TOTALS
+FC_organ$sig <- my.data$sig_TOTALS_OCIAD1
+FC_organ$mito <- my.data$MitoCarta3.0_SubMitoLocalization.y
 
 FC_organ$case <- case_when(
     grepl('Peroxisome', FC_organ$Organelle) & !grepl('Endoplasmatic\nReticulum', FC_organ$Organelle) & !grepl('Mitochondrium', FC_organ$Organelle) ~ 1,
@@ -528,7 +406,6 @@ FC_organ$case <- case_when(
 
 FC_organ$case <- factor(FC_organ$case)
 
-
 FC_organ$label <- case_when(
     FC_organ$sig == TRUE & grepl('Peroxisome', FC_organ$Organelle) ~ FC_organ$`Gene.names`,
     FC_organ$sig == TRUE & abs(FC_organ$FC_TOTALS_OCIAD1) >= 2 & FC_organ$case == 4 ~ FC_organ$`Gene.names`,
@@ -537,14 +414,12 @@ FC_organ$label <- case_when(
     TRUE ~ ''
 )
 
-
 FC_organ$color <- case_when(
     grepl('Peroxisome', FC_organ$Organelle) & !grepl('Endoplasmatic\nReticulum', FC_organ$Organelle) & !grepl('Mitochondrium', FC_organ$Organelle) ~ 'darkgreen',
     !grepl('Peroxisome', FC_organ$Organelle) & !grepl('Endoplasmatic\nReticulum', FC_organ$Organelle) & grepl('Mitochondrium', FC_organ$Organelle) ~ 'darkorange',
     grepl('Peroxisome', FC_organ$Organelle) & !grepl('Endoplasmatic\nReticulum', FC_organ$Organelle) & grepl('Mitochondrium', FC_organ$Organelle) ~ 'purple',
     TRUE ~ 'darkgrey'
 )
-
 
 v2 <- ggplot(FC_organ, aes(x = FC_TOTALS_OCIAD1, y = -log10(pval), shape = sig, color = case)) +
     geom_hline(yintercept = -log10(0.05), color = 'lightgrey', alpha = 0.6, linetype = 2) +
@@ -566,7 +441,6 @@ v2 <- ggplot(FC_organ, aes(x = FC_TOTALS_OCIAD1, y = -log10(pval), shape = sig, 
     geom_text_repel(aes(label = label), max.overlaps = Inf, verbose = TRUE, min.segment.length = 0, color = FC_organ$color, box.padding = 1)
 
 v2
-
 
 # gather plots 1
 #go terms and organelles separate figures
