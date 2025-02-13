@@ -6,8 +6,8 @@ library(enrichplot)
 library(patchwork)
 library(ggrepel)
 
-final_tabel_MITOS <- read_csv('./data/cleaned/OCIAD1_proteomics_mitos_process.csv', show_col_types = FALSE)
-final_tabel_TOTALS <- read_csv('./data/cleaned/OCIAD1_proteomics_totals_process.csv', show_col_types = FALSE)
+final_table_MITOS <- read_csv('./data/cleaned/OCIAD1_proteomics_mitos_process.csv', show_col_types = FALSE)
+final_table_TOTALS <- read_csv('./data/cleaned/OCIAD1_proteomics_totals_process.csv', show_col_types = FALSE)
 
 # Cut offs for labels
 label.FC.cutoff <- 2.5
@@ -33,7 +33,7 @@ res <- getBM(attributes =  myAttributes, filters =  myFilter,
              mart = mart)
 ##########
 
-my.data_M <- final_tabel_MITOS %>% 
+my.data_M <- final_table_MITOS %>% 
     mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
     mutate("UNIPROT" = gsub("-.*", "", UNIPROT))
 my.data_M <- my.data_M %>% left_join(ENSEMBL_ids, by= "UNIPROT")
@@ -89,7 +89,7 @@ v1 <- ggplot(my.data_temp, aes(x = FC_MITOS_OCIAD1, y = -log10(p_OCIAD1_MITOS), 
 v1
 
 #### volcano plot TOTALS ####
-my.data_T <- final_tabel_TOTALS %>% 
+my.data_T <- final_table_TOTALS %>% 
     mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
     mutate("UNIPROT" = gsub("-.*", "", UNIPROT))
 my.data_T <- my.data_T %>% left_join(ENSEMBL_ids, by= "UNIPROT")
@@ -147,14 +147,14 @@ v1
 
 #### GO TERM ENRICHMENT ####
 
-my.data_M <- final_tabel_MITOS %>% 
+my.data_M <- final_table_MITOS %>% 
     mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
     mutate("UNIPROT" = gsub("-.*", "", UNIPROT))
 my.data_M <- my.data_M %>% left_join(Entrez_ids, by= "UNIPROT")
 # 21 still un-annotated
 my.data_M %>% filter(is.na(ENTREZID)) %>% distinct(`Protein IDs`) %>% dim()
 
-my.data_T <- final_tabel_TOTALS %>% 
+my.data_T <- final_table_TOTALS %>% 
     mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
     mutate("UNIPROT" = gsub("-.*", "", UNIPROT))
 my.data_T <- my.data_T %>% left_join(Entrez_ids, by= "UNIPROT")
@@ -223,7 +223,7 @@ p_go_heat_down
 
 #### one_GO_term ####
 
-my.data <- merge(final_tabel_MITOS, final_tabel_TOTALS, by = 'Protein IDs', all.y = TRUE)
+my.data <- merge(final_table_MITOS, final_table_TOTALS, by = 'Protein IDs', all.y = TRUE)
 
 this.ont = "CC"
 
