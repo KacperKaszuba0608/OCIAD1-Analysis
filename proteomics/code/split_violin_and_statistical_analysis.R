@@ -10,19 +10,26 @@ mean_lfq <- function(data, value='LFQ'){
     return(means)
 }
 
-show_posthoc <- function(data, x, y,label1, label2, label3, label4, sample=NULL) {
+show_posthoc <- function(data, x, y, label1, label2, label3, label4, label5, sample=NULL) {
+    organ_order <- data |>
+        group_by(.data[[y]]) |>
+        summarise(n = n()) |>
+        arrange(n)
+    
     ggplot(data=data, aes(x=.data[[x]], y=.data[[y]], fill=.data[[y]])) +
         geom_violin(alpha=0.7) +
-        geom_text(mapping = aes(x=31, y=4.2, label=label1, size=6)) +
-        geom_text(mapping = aes(x=31, y=3.2, label=label2, size=6)) +
-        geom_text(mapping = aes(x=31, y=2.2, label=label3, size=6)) +
-        geom_text(mapping = aes(x=31, y=1.2, label=label4, size=6)) +
+        geom_text(mapping = aes(x=31, y=5.2, label=label1, size=6)) + # Other
+        geom_text(mapping = aes(x=31, y=4.2, label=label2, size=6)) + # Mitochodnrion
+        geom_text(mapping = aes(x=31, y=3.2, label=label3, size=6)) + # Endoplasmatic\nReticulum
+        geom_text(mapping = aes(x=31, y=2.2, label=label4, size=6)) + # Peroxisome
+        geom_text(mapping = aes(x=31, y=1.2, label=label5, size=6)) + # Mitochondrion;Peroxisome
         labs(title = paste0('Post-hoc resutls for ', 
                             ifelse(stringr::str_detect(x, 'WT'), 'WT ', 'KO '), 
                             ifelse(is.null(sample), '', paste0(sample, ' sample'))),
              subtitle = "Small letters indicate statistical differences between groups at the 0.05 significance level (Dunn's test).",
-             x = 'Mean log2 LFQ Intensity') +
-        theme(legend.position = 'None')
+             x = 'Mean log2 LFQ Intensity', y='') +
+        theme(legend.position = 'None') +
+        scale_y_discrete(limits = organ_order[[y]])
 }
 
 calculate_ratios <- function(data, value, grouping='Organelle') {
@@ -39,7 +46,6 @@ calculate_ratios <- function(data, value, grouping='Organelle') {
 }
 
 #### LOAD DATA ####
-peroxisomeDB <- readr::read_csv('./data/peroxisomeDB.csv')
 final_table_MITOS <- readr::read_csv('./data/cleaned/OCIAD1_proteomics_mitos_process.csv')
 final_table_TOTALS <- readr::read_csv('./data/cleaned/OCIAD1_proteomics_totals_process.csv')
 
@@ -153,7 +159,7 @@ FSA::dunnTest(mean_lfq_WT_M ~ Organelle, data = lfq_mitos, method='bonferroni')$
     mutate(sig_diff = ifelse(P.adj < 0.05, TRUE, FALSE)) |> DT::datatable()
 
 # Visualization
-show_posthoc(lfq_mitos, 'mean_lfq_WT_M', 'Organelle', 'b,c', 'a', 'b', 'c', sample = 'MITOS')
+show_posthoc(lfq_mitos, 'mean_lfq_WT_M', 'Organelle', 'a','b', 'b', 'b', 'b', sample = 'MITOS')
 
 #### Kruskal-Wallis Test for TOTALS ####
 # H0: There is no significant difference between organelles in a TOTALS sample.
@@ -172,7 +178,7 @@ FSA::dunnTest(mean_lfq_WT_T ~ Organelle, data = lfq_totals, method='bonferroni')
     mutate(sig_diff = ifelse(P.adj < 0.05, TRUE, FALSE)) |> DT::datatable()
 
 # Visualization
-show_posthoc(lfq_totals, 'mean_lfq_WT_T', 'Organelle', '', 'a', 'b', 'c', sample='TOTALS')
+show_posthoc(lfq_totals, 'mean_lfq_WT_T', 'Organelle', 'a', 'b', 'b', '', '', sample='TOTALS')
 
 #### RATIOS ####
 
@@ -300,6 +306,10 @@ legend_grob <- grobTree(
              gp = gpar(col = "black", fontsize = 9))
 )
 
+stars_df <- data.frame(x = c(4.1, 3.8, 3.1, 2.8, 2.1, 1.8, 1.1, 0.8),
+                       y = rep(22,8),
+                       label = c('***', '***', '***', '***', '', '***', '', '***'))
+
 #Implemented similarily as a normal violin plot, the split is determined by the fill parameter in aes
 organelle_violin_split <- ggplot() +
     geom_split_violin(data=FC_organ_copy, 
@@ -320,7 +330,8 @@ organelle_violin_split <- ggplot() +
     scale_x_discrete(limits = organ_order$Organelle) +
     geom_text(data=organ_order, mapping=aes(x=order+0.1, y=18, label=paste0('n = ',n))) +
     guides(fill = 'none', alpha='none') +
-    annotation_custom(legend_grob, xmin = 1, xmax = 3.9, ymin = 30, ymax = 35)
+    annotation_custom(legend_grob, xmin = 1, xmax = 3.9, ymin = 30, ymax = 35) +
+    geom_text(data=stars_df, mapping = aes(x=x, y=y, label=label), size=8)
 
 organelle_violin_split
 
