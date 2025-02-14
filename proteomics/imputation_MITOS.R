@@ -5,7 +5,7 @@
 # import libraries and fxns
 library(tidyverse)
 library(protti)
-source('./proteomics/code/fxn.R')
+source('./proteomics/fxn.R')
 
 # import data
 protein.groups <- read_tsv('./data/proteinGroups.txt', show_col_types = F) # 5561 proteins
