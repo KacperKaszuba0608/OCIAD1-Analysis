@@ -29,6 +29,10 @@ df_go_totals_down <- readr::read_csv("./data/GO_enrichment/OCIAD1_proteomics_tot
     select(ONTOLOGY, ID, Description, GeneRatio, BgRatio, pvalue, 
            p.adjust, qvalue, geneID, Count)
 
+GO_vs_peroxisomeDB <- readr::read_csv('./GO_vs_peroxisomeDB.csv', show_col_types = F)
+
+peroxisomeDB_vs_GO <- readr::read_csv('./peroxisomeDB_vs_GO.csv', show_col_types = F)
+
 #### saving results ####
 readme <- data.frame("COLUMN NAME" = c('Protein IDs',
                                        'Gene names',
@@ -48,26 +52,30 @@ readme <- data.frame("COLUMN NAME" = c('Protein IDs',
                                        'p.adjust',
                                        'qvalue',
                                        'geneID',
-                                       'Count'),
+                                       'Count',
+                                       'GO term',
+                                       'PeroxisomeDB'),
                      "DESCRIPTION" = c('Identifiers of proteins contained in the protein group.',
                                        'Names of genes this peptide is associated with.',
                                        'Names of proteins this peptide is associated with.',
                                        'Annotation to most likely compartment: matrix, inner membrane (MIM), intermembrane space (IMS), outer membrane (MOM), mitochondrial membrane, or unknown.',
                                        'Annotation to a hierarchy of 149 biological pathways, based on literature.',
                                        'Log2 Fold Change based on means of normalized LFQ intenisties.',
-                                       'p-value from t-test',
-                                       'Siginificance of peptide (p < 0.05 & log2(FC) > 1)',
+                                       'p-value from t-test.',
+                                       'Siginificance of peptide (p < 0.05 & log2(FC) > 1).',
                                        'Imputed and normalized LFQ intensity values for peptides.',
-                                       'Category such as BP (biological process), CC (cellular component), MF (molecular function)',
-                                       'Unique GO identifier',
-                                       'Description of the GO term',
-                                       'The ratio of genes in the input dataset associated with the term',
-                                       'The ratio of genes in the entire genome associated with the term',
-                                       'Statistical significance of the enrichment',
-                                       'The corrected p-value',
-                                       'The p-value corrected using the False Discovery Rate approach',
-                                       'Specific genes in the input dataset associated with the term',
-                                       'The number of the genes in the input dataset associated with the term'))
+                                       'Category such as BP (biological process), CC (cellular component), MF (molecular function).',
+                                       'Unique GO identifier.',
+                                       'Description of the GO term.',
+                                       'The ratio of genes in the input dataset associated with the term.',
+                                       'The ratio of genes in the entire genome associated with the term.',
+                                       'Statistical significance of the enrichment.',
+                                       'The corrected p-value.',
+                                       'The p-value corrected using the False Discovery Rate approach.',
+                                       'Specific genes in the input dataset associated with the term.',
+                                       'The number of the genes in the input dataset associated with the term.',
+                                       'Assigned organelle name based on the GO terms.',
+                                       'Assigned organelle name based on the PeroxisomeDB.'))
 
 list_of_sheets <- list("README" = readme,
                        "OCIAD1_prot_mitos_process" = fc_output_M,
@@ -76,6 +84,8 @@ list_of_sheets <- list("README" = readme,
                        "OCIAD1_prot_mitos_GOup" = df_go_mitos_down,
                        "OCIAD1_prot_totals_GOdown" = df_go_totals_up,
                        "OCIAD1_prot_totals_GOup" = df_go_totals_down,
+                       "GO_vs_peroxisomeDB" = GO_vs_peroxisomeDB,
+                       "peroxisomeDB_vs_GO" = peroxisomeDB_vs_GO,
                        "OCIAD1_prot_raw_data" = raw_data)
 
 openxlsx::write.xlsx(list_of_sheets, file = "./supplementary_files/SuppFile2_Proteomics.xlsx",
