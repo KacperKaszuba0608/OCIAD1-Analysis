@@ -8,7 +8,7 @@ library(protti)
 source('./code/fxn.R')
 
 # import data
-protein.groups <- readr::read_tsv('./data/proteinGroups.txt', show_col_types = F) # 5561 proteins
+protein.groups <- read_tsv('./data/proteinGroups.txt', show_col_types = F) # 5561 proteins
 
 # filtering the data
 protein.groups <- protein.groups |> filter(is.na(`Only identified by site`), # 5432 proteins left
