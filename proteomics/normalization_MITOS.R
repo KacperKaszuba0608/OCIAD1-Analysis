@@ -1,7 +1,7 @@
 # NORMALIZATION with EigenMS for MITOS
 
 library(tidyverse)
-source('./code/EigenMS/EigenMS/EigenMS.R')
+source('./proteomics/EigenMS/EigenMS/EigenMS.R')
 
 # Load imputed data
 protein.groups <- readr::read_tsv('./data/cleaned/proteinGroupsImputed_MITOS2.txt',
