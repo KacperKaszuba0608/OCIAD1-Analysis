@@ -17,11 +17,12 @@ Repository content &#x1F333; &#x1F4C1;
     │   imputation_TOTALS.R
     │   normalization_MITOS.R
     │   normalization_TOTALS.R
+    │   organelles_comparison.R
     │   peroxisomeDB.R
     │   plotting.R
     │   split_violin_and_statistical_analysis.R
     │   supplementary_excel_file.R
-    │   
+    │
     └───EigenMS.zip
     └───EigenMS
 ```
@@ -32,12 +33,23 @@ folder, set the working directory to `OCIAD1-Analysis` and then run the files.
 
 ## Proteomics analysis
 
+We can break down proteomics analysis into the following steps:
+1. Data preparation and calculation of all necessary measures.
+2. Visualisation of the results.
+
+### Preparing Data (1st step)
+
 1. Run the `imputation_MITOS.R` and `imputation_TOTALS.R` files first. The imputation has been done using the Ludovic method from [`protti`](https://doi.org/10.1093/bioadv/vbab041) library.
 2. Next is the normalization, so run the files `normalization_MITOS.R` and `normalization_TOTALS.R`. The normalization was performed using the EigenMS method.
 3. The last process is the fold change calculation. For this you have to run the files `fold_change_calculation_MITOS.R` and `fold_change_calculation_TOTALS.R`.
 4. Now you can also analyse the data in terms of gene ontology (GO term analysis). To do this, run the `GO_enrichment.R` file.
-5. The data is ready for plotting using the `plotting.R` file.
-6. You can also create a supplementary file with all the data using the `supplementary_excel_file.R` file.
+
+### Visualizing the results (2nd step)
+
+1. The data is ready for plotting using the `plotting.R` file.
+2. To plot the split violin and also perform statistical analysis, run the `split_violin_and_statistical_analysis.R` file.
+3. To create a supplementary file with all the data, run the `supplementary_excel_file.R` file. Note: 
+Before you running this file, you need to create a file with organelles comparison. To do this run `organelles_comparison.R`.
 
 Good luck! 😉
 
