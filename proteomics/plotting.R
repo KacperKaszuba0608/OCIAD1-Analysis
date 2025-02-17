@@ -151,15 +151,11 @@ my.data_M <- final_table_MITOS %>%
     mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
     mutate("UNIPROT" = gsub("-.*", "", UNIPROT))
 my.data_M <- my.data_M %>% left_join(Entrez_ids, by= "UNIPROT")
-# 21 still un-annotated
-my.data_M %>% filter(is.na(ENTREZID)) %>% distinct(`Protein IDs`) %>% dim()
 
 my.data_T <- final_table_TOTALS %>% 
     mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
     mutate("UNIPROT" = gsub("-.*", "", UNIPROT))
 my.data_T <- my.data_T %>% left_join(Entrez_ids, by= "UNIPROT")
-# 21 still un-annotated
-my.data_T %>% filter(is.na(ENTREZID)) %>% distinct(`Protein IDs`) %>% dim()
 
 # GO plot heatmap up MITOS
 go_enrichx2.up <- readRDS("./data/GO_enrichment/OCIAD1_proteomics_mitos_GOterms_up.rds")
@@ -223,7 +219,7 @@ p_go_heat_down
 
 #### one_GO_term ####
 
-my.data <- merge(final_table_MITOS, final_table_TOTALS, by = 'Protein IDs', all.y = TRUE)
+my.data <- merge(final_table_MITOS, final_table_TOTALS, by = c('Protein IDs', 'Gene names'), all.y = TRUE)
 
 this.ont = "CC"
 
@@ -234,7 +230,8 @@ this.GO.mito = "GO:0005739" #mitochondrium
 GO_terms <- c(this.GO.perox, this.GO.er, this.GO.mito)
 organelles <- c('Peroxisome', 'Endoplasmatic\nReticulum', 'Mitochondrium')
 
-FC_organ <- data.frame(`Gene names` = my.data$`Gene names.y`, `FC_MITOS_OCIAD1` = my.data$`FC_MITOS_OCIAD1`, `FC_TOTALS_OCIAD1` = my.data$`FC_TOTALS_OCIAD1`, Organelle = NA)
+FC_organ <- data.frame(`Gene names`=my.data$`Gene names`, `FC_MITOS_OCIAD1`=my.data$`FC_MITOS_OCIAD1`, 
+                       `FC_TOTALS_OCIAD1`=my.data$`FC_TOTALS_OCIAD1`, Organelle=NA)
 
 for (n in 1:length(GO_terms)) {
     
@@ -243,77 +240,21 @@ for (n in 1:length(GO_terms)) {
     
     retrieved <- AnnotationDbi::select(org.Hs.eg.db, keytype = "GOALL", keys = this.GO, columns = c("ENSEMBL", "UNIPROT"))
     
-    my.data_organ <- my.data %>% 
-        mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) %>%
+    my.data_organ <- my.data |> 
+        mutate("UNIPROT" = gsub(";.*", "", `Protein IDs`)) |>
         mutate("UNIPROT" = gsub("-.*", "", UNIPROT))
-    my.data_organ <- my.data_organ %>% left_join(retrieved, by= "UNIPROT")
+    my.data_organ <- my.data_organ |> left_join(retrieved, by= "UNIPROT")
     
-    my.data_organ %>% filter(is.na(ENSEMBL)) %>% distinct(`Protein IDs`) %>% dim()
+    my.list <- my.data_organ |> filter(!is.na(GOALL)) |> select(`Protein IDs`) |> unique()
     
-    my.list <- my.data_organ %>% filter(!is.na(GOALL)) %>% select(`Gene names.x`) %>% unique()
-    
-    
-    FC_organ$Organelle <- ifelse(my.data$`Gene names.y` %in% my.list$`Gene names.y` & !is.na(FC_organ$Organelle), paste0(organ, ";", FC_organ$Organelle), ifelse(my.data$`Gene names.y` %in% my.list$`Gene names`, organ, FC_organ$Organelle))
+    FC_organ$Organelle <- ifelse(my.data$`Protein IDs` %in% my.list$`Protein IDs` & !is.na(FC_organ$Organelle),
+                                 paste0(organ, ";", FC_organ$Organelle), 
+                                 ifelse(my.data$`Protein IDs` %in% my.list$`Protein IDs`, organ, FC_organ$Organelle))
 }
 
 FC_organ$Organelle[is.na(FC_organ$Organelle)] <- 'Unspecified'
 
 #### PLOTS ####
-
-# violin split function
-GeomSplitViolin <- ggproto("GeomSplitViolin", GeomViolin,
-                           draw_group = function(self, data, ..., draw_quantiles = NULL) {
-                               # Original function by Jan Gleixner (@jan-glx)
-                               # Adjustments by Wouter van der Bijl (@Axeman)
-                               data <- transform(data, xminv = x - violinwidth * (x - xmin), xmaxv = x + violinwidth * (xmax - x))
-                               grp <- data[1, "group"]
-                               newdata <- plyr::arrange(transform(data, x = if (grp %% 2 == 1) xminv else xmaxv), if (grp %% 2 == 1) y else -y)
-                               newdata <- rbind(newdata[1, ], newdata, newdata[nrow(newdata), ], newdata[1, ])
-                               newdata[c(1, nrow(newdata) - 1, nrow(newdata)), "x"] <- round(newdata[1, "x"])
-                               if (length(draw_quantiles) > 0 & !scales::zero_range(range(data$y))) {
-                                   stopifnot(all(draw_quantiles >= 0), all(draw_quantiles <= 1))
-                                   quantiles <- create_quantile_segment_frame(data, draw_quantiles, split = TRUE, grp = grp)
-                                   aesthetics <- data[rep(1, nrow(quantiles)), setdiff(names(data), c("x", "y")), drop = FALSE]
-                                   aesthetics$alpha <- rep(1, nrow(quantiles))
-                                   both <- cbind(quantiles, aesthetics)
-                                   quantile_grob <- GeomPath$draw_panel(both, ...)
-                                   ggplot2:::ggname("geom_split_violin", grid::grobTree(GeomPolygon$draw_panel(newdata, ...), quantile_grob))
-                               }
-                               else {
-                                   ggplot2:::ggname("geom_split_violin", GeomPolygon$draw_panel(newdata, ...))
-                               }
-                           }
-)
-
-create_quantile_segment_frame <- function(data, draw_quantiles, split = FALSE, grp = NULL) {
-    dens <- cumsum(data$density) / sum(data$density)
-    ecdf <- stats::approxfun(dens, data$y)
-    ys <- ecdf(draw_quantiles)
-    violin.xminvs <- (stats::approxfun(data$y, data$xminv))(ys)
-    violin.xmaxvs <- (stats::approxfun(data$y, data$xmaxv))(ys)
-    violin.xs <- (stats::approxfun(data$y, data$x))(ys)
-    if (grp %% 2 == 0) {
-        data.frame(
-            x = ggplot2:::interleave(violin.xs, violin.xmaxvs),
-            y = rep(ys, each = 2), group = rep(ys, each = 2)
-        )
-    } else {
-        data.frame(
-            x = ggplot2:::interleave(violin.xminvs, violin.xs),
-            y = rep(ys, each = 2), group = rep(ys, each = 2)
-        )
-    }
-}
-
-geom_split_violin <- function(mapping = NULL, data = NULL, stat = "ydensity", position = "identity", ..., 
-                              draw_quantiles = NULL, trim = TRUE, scale = "area", na.rm = FALSE, 
-                              show.legend = NA, inherit.aes = TRUE) {
-    layer(data = data, mapping = mapping, stat = stat, geom = GeomSplitViolin, position = position, 
-          show.legend = show.legend, inherit.aes = inherit.aes, 
-          params = list(trim = trim, scale = scale, draw_quantiles = draw_quantiles, na.rm = na.rm, ...))
-}
-
-# organelle split violin
 
 FC_organ_copy <- data.frame(FC_organ)
 
@@ -323,24 +264,6 @@ FC_organ_copy <- filter(FC_organ_copy,
                             Organelle == 'Mitochondrium;Peroxisome' |
                             Organelle == 'Endoplasmatic\nReticulum'
 )
-
-FC_organ_copy <- FC_organ_copy %>% pivot_longer(c(FC_MITOS_OCIAD1, FC_TOTALS_OCIAD1), names_to = "Batch", values_to = "FC")
-
-FC_organ_copy$Interaction <- factor(interaction(FC_organ_copy$Organelle, FC_organ_copy$Batch))
-
-organelle_plot <- ggplot(FC_organ_copy, aes(x = reorder(`Organelle`, FC, FUN = function(x) -median(x)), y = FC, fill = Batch)) +
-    geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey') +
-    geom_split_violin(trim = FALSE ,alpha = 0.6, col = '#4B4B4B', draw_quantiles = c(0.5), linewidth = 0.7, scale = 'width') +
-    ylab('Fold Change KO/WT') +
-    theme_bw() +
-    theme(axis.text.x = element_text(size = 10), axis.title.y = element_blank(), legend.position = c(0.99, 1), legend.justification = c("right", "top"), legend.title=element_blank(), legend.text = element_text(size=9), legend.background = element_blank(), legend.key = element_blank()) +
-    scale_fill_manual(labels = c('MITOS', 'TOTALS'), values = c('lightblue', 'red')) +
-    scale_x_discrete(labels = c('Mitochondrium', 'Mitochondrium,\nPeroxisome', 'Endoplasmatic\nReticulum', 'Peroxisome')) +
-    ylim(-6, 6) +
-    scale_y_continuous(position="right") +
-    coord_flip()
-
-organelle_plot
 
 # organelle volcano plot MITOS
 FC_organ$pval <- my.data$p_OCIAD1_MITOS
@@ -441,19 +364,3 @@ v2 <- ggplot(FC_organ, aes(x = FC_TOTALS_OCIAD1, y = -log10(pval), shape = sig, 
     geom_text_repel(aes(label = label), max.overlaps = Inf, verbose = TRUE, min.segment.length = 0, color = FC_organ$color, box.padding = 1)
 
 v2
-
-# gather plots 1
-#go terms and organelles separate figures
-
-v1 / (free(p_go_heat_down) | free(p_go_heat_up)) +
-    plot_layout(heights = c(0.7, 1)) +
-    plot_annotation(tag_levels = "A")
-#plot_layout(guides = 'collect')
-
-
-# gather plots 2
-#go terms and organelles separate figures
-
-v2 / free(organelle_plot) +
-    plot_layout(heights = c(1, 1)) +
-    plot_annotation(tag_levels = "A") 
