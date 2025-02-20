@@ -1,4 +1,9 @@
 assign_missing <- function(protein.ids, condition, lfq_intensity) {
+    # NOTE: data frame must be in long format
+    # protein.ids = column with protein IDs
+    # condition = column conditions of samples (e.g. KO, WT)
+    # lfq_intensity = column with LFQ intensity
+
     # verification of the fxn assumptions
     if (!is.factor(condition)) {rlang::abort("The condition are not factor!")}
     
