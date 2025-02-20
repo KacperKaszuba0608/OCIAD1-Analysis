@@ -1,4 +1,6 @@
-# data from http://216.92.14.62/Download/Homo_sapiens.fas
+# OUTPUT: a CSV file with genes from the peroxisomeDB
+
+# Create a CSV file from multi fasta file from http://216.92.14.62/Download/Homo_sapiens.fas
 peroxisomeDB <- Biostrings::readDNAStringSet('http://216.92.14.62/Download/Homo_sapiens.fas')
 fasta_headers <- peroxisomeDB@ranges@NAMES
 temp <- sapply(1:length(fasta_headers), 
