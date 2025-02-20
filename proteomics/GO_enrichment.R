@@ -1,7 +1,7 @@
 # INPUT: 2 files with fold change calculation for MITOS and TOTALS
 # OUTPUT: 8 files with GO terms analysis:
 #   - 4 csv files with data frames used to create supplemental excel file
-#   - 4 Rdata files with result of GO enrichment used to create heatmaps in `plotting.R` file
+#   - 4 RDS files with result of GO enrichment used to create heatmaps in `plotting.R` file
 
 library(tidyverse)
 library("org.Hs.eg.db")

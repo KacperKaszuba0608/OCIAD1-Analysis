@@ -1,3 +1,7 @@
+# INPUT: 6 files used for plotting
+#   - 2 CSV files from the output of the fold change calculation files
+#   - 4 RDS files from the output of the GO enrichment file
+
 library(tidyverse)
 library("org.Hs.eg.db")
 library(biomaRt)
