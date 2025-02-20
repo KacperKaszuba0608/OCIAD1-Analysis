@@ -1,3 +1,10 @@
+# INPUT: 4 files
+#   1. a csv file with genes from the peroxisomeDB
+#   2. a csv file with genes from the MitoCarta3.0 database
+#   3. 2 files from the output of the fold change calculation scripts
+# OUTPUT: a csv file with organelle assignment comparisons
+
+# Prepare data frame with organelle assignment comparison
 library("org.Hs.eg.db")
 library(dplyr)
 
