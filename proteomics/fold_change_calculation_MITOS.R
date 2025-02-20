@@ -1,3 +1,6 @@
+# INPUT: a normalized data from `proteinGroupsNormalized_MITOS.txt`
+# OUTPUT: a data frame with log2 fold change values for MITOS
+
 # Calculating log 2 Fold Change for MITOS
 
 library(tidyverse)

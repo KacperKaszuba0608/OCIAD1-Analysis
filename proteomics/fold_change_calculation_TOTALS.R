@@ -1,3 +1,6 @@
+# INPUT: a normalized data from `proteinGroupsNormalized_TOTALS.txt`
+# OUTPUT: a data frame with log2 fold change values for TOTALS
+
 # Calculating log 2 Fold Change for TOTALS
 
 library(tidyverse)
