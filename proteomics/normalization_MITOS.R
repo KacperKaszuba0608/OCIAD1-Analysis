@@ -1,10 +1,13 @@
+# INPUT: an imputed data from `proteinGroupsImputed_MITOS.txt`
+# OUTPUT: a data frame with normalized data for MITOS
+
 # NORMALIZATION with EigenMS for MITOS
 
 library(tidyverse)
 source('./proteomics/EigenMS/EigenMS/EigenMS.R')
 
 # Load imputed data
-protein.groups <- readr::read_tsv('./data/cleaned/proteinGroupsImputed_MITOS2.txt',
+protein.groups <- readr::read_tsv('./data/cleaned/proteinGroupsImputed_MITOS.txt',
                                   show_col_types = FALSE)
 
 # Preparing data to normalization
@@ -38,5 +41,5 @@ protein.groups.export$`LFQ intensity WT_MITOS_22` <- lfq.eigen$WT_22
 protein.groups.export$`LFQ intensity WT_MITOS_23` <- lfq.eigen$WT_23
 protein.groups.export$`LFQ intensity WT_MITOS_24` <- lfq.eigen$WT_24
 
-write.table(protein.groups.export, file='./data/cleaned/proteinGroupsNormalized_MITOS2.txt',
+write.table(protein.groups.export, file='./data/cleaned/proteinGroupsNormalized_MITOS.txt',
             row.names = FALSE, sep = '\t')

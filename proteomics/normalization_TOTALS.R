@@ -1,3 +1,6 @@
+# INPUT: an imputed data from `proteinGroupsImputed_TOTALS.txt`
+# OUTPUT: a data frame with normalized data for TOTALS
+
 # NORMALIZATION with EigenMS for TOTALS
 
 library(tidyverse)
