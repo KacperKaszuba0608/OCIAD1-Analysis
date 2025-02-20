@@ -24,7 +24,6 @@ Repository content &#x1F333; &#x1F4C1;
     │   supplementary_excel_file.R
     │
     └───EigenMS.zip
-    └───EigenMS
 ```
 
 This repository contains the statistical analysis of the distributions of the mass spectrometry samples. 
