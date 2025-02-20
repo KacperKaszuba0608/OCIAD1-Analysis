@@ -1,3 +1,6 @@
+# INPUT: a raw data from proteinGroups.txt
+# OUTPUT: a data frame with filtered and imputed data for TOTALS
+
 # IMPUTATION OF THE MISSING DATA for TOTALS 
 # At first we assign the missingness to decide which rows should be included into
 # further analysis.

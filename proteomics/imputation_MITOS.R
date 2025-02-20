@@ -1,3 +1,6 @@
+# INPUT: a raw data from proteinGroups.txt
+# OUTPUT: a data frame with filtered and imputed data for MITOS
+
 # IMPUTATION OF THE MISSING DATA for MITOS 
 # At first we assign the missingness to decide which rows should be included into
 # further analysis.
