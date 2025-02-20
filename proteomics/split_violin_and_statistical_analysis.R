@@ -1,3 +1,5 @@
+# INPUT: 2 files from the output of the fold change calculation files
+
 library(org.Hs.eg.db)
 library(dplyr)
 library(ggplot2)
