@@ -44,7 +44,7 @@ We can break down proteomics analysis into the following steps:
 
 ### 1st step (Preparing Data)
 
-1. Run the `imputation_MITOS.R` and `imputation_TOTALS.R` files first. The imputation has been done using the Ludovic method from [`protti`](https://doi.org/10.1093/bioadv/vbab041) library. The input for both code files is the raw_data sheet from the supplementary file.
+1. Run the `imputation_MITOS.R` and `imputation_TOTALS.R` files first. The imputation has been done using the Ludovic method from [`protti`](https://doi.org/10.1093/bioadv/vbab041) library. The input for both code files is the `OCIAD1_prot_raw_data` sheet from the supplementary file.
 2. Next is the normalization, so run the files `normalization_MITOS.R` and `normalization_TOTALS.R`. The normalization was performed using the EigenMS method.
 3. The last process is the fold change calculation. For this you have to run the files `fold_change_calculation_MITOS.R` and `fold_change_calculation_TOTALS.R`.
 4. Now you can also analyse the data in terms of gene ontology (GO term analysis). To do this, run the `GO_enrichment.R` file.
