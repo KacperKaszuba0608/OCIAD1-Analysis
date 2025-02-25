@@ -30,6 +30,7 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
         dplyr::summarise(no_NAs = sum(is.na(lfq))) |>
         dplyr::ungroup()
     
+    # Assigning the missing type per condition
     missingness_per_cond <- purrr::map(number_missing1$no_NAs, function(no) {
         if (no == occur_per_cond) {
             rep("all_NA", occur_per_cond)
@@ -49,6 +50,7 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
         dplyr::summarise(no_NAs = sum(is.na(lfq))) |>
         dplyr::ungroup()
     
+    # Assigining the missing type per protein
     missingness_per_prot <- purrr::map(number_missing2$no_NAs, function(no) {
         if (no == occur) {
             rep("all_NA", occur)
@@ -65,6 +67,7 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
     prot.id.miss <- purrr::map(unique(number_missing2$prot.IDs), function(id) rep(id, occur))
     prot.id.miss <- data.frame(do.call(c,prot.id.miss))
     
+    # A data frame with received missing types
     df_miss <- data.frame(prot.id.miss, missingness_per_cond, missingness_per_prot)
     colnames(df_miss) <- c("prot.IDs", "missingness_per_cond", "missingness_per_prot")
     
@@ -74,7 +77,7 @@ assign_missing <- function(protein.ids, condition, lfq_intensity) {
     missingness_per_prot <- lapply(unique(protein.ids), function(id) df_miss[which(df_miss$prot.IDs == id),"missingness_per_prot"])
     df$missingness_per_prot <- do.call(c,missingness_per_prot)
     
-    # Testing new missing assigning
+    # Final missing assigning
     missingness_final <- df |>
         dplyr::select(condition, missingness_per_cond) |>
         tidyr::pivot_wider(id_cols=everything(), names_from = "condition", 
