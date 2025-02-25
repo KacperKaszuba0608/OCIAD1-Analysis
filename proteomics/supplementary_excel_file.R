@@ -22,7 +22,8 @@ fc_output_T <- merge(fc_output_T, organelles, by=c('Protein IDs', 'Gene names'),
 
 raw_data <- readr::read_tsv('./data/proteinGroups.txt') |>
     select(`Protein IDs`, `Gene names`, contains('LFQ intensity') 
-           & (ends_with('22') | ends_with('23') | ends_with('24')))
+           & (ends_with('22') | ends_with('23') | ends_with('24')),
+           `Peptide sequences`)
 
 df_go_mitos_up <- readr::read_csv("./data/GO_enrichment/OCIAD1_proteomics_mitos_GOterms_up.csv", show_col_types = F) |>
     select(ONTOLOGY, ID, Description, GeneRatio, BgRatio, pvalue, 
