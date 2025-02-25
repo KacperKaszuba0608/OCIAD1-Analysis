@@ -11,12 +11,8 @@ library(protti)
 source('./proteomics/fxn.R')
 
 # import data
-protein.groups <- read_tsv('./data/proteinGroups.txt', show_col_types = F) # 5561 proteins
+protein.groups <- read_tsv('./data/proteinGroups.txt', show_col_types = FALSE) # 5432 proteins left
 
-# filtering the data
-protein.groups <- protein.groups |> filter(is.na(`Only identified by site`), # 5432 proteins left
-                                           is.na(Reverse),
-                                           is.na(`Potential contaminant`))
 # extracting lfq values
 lfq <- protein.groups |>
     select(starts_with("LFQ Intensity") 
