@@ -1,6 +1,11 @@
-# OCIAD1 Analysis :dna:
+# OCIAD1 KO Analysis :dna:
 
-Repository content &#x1F333; &#x1F4C1;
+## Abstract
+
+This repository contains the code of the statisticial and data analysis of the data from the article 
+"Integrated proteome and lipidome analyses place OCIAD1 at mitochondria-peroxisome intersection balancing lipid metabolism" (https://doi.org/10.1101/2024.11.15.623757).
+
+## Repository content &#x1F333; &#x1F4C1;
 
 ```
 │   README.md
@@ -26,9 +31,10 @@ Repository content &#x1F333; &#x1F4C1;
     └───EigenMS.zip
 ```
 
-This repository contains the statistical analysis of the distributions of the mass spectrometry samples. 
-To see the result you should clone this repository to your own local machine, extract the `EigenMS.zip` 
-folder, set the working directory to `OCIAD1-Analysis` and then run the files.
+To see the result you should clone this repository to your own local machine, 
+extract the `EigenMS.zip` folder, create some folders like `data` and inside of 
+it a `cleaned` folder, set the working directory to `OCIAD1-Analysis` and then 
+run the files. 
 
 ## Proteomics analysis
 
@@ -38,7 +44,7 @@ We can break down proteomics analysis into the following steps:
 
 ### 1st step (Preparing Data)
 
-1. Run the `imputation_MITOS.R` and `imputation_TOTALS.R` files first. The imputation has been done using the Ludovic method from [`protti`](https://doi.org/10.1093/bioadv/vbab041) library.
+1. Run the `imputation_MITOS.R` and `imputation_TOTALS.R` files first. The imputation has been done using the Ludovic method from [`protti`](https://doi.org/10.1093/bioadv/vbab041) library. The input for both code files is the raw_data sheet from the supplementary file.
 2. Next is the normalization, so run the files `normalization_MITOS.R` and `normalization_TOTALS.R`. The normalization was performed using the EigenMS method.
 3. The last process is the fold change calculation. For this you have to run the files `fold_change_calculation_MITOS.R` and `fold_change_calculation_TOTALS.R`.
 4. Now you can also analyse the data in terms of gene ontology (GO term analysis). To do this, run the `GO_enrichment.R` file.
@@ -73,3 +79,11 @@ PLoS One 2014
 3) Jan-Philipp Quast, Dina Schuster, Paola Picotti. protti: an R package for comprehensive 
 data analysis of peptide- and protein-centric bottom-up proteomics data. Bioinformatics 
 Advances, Volume 2, Issue 1, 2022, vbab041, https://doi.org/10.1093/bioadv/vbab041
+
+4) Rath, S.,* Sharma, R.*, Gupta, R.*, ..., Calvo, S.E., Mootha, V.K.. MitoCarta3.0: 
+An updated inventory of the mitochondrial proteome, now with sub-organelle localization
+ and pathway annotations (2020). Nucleic Acids Research [Pubmed: 33174596](https://pubmed.ncbi.nlm.nih.gov/33174596/)
+
+5) Schluter, A., Real-Chicharro, A., Gabaldon, T., Sanchez-Jimenez, F. and Pujol, A. 
+(2010) PeroxisomeDB 2.0: An integrative view of the global peroxisomal metabolome. 
+Nucleic Acids Res, 38, D800-5. doi: https://doi.org/10.1093/nar/gkp935
