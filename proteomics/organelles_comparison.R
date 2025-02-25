@@ -12,7 +12,7 @@ peroxisomeDB <- readr::read_csv('./data/peroxisomeDB.csv', show_col_types = F) |
     select(Gene.names, Organelle)
 colnames(peroxisomeDB) <- c('Gene.names', 'PeroxisomeDB')
 
-mitocarta <- readr::read_csv('./data/Human.MitoCarta3.0.csv', show_col_types = F) |>
+mitocarta <- readr::read_csv('./data/Human.MitoCarta3.0.csv', show_col_types = F) |> # https://personal.broadinstitute.org/scalvo/MitoCarta3.0/Human.MitoCarta3.0.xls
     select(Symbol, MitoCarta3.0_List)
 colnames(mitocarta) <- c('Symbol', 'MitoCarta3.0')
     
