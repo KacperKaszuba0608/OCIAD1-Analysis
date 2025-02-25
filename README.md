@@ -81,8 +81,8 @@ data analysis of peptide- and protein-centric bottom-up proteomics data. Bioinfo
 Advances, Volume 2, Issue 1, 2022, vbab041, https://doi.org/10.1093/bioadv/vbab041
 
 4) Rath, S.,* Sharma, R.*, Gupta, R.*, ..., Calvo, S.E., Mootha, V.K.. MitoCarta3.0: 
-An updated inventory of the mitochondrial proteome, now with sub-organelle localization
- and pathway annotations (2020). Nucleic Acids Research [Pubmed: 33174596](https://pubmed.ncbi.nlm.nih.gov/33174596/)
+an updated inventory of the mitochondrial proteome, now with sub-organelle localization
+and pathway annotations (2020). Nucleic Acids Research [Pubmed: 33174596](https://pubmed.ncbi.nlm.nih.gov/33174596/)
 
 5) Schluter, A., Real-Chicharro, A., Gabaldon, T., Sanchez-Jimenez, F. and Pujol, A. 
 (2010) PeroxisomeDB 2.0: An integrative view of the global peroxisomal metabolome. 
