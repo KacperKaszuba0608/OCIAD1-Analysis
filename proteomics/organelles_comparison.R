@@ -8,7 +8,7 @@
 library("org.Hs.eg.db")
 library(dplyr)
 
-peroxisomeDB <- readr::read_csv('./data/peroxisomeDB.csv', show_col_types = F) |>
+peroxisomeDB <- readr::read_csv('./data/peroxisomeDB.csv', show_col_types = F) |> # an output from peroxisomeDB.R
     select(Gene.names, Organelle)
 colnames(peroxisomeDB) <- c('Gene.names', 'PeroxisomeDB')
 
