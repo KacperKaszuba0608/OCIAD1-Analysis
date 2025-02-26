@@ -21,6 +21,9 @@ fc_output_T <- merge(fc_output_T, organelles, by=c('Protein IDs', 'Gene names'),
     distinct()
 
 raw_data <- readr::read_tsv('./data/proteinGroups.txt') |>
+    filter(is.na(`Only identified by site`),
+           is.na(Reverse),
+           is.na(`Potential contaminant`)) |>
     select(`Protein IDs`, `Gene names`, contains('LFQ intensity') 
            & (ends_with('22') | ends_with('23') | ends_with('24')),
            `Peptide sequences`)
