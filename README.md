@@ -11,7 +11,15 @@ This repository contains the code of the statisticial and data analysis of the d
 │   README.md
 │
 ├───lipidomics
-│       Lipid_analysis_final.Rmd
+|       Data_extraction.R
+|       Fatty_acid_analysis_MITOS.R
+|       Fatty_acid_analysis_TOTALS.R
+|       Fatty_acids_boxplot.R
+|       Lipid_class_boxplot.R
+|       Preprocessing_MITOS.R
+|       Preprocessing_TOTALS.R
+|       Supplementary_excel_file.R
+|       Volcano_plot.R
 │
 └───proteomics
     │   fold_change_calculation_MITOS.R
@@ -60,7 +68,22 @@ Good luck! 😉
 
 ## Lipidomics analysis
 
-Open and run the `Lipid_analysis_final.Rmd` file.
+Similarly, the lipidomics analysis can be broken up into into the following steps:
+1. Data preparation and calculation of all necessary measures.
+2. Visualisation of the results.
+
+### 1st step (Preparing Data)
+
+1. The `Data_extraction.R` file takes in the raw data and extracts the information we need and separates it for MITOS and TOTALS.
+2. The `Preprocessing_MITOS.R` and `Preprocessing_TOTALS.R` files perform the normalisation, fold change calculation, and statistical testing of the data.
+3. The `Fatty_acids_MITOS.R` and `Fatty_acids_TOTALS.R` files extract useful information about fatty acid chains, such as the chain lengths and number of double bonds, from the lipid identifiers.
+
+### 2nd step (Visualizing the results)
+
+1. The data is ready for plotting using the `Volcano_plot.R`, `Lipid_class_boxplot.R`, and `Fatty_acids_boxplot.R` files.
+2. The `Lipid_class_boxplot.R` creates a boxplot and scatter plot combination of fold changes for each lipid class.
+3. The `Fatty_acids_boxplot.R` creates a boxplot and scatter plot combination of fold changes for each combination of fatty acid chain characteristics, even/odd length of the chains and whether they are ether lipids.
+4. A supplementary file with all the data can be generated using the `Supplementary_excel_file.R` file.
 
 Enjoy!
 
