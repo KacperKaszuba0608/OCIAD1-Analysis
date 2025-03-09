@@ -41,7 +41,7 @@ This repository contains the code of the statisticial and data analysis of the d
 
 To see the result you should clone this repository to your own local machine, 
 extract the `EigenMS.zip` folder, create some folders like `data` and inside of 
-it a `cleaned` folder, set the working directory to `OCIAD1-Analysis` and then 
+it a `cleaned` and a `GO_enrichment` folder, set the working directory to `OCIAD1-Analysis` and then 
 run the files. 
 
 ## Proteomics analysis
@@ -63,6 +63,8 @@ We can break down proteomics analysis into the following steps:
 2. To plot the split violin and also perform statistical analysis, run the `split_violin_and_statistical_analysis.R` file.
 3. To create a supplementary file with all the data, run the `supplementary_excel_file.R` file. Note: 
 Before you running this file, you need to create a file with organelles comparison. To do this run `organelles_comparison.R`.
+
+Another way to run the analysis is to run the `pipeline.R` file and most of the analysis will be done except plotting files.
 
 Good luck! 😉
 
