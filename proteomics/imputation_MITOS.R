@@ -9,6 +9,7 @@
 library(tidyverse)
 library(protti)
 source('./proteomics/fxn.R')
+set.seed(1111)
 
 # import data
 protein.groups <- read_tsv('./data/proteinGroups.txt', show_col_types = FALSE) # 5432 proteins left
@@ -32,6 +33,7 @@ rows.to.keep <- which((temp[,1] == 3 & temp[,2] == 0) | (temp[,1] == 0 & temp[,2
                           (temp[,1] == 0 & temp[,2] == 0) | (temp[,1] == 1 & temp[,2] == 1) |
                           (temp[,1] == 2 & temp[,2] == 0) | (temp[,1] == 0 & temp[,2] == 2))
 
+lfq <- lfq[rows.to.keep, ]
 protein.groups <- protein.groups[rows.to.keep, ] # 3318 proteins left
 
 ################################## IMPUTATION ##################################
@@ -139,6 +141,15 @@ if (nrow(duplicates) != 0) {
     imputed_MITOS[imputed_MITOS$`Protein IDs` %in% duplicates$`Protein IDs`, 4:9] <- correct_dup_rows[,4:9]
 }
 
+# Check which was imputed
+imputed_MITOS$imputed_KO_22_MITOS = is_imputed(lfq$KO.22, imputed_MITOS$KO_22)
+imputed_MITOS$imputed_KO_23_MITOS = is_imputed(lfq$KO.23, imputed_MITOS$KO_23)
+imputed_MITOS$imputed_KO_24_MITOS = is_imputed(lfq$KO.24, imputed_MITOS$KO_24)
+
+imputed_MITOS$imputed_WT_22_MITOS = is_imputed(lfq$WT.22, imputed_MITOS$WT_22)
+imputed_MITOS$imputed_WT_23_MITOS = is_imputed(lfq$WT.22, imputed_MITOS$WT_23)
+imputed_MITOS$imputed_WT_24_MITOS = is_imputed(lfq$WT.22, imputed_MITOS$WT_24)
+
 # Exporting results
 protein.groups.export <- protein.groups
 
@@ -150,6 +161,7 @@ protein.groups.export$`LFQ intensity WT_MITOS_23` <- imputed_MITOS$WT_23
 protein.groups.export$`LFQ intensity WT_MITOS_24` <- imputed_MITOS$WT_24
 protein.groups.export$missingness <- imputed_MITOS$missingness2
 protein.groups.export$imputed <- imputed_MITOS$imputed
+protein.groups.export <- cbind.data.frame(protein.groups.export, imputed_MITOS[,10:15])
 
 write.table(protein.groups.export, file='./data/cleaned/proteinGroupsImputed_MITOS.txt', 
             row.names = FALSE, sep = '\t')

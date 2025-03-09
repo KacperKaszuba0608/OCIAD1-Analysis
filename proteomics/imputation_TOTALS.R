@@ -9,9 +9,10 @@
 library(tidyverse)
 library(protti)
 source('./proteomics/fxn.R')
+set.seed(1111)
 
 # import data
-protein.groups <- read_tsv('./data/proteinGroups.txt', show_col_types = F) # 5432 proteins left
+protein.groups <- read_tsv('./data/proteinGroups.txt', show_col_types = FALSE) # 5432 proteins left
 
 # extracting lfq values
 lfq <- protein.groups |>
@@ -32,6 +33,7 @@ rows.to.keep <- which((temp[,1] == 3 & temp[,2] == 0) | (temp[,1] == 0 & temp[,2
                           (temp[,1] == 0 & temp[,2] == 0) | (temp[,1] == 1 & temp[,2] == 1) |
                           (temp[,1] == 2 & temp[,2] == 0) | (temp[,1] == 0 & temp[,2] == 2))
 
+lfq <- lfq[rows.to.keep, ]
 protein.groups <- protein.groups[rows.to.keep, ] # 3909 proteins left
 
 ################################## IMPUTATION ##################################
@@ -137,6 +139,15 @@ imputed_TOTALS <- imputed_TOTALS[-rows_to_drop,]
 
 imputed_TOTALS[imputed_TOTALS$`Protein IDs` %in% duplicates$`Protein IDs`, 4:9] <- correct_dup_rows[,4:9]
 
+# Check which was imputed
+imputed_TOTALS$imputed_KO_22_TOTALS = is_imputed(lfq$KO.22, imputed_TOTALS$KO_22)
+imputed_TOTALS$imputed_KO_23_TOTALS = is_imputed(lfq$KO.23, imputed_TOTALS$KO_23)
+imputed_TOTALS$imputed_KO_24_TOTALS = is_imputed(lfq$KO.24, imputed_TOTALS$KO_24)
+
+imputed_TOTALS$imputed_WT_22_TOTALS = is_imputed(lfq$WT.22, imputed_TOTALS$WT_22)
+imputed_TOTALS$imputed_WT_23_TOTALS = is_imputed(lfq$WT.22, imputed_TOTALS$WT_23)
+imputed_TOTALS$imputed_WT_24_TOTALS = is_imputed(lfq$WT.22, imputed_TOTALS$WT_24)
+
 # Exporting results
 protein.groups.export <- protein.groups
 
@@ -148,6 +159,7 @@ protein.groups.export$`LFQ intensity WT_TOTALS_23` <- imputed_TOTALS$WT_23
 protein.groups.export$`LFQ intensity WT_TOTALS_24` <- imputed_TOTALS$WT_24
 protein.groups.export$missingness <- imputed_TOTALS$missingness2
 protein.groups.export$imputed <- imputed_TOTALS$imputed
+protein.groups.export <- cbind.data.frame(protein.groups.export, imputed_TOTALS[,10:15])
 
 write.table(protein.groups.export, file='./data/cleaned/proteinGroupsImputed_TOTALS.txt', 
             row.names = FALSE, sep = '\t')
