@@ -337,7 +337,7 @@ organelle_violin_split <- ggplot() +
 
 organelle_violin_split
 
-ggsave('./proteomics/plots/split_violin.png', plot = organelle_violin_split,
-       width = 6, height = 8, units = "in")
-ggsave('./proteomics/plots/split_violin.pdf', plot = organelle_violin_split,
-       width = 6, height = 8, units = "in")
+# ggsave('./proteomics/plots/split_violin.png', plot = organelle_violin_split,
+#        width = 6, height = 8, units = "in")
+# ggsave('./proteomics/plots/split_violin.pdf', plot = organelle_violin_split,
+#        width = 6, height = 8, units = "in")
