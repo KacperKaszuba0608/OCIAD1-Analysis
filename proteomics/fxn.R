@@ -153,3 +153,16 @@ shift_dist_impute <- function(df, width = 0.5, downshift = 1, seed = 7694) {
     
     return(df)
 }
+
+is_imputed <- function(df1, df2) {
+    if (!is.data.frame(df1)) {df1 <- as.data.frame(df1)}
+    if (!is.data.frame(df2)) {df2 <- as.data.frame(df2)}
+    
+    res <- sapply(1:nrow(df1)[1], 
+                  function(row) {
+                      na_df1 = sum(is.na(df1[row,]))
+                      na_df2 = sum(is.na(df2[row,]))
+                      return(ifelse(na_df1 != na_df2, TRUE, FALSE))
+                  })
+    return(res)
+}
