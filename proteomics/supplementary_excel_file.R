@@ -11,12 +11,12 @@ library(dplyr)
 organelles <- readr::read_csv('./data/organelles.csv')
 
 fc_output_M <- readr::read_csv('./data/cleaned/OCIAD1_proteomics_mitos_process.csv') |> 
-    select(-contains('MitoCarta'))
+    select(-contains('MitoCarta'), -contains('imputed'))
 fc_output_M <- merge(fc_output_M, organelles, by=c('Protein IDs', 'Gene names'), all.x = TRUE) |>
     distinct()
 
 fc_output_T <- readr::read_csv('./data/cleaned/OCIAD1_proteomics_totals_process.csv') |> 
-    select(-contains('MitoCarta'))
+    select(-contains('MitoCarta'), -contains('imputed'))
 fc_output_T <- merge(fc_output_T, organelles, by=c('Protein IDs', 'Gene names'), all.x = TRUE) |>
     distinct()
 

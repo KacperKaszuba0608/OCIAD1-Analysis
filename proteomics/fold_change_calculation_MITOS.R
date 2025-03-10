@@ -14,7 +14,7 @@ protein.groups <- read_tsv('./data/cleaned/proteinGroupsNormalized_MITOS.txt',
 metadata <- merge(protein.groups, mitocarta, by.x = 'Gene names', by.y = 'Symbol', all.x = TRUE)
 metadata <- metadata |>
     select(`Protein IDs`, `Gene names`, `Protein names`, MitoCarta3.0_SubMitoLocalization, 
-           MitoCarta3.0_MitoPathways, missingness)
+           MitoCarta3.0_MitoPathways, missingness, contains('imputed'))
 
 # setting cut offs
 cutoff.p = 0.05 # alpha for t-test
@@ -70,7 +70,7 @@ final_table <- merge(metadata, final_table, by.y = 'protein.ids', by.x = 'Protei
     select(`Protein IDs`, `Gene names`, `Protein names`, MitoCarta3.0_SubMitoLocalization, 
            MitoCarta3.0_MitoPathways, FC_MITOS_OCIAD1, p_OCIAD1_MITOS, sig_MITOS_OCIAD1,
            LFQ_KO_MITOS_22, LFQ_KO_MITOS_23, LFQ_KO_MITOS_24, LFQ_WT_MITOS_22, 
-           LFQ_WT_MITOS_23, LFQ_WT_MITOS_24, missingness)
+           LFQ_WT_MITOS_23, LFQ_WT_MITOS_24, missingness, contains('imputed'))
 
 write.csv(final_table, file = './data/cleaned/OCIAD1_proteomics_mitos_process.csv',
           row.names = FALSE)
