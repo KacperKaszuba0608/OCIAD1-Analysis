@@ -11,32 +11,33 @@ This repository contains the code of the statisticial and data analysis of the d
 │   README.md
 │
 ├───lipidomics
-|       Data_extraction.R
-|       Fatty_acid_analysis_MITOS.R
-|       Fatty_acid_analysis_TOTALS.R
-|       Fatty_acids_boxplot.R
-|       Lipid_class_boxplot.R
-|       Preprocessing_MITOS.R
-|       Preprocessing_TOTALS.R
-|       Supplementary_excel_file.R
-|       Volcano_plot.R
+│       Data_extraction.R
+│       Fatty_acids_boxplot.R
+│       Fatty_acid_analysis_MITOS.R
+│       Fatty_acid_analysis_TOTALS.R
+│       fxn.R
+│       Lipid_class_boxplot.R
+│       Preprocessing_MITOS.R
+│       Preprocessing_TOTALS.R
+│       Supplementary_excel_file.R
+│       Volcano_plot.R
 │
 └───proteomics
-    │   fold_change_calculation_MITOS.R
-    │   fold_change_calculation_TOTALS.R
-    │   fxn.R
-    │   GO_enrichment.R
-    │   imputation_MITOS.R
-    │   imputation_TOTALS.R
-    │   normalization_MITOS.R
-    │   normalization_TOTALS.R
-    │   organelles_comparison.R
-    │   peroxisomeDB.R
-    │   plotting.R
-    │   split_violin_and_statistical_analysis.R
-    │   supplementary_excel_file.R
-    │
-    └───EigenMS.zip
+        EigenMS.zip
+        fold_change_calculation_MITOS.R
+        fold_change_calculation_TOTALS.R
+        fxn.R
+        GO_enrichment.R
+        imputation_MITOS.R
+        imputation_TOTALS.R
+        normalization_MITOS.R
+        normalization_TOTALS.R
+        organelles_comparison.R
+        peroxisomeDB.R
+        pipeline.R
+        plotting.R
+        split_violin_and_statistical_analysis.R
+        supplementary_excel_file.R
 ```
 
 To see the result you should clone this repository to your own local machine, 
