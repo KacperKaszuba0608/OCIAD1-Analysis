@@ -269,7 +269,8 @@ FC_organ_copy <- FC_organ_copy |>
 
 #Pivoting the df so that the Batch and LFQs are their own columns
 FC_organ_copy <- FC_organ_copy |> tidyr::pivot_longer(c(mean_lfq_WT_M, mean_lfq_WT_T), names_to = "Batch", values_to = "LFQ") |>
-    mutate(transparency = ifelse(Batch == 'mean_lfq_WT_M', 0.9, 1))
+    mutate(transparency = ifelse(Batch == 'mean_lfq_WT_M', 0.9, 1),
+           LFQ = log2(LFQ))
 
 # create custom legend
 legend_grob <- grobTree(
@@ -319,7 +320,7 @@ organelle_violin_split <- ggplot() +
                                   y = LFQ, fill = interaction(Batch, color), alpha = transparency,
                                   color = ifelse(Batch == 'mean_lfq_WT_M', color, 'black')),
                       trim = FALSE, draw_quantiles = c(0.5), linewidth = 0.7, scale = 'width') +
-    ylab('Log2 of the Mean LFQ Intensity') +
+    ylab('Log2 of the Mean LFQ Intensity in WT') +
     theme_bw() +
     theme(axis.text = element_text(size = 12), axis.title.y = element_blank(), 
           legend.position = c(0.99, 1), legend.justification = c("right", "top"), 

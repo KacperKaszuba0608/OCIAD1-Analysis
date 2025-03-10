@@ -83,7 +83,7 @@ df_to_protti <- protein.groups |>
     mutate(Sample = gsub("_MITOS_", "_", Sample)) |>
     separate(col =  Sample, into = c("celltype","rep"), sep = "_", remove = F) |>
     mutate(Condition = ifelse(celltype == "KO", "treated", "control"),
-           Intensity = ifelse(Intensity == 0, NA, Intensity)) |> 
+           Intensity = ifelse(Intensity == 0, NA, log2(Intensity))) |> 
     select(Sample, `Protein IDs`, `Peptide sequences`, Condition, Intensity)
 
 # assign missingness with protti fxn
