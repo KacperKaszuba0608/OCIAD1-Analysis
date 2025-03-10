@@ -269,8 +269,7 @@ FC_organ_copy <- FC_organ_copy |>
 
 #Pivoting the df so that the Batch and LFQs are their own columns
 FC_organ_copy <- FC_organ_copy |> tidyr::pivot_longer(c(mean_lfq_WT_M, mean_lfq_WT_T), names_to = "Batch", values_to = "LFQ") |>
-    mutate(transparency = ifelse(Batch == 'mean_lfq_WT_M', 0.9, 1),
-           LFQ = log2(LFQ))
+    mutate(transparency = ifelse(Batch == 'mean_lfq_WT_M', 0.9, 1))
 
 # create custom legend
 legend_grob <- grobTree(
@@ -338,7 +337,7 @@ organelle_violin_split <- ggplot() +
 
 organelle_violin_split
 
-# ggsave('./proteomics/plots/split_violin.png', plot = organelle_violin_split,
-#        width = 6, height = 8, units = "in")
-# ggsave('./proteomics/plots/split_violin.pdf', plot = organelle_violin_split,
-#        width = 6, height = 8, units = "in")
+ggsave('./plots/split_violin.png', plot = organelle_violin_split,
+       width = 6, height = 8, units = "in")
+ggsave('./plots/split_violin.pdf', plot = organelle_violin_split,
+       width = 6, height = 8, units = "in")
