@@ -110,7 +110,7 @@ lfq_totals_WT <- lfq_totals |> select(`Protein IDs`, `Gene names`, Organelle, co
 lfq_mitos_WT$mean_lfq_WT_M <- mean_lfq(lfq_mitos_WT)
 lfq_totals_WT$mean_lfq_WT_T <- mean_lfq(lfq_totals_WT)
 
-lfq_mitos <- cbind.data.frame(lfq_mitos_WT) |>
+lfq_mitos <- lfq_mitos_WT |>
     filter(!is.na(mean_lfq_WT_M)) |>
     mutate(Organelle = as.factor(Organelle))
 
@@ -144,7 +144,7 @@ bartlett.test(mean_lfq_WT_T ~ Organelle, data = lfq_totals)
 # Our data comes from a non-Gaussian distribution, so we couldn't use the ANOVA test. 
 # Instead of ANOVA, we could use a non-parametric equivalent called the Kruskal-Wallis test.
 
-#### Kruskal-Wallis Test for MITOS ####
+##### Kruskal-Wallis Test for MITOS #####
 # H0: There is no significant difference between organelles in a MITOS sample.
 # H1: There is a significant difference between organelles in a MITOS sample.
 
@@ -163,7 +163,7 @@ FSA::dunnTest(mean_lfq_WT_M ~ Organelle, data = lfq_mitos, method='bonferroni')$
 # Visualization
 show_posthoc(lfq_mitos, 'mean_lfq_WT_M', 'Organelle', 'a','b', 'b', 'b', 'b', sample = 'MITOS')
 
-#### Kruskal-Wallis Test for TOTALS ####
+##### Kruskal-Wallis Test for TOTALS #####
 # H0: There is no significant difference between organelles in a TOTALS sample.
 # H1: There is a significant difference between organelles in a TOTALS sample.
 
