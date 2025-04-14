@@ -3,7 +3,7 @@
 ## Abstract
 
 This repository contains the code of the statisticial and data analysis of the data from the article 
-"Integrated proteome and lipidome analyses place OCIAD1 at mitochondria-peroxisome intersection balancing lipid metabolism" (https://doi.org/10.1101/2024.11.15.623757).
+"Integrated proteome and lipidome analyses place OCIAD1 at mitochondria-peroxisome intersection balancing lipid metabolism" (https://doi.org/10.1242/jcs.263729).
 
 ## Repository content &#x1F333; &#x1F4C1;
 
